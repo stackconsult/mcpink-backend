@@ -1,0 +1,36 @@
+directive @isAuthenticated on FIELD_DEFINITION
+
+scalar Time
+
+type User {
+  id: ID!
+  githubUsername: String!
+  avatarUrl: String
+  createdAt: Time!
+  hasFlyioCredentials: Boolean!
+}
+
+type APIKey {
+  id: ID!
+  name: String!
+  prefix: String!
+  lastUsedAt: Time
+  createdAt: Time!
+}
+
+type CreateAPIKeyResult {
+  apiKey: APIKey!
+  secret: String!
+}
+
+type Query {
+  me: User @isAuthenticated
+  myAPIKeys: [APIKey!]! @isAuthenticated
+}
+
+type Mutation {
+  createAPIKey(name: String!): CreateAPIKeyResult! @isAuthenticated
+  revokeAPIKey(id: ID!): Boolean! @isAuthenticated
+  updateFlyioCredentials(token: String!, organization: String!): Boolean! @isAuthenticated
+  removeFlyioCredentials: Boolean! @isAuthenticated
+}

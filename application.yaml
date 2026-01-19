@@ -1,0 +1,34 @@
+graphqlapi:
+  port: 8081
+  validatortype: "jwk"
+  jwtjwksurl: ""
+  enableintrospection: true
+
+db:
+  url: "postgres://deploy:deploy@localhost:5432/deploymcp?sslmode=disable"
+  maxconns: 10
+  minconns: 2
+  maxconnlifetime: "30m"
+  maxconnidletime: "5m"
+
+github:
+  clientid: ""
+  clientsecret: ""
+  callbackurl: "http://localhost:8081/auth/github/callback"
+  scopes:
+    - repo
+
+auth:
+  jwtsecret: ""
+  jwtexpiry: "24h"
+  apikeyencryptionkey: ""
+  sessioncookiename: "deploy_session"
+  sessioncookiesecure: false
+  sessioncookiedomain: ""
+  frontendurl: "http://localhost:3000"
+
+openrouter:
+  apikey: ""
+
+openai:
+  apikey: ""
