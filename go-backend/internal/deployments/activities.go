@@ -8,26 +8,75 @@ import (
 	"time"
 
 	"github.com/augustdev/autoclip/internal/coolify"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
 	"go.temporal.io/sdk/activity"
 )
 
 type Activities struct {
-	coolify   *coolify.Client
-	servicesQ services.Querier
-	logger    *slog.Logger
+	coolify *coolify.Client
+	appsQ   apps.Querier
+	logger  *slog.Logger
 }
 
-func NewActivities(coolify *coolify.Client, servicesQ services.Querier, logger *slog.Logger) *Activities {
+func NewActivities(coolify *coolify.Client, appsQ apps.Querier, logger *slog.Logger) *Activities {
 	return &Activities{
-		coolify:   coolify,
-		servicesQ: servicesQ,
-		logger:    logger,
+		coolify: coolify,
+		appsQ:   appsQ,
+		logger:  logger,
 	}
 }
 
-type CreateAppInput struct {
-	ServiceID     string
+func (a *Activities) CreateAppRecord(ctx context.Context, input CreateAppRecordInput) (*CreateAppRecordResult, error) {
+	a.logger.Info("Creating app record",
+		"userID", input.UserID,
+		"repo", input.Repo,
+		"workflowID", input.WorkflowID)
+
+	serverID := a.coolify.GetMuscleServer()
+
+	app, err := a.appsQ.CreateApp(ctx, apps.CreateAppParams{
+		UserID:     input.UserID,
+		Repo:       input.Repo,
+		Branch:     input.Branch,
+		ServerUuid: serverID,
+		Name:       &input.Name,
+		BuildPack:  input.BuildPack,
+		Port:       input.Port,
+		EnvVars:    input.EnvVars,
+		WorkflowID: input.WorkflowID,
+	})
+	if err != nil {
+		a.logger.Error("Failed to create app record",
+			"userID", input.UserID,
+			"repo", input.Repo,
+			"error", err)
+		return nil, fmt.Errorf("failed to create app record: %w", err)
+	}
+
+	a.logger.Info("Created app record",
+		"appID", app.ID,
+		"workflowID", input.WorkflowID)
+
+	return &CreateAppRecordResult{AppID: app.ID}, nil
+}
+
+type CreateAppRecordInput struct {
+	UserID     string
+	WorkflowID string
+	Repo       string
+	Branch     string
+	Name       string
+	BuildPack  string
+	Port       string
+	EnvVars    []byte
+}
+
+type CreateAppRecordResult struct {
+	AppID string
+}
+
+type CoolifyAppInput struct {
+	AppID         string
 	GitHubAppUUID string
 	Repo          string
 	Branch        string
@@ -36,14 +85,14 @@ type CreateAppInput struct {
 	Port          string
 }
 
-type CreateAppResult struct {
+type CoolifyAppResult struct {
 	CoolifyAppUUID string
 	ServerID       string
 }
 
-func (a *Activities) CreateAppFromPrivateGithub(ctx context.Context, input CreateAppInput) (*CreateAppResult, error) {
+func (a *Activities) CreateAppFromPrivateGithub(ctx context.Context, input CoolifyAppInput) (*CoolifyAppResult, error) {
 	a.logger.Info("Creating app from private GitHub",
-		"serviceID", input.ServiceID,
+		"appID", input.AppID,
 		"repo", input.Repo,
 		"branch", input.Branch,
 		"gitHubAppUUID", input.GitHubAppUUID)
@@ -71,28 +120,28 @@ func (a *Activities) CreateAppFromPrivateGithub(ctx context.Context, input Creat
 	resp, err := a.coolify.Applications.CreatePrivateGitHubApp(ctx, req)
 	if err != nil {
 		a.logger.Error("Failed to create Coolify application",
-			"serviceID", input.ServiceID,
+			"appID", input.AppID,
 			"error", err)
 		return nil, fmt.Errorf("failed to create Coolify application: %w", err)
 	}
 
-	_, err = a.servicesQ.UpdateServiceCoolifyApp(ctx, services.UpdateServiceCoolifyAppParams{
-		ID:             input.ServiceID,
+	_, err = a.appsQ.UpdateAppCoolifyUUID(ctx, apps.UpdateAppCoolifyUUIDParams{
+		ID:             input.AppID,
 		CoolifyAppUuid: &resp.UUID,
 	})
 	if err != nil {
-		a.logger.Error("Failed to update service with Coolify app UUID",
-			"serviceID", input.ServiceID,
+		a.logger.Error("Failed to update app with Coolify UUID",
+			"appID", input.AppID,
 			"coolifyUUID", resp.UUID,
 			"error", err)
-		return nil, fmt.Errorf("failed to update service with Coolify app UUID: %w", err)
+		return nil, fmt.Errorf("failed to update app with Coolify UUID: %w", err)
 	}
 
 	a.logger.Info("Created Coolify application",
-		"serviceID", input.ServiceID,
+		"appID", input.AppID,
 		"coolifyUUID", resp.UUID)
 
-	return &CreateAppResult{CoolifyAppUUID: resp.UUID, ServerID: serverID}, nil
+	return &CoolifyAppResult{CoolifyAppUUID: resp.UUID, ServerID: serverID}, nil
 }
 
 type BulkUpdateEnvsInput struct {
@@ -161,7 +210,7 @@ func (a *Activities) StartApp(ctx context.Context, input StartAppInput) (*StartA
 }
 
 type WaitForRunningInput struct {
-	ServiceID      string
+	AppID          string
 	CoolifyAppUUID string
 }
 
@@ -176,14 +225,13 @@ const (
 
 func (a *Activities) WaitForRunning(ctx context.Context, input WaitForRunningInput) (*WaitForRunningResult, error) {
 	a.logger.Info("Waiting for app to be running",
-		"serviceID", input.ServiceID,
+		"appID", input.AppID,
 		"coolifyUUID", input.CoolifyAppUUID,
 		"timeout", pollTimeout)
 
 	deadline := time.Now().Add(pollTimeout)
 
 	for time.Now().Before(deadline) {
-		// Check for cancellation
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -211,37 +259,35 @@ func (a *Activities) WaitForRunning(ctx context.Context, input WaitForRunningInp
 
 		activity.RecordHeartbeat(ctx, app.Status)
 
-		// Status can be "running", "running:healthy", "running:unknown", etc.
 		if strings.HasPrefix(app.Status, "running") {
-			_, err = a.servicesQ.UpdateServiceRunning(ctx, services.UpdateServiceRunningParams{
-				ID:   input.ServiceID,
+			_, err = a.appsQ.UpdateAppRunning(ctx, apps.UpdateAppRunningParams{
+				ID:   input.AppID,
 				Fqdn: &fqdn,
 			})
 			if err != nil {
-				a.logger.Error("Failed to update service to running",
-					"serviceID", input.ServiceID,
+				a.logger.Error("Failed to update app to running",
+					"appID", input.AppID,
 					"error", err)
-				return nil, fmt.Errorf("failed to update service to running: %w", err)
+				return nil, fmt.Errorf("failed to update app to running: %w", err)
 			}
 
 			a.logger.Info("Application is running",
-				"serviceID", input.ServiceID,
+				"appID", input.AppID,
 				"coolifyUUID", input.CoolifyAppUUID,
 				"fqdn", fqdn)
 
 			return &WaitForRunningResult{FQDN: fqdn}, nil
 		}
 
-		// Only treat explicit error/failed states as permanent failures
 		if strings.HasPrefix(app.Status, "error") || app.Status == "failed" {
 			errMsg := fmt.Sprintf("application failed with status: %s", app.Status)
-			_, dbErr := a.servicesQ.UpdateServiceFailed(ctx, services.UpdateServiceFailedParams{
-				ID:           input.ServiceID,
+			_, dbErr := a.appsQ.UpdateAppFailed(ctx, apps.UpdateAppFailedParams{
+				ID:           input.AppID,
 				ErrorMessage: &errMsg,
 			})
 			if dbErr != nil {
-				a.logger.Error("Failed to update service as failed",
-					"serviceID", input.ServiceID,
+				a.logger.Error("Failed to update app as failed",
+					"appID", input.AppID,
 					"error", dbErr)
 			}
 			return nil, fmt.Errorf("application failed with status: %s", app.Status)
@@ -250,29 +296,28 @@ func (a *Activities) WaitForRunning(ctx context.Context, input WaitForRunningInp
 		time.Sleep(pollInterval)
 	}
 
-	// Timeout - return error to trigger retry
 	return nil, fmt.Errorf("app not running after %v, will retry", pollTimeout)
 }
 
-type UpdateServiceFailedInput struct {
-	ServiceID    string
+type UpdateAppFailedInput struct {
+	AppID        string
 	ErrorMessage string
 }
 
-func (a *Activities) UpdateServiceFailed(ctx context.Context, input UpdateServiceFailedInput) error {
-	a.logger.Info("Marking service as failed",
-		"serviceID", input.ServiceID,
+func (a *Activities) UpdateAppFailed(ctx context.Context, input UpdateAppFailedInput) error {
+	a.logger.Info("Marking app as failed",
+		"appID", input.AppID,
 		"error", input.ErrorMessage)
 
-	_, err := a.servicesQ.UpdateServiceFailed(ctx, services.UpdateServiceFailedParams{
-		ID:           input.ServiceID,
+	_, err := a.appsQ.UpdateAppFailed(ctx, apps.UpdateAppFailedParams{
+		ID:           input.AppID,
 		ErrorMessage: &input.ErrorMessage,
 	})
 	if err != nil {
-		a.logger.Error("Failed to update service as failed",
-			"serviceID", input.ServiceID,
+		a.logger.Error("Failed to update app as failed",
+			"appID", input.AppID,
 			"error", err)
-		return fmt.Errorf("failed to update service as failed: %w", err)
+		return fmt.Errorf("failed to update app as failed: %w", err)
 	}
 
 	return nil

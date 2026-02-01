@@ -1,7 +1,6 @@
 package deployments
 
 type DeployWorkflowInput struct {
-	ServiceID     string
 	UserID        string
 	GitHubAppUUID string
 	Repo          string
@@ -13,7 +12,7 @@ type DeployWorkflowInput struct {
 }
 
 type DeployWorkflowResult struct {
-	ServiceID    string
+	AppID    string
 	AppUUID      string
 	FQDN         string
 	Status       string

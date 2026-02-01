@@ -6,6 +6,7 @@ import (
 
 	"github.com/augustdev/autoclip/internal/auth"
 	"github.com/augustdev/autoclip/internal/coolify"
+	"github.com/augustdev/autoclip/internal/deployments"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -13,10 +14,11 @@ type Server struct {
 	mcpServer     *mcp.Server
 	authService   *auth.Service
 	coolifyClient *coolify.Client
+	deployService *deployments.Service
 	logger        *slog.Logger
 }
 
-func NewServer(authService *auth.Service, coolifyClient *coolify.Client, logger *slog.Logger) *Server {
+func NewServer(authService *auth.Service, coolifyClient *coolify.Client, deployService *deployments.Service, logger *slog.Logger) *Server {
 	mcpServer := mcp.NewServer(
 		&mcp.Implementation{
 			Name:    "deploy-mcp",
@@ -29,6 +31,7 @@ func NewServer(authService *auth.Service, coolifyClient *coolify.Client, logger 
 		mcpServer:     mcpServer,
 		authService:   authService,
 		coolifyClient: coolifyClient,
+		deployService: deployService,
 		logger:        logger,
 	}
 

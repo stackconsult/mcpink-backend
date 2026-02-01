@@ -76,19 +76,7 @@ Users authenticate to Deploy MCP. We handle all provider credentials internally.
 2. "Sign in with GitHub" → OAuth
 3. We store: user identity + GitHub token (for private repos)
 4. Dashboard shows API key: dk_live_abc123...
-5. User adds to MCP config:
-
-{
-  "mcpServers": {
-    "deploy": {
-      "command": "deploy-mcp",
-      "env": {
-        "DEPLOY_API_KEY": "dk_live_abc123..."
-      }
-    }
-  }
-}
-
+5. User adds to MCP config
 6. All MCP calls authenticated via API key
 7. We use OUR provider credentials behind the scenes
 ```
@@ -109,6 +97,12 @@ Users authenticate to Deploy MCP. We handle all provider credentials internally.
 - **Database**: Postgres
 - **Auth**: GitHub OAuth + JWT
 
+## Adding Local MCP Server to Claude Code
+
+```bash
+claude mcp add --transport http mcpdeploy http://localhost:8081/mcp --header "Authorization: Bearer <your-api-key>"
+```
+
 ---
 
 # InkMCP: The Agent Deployment OS
@@ -122,10 +116,12 @@ InkMCP starts with **Coolify + Hetzner** (fast to ship), but the agent-facing co
 ## Core Philosophy
 
 1. **Abstraction**
+
    - Agents interact with **Projects** and **Modes** (intent), not "servers" or "containers" (implementation).
    - The MCP surface is stable; providers are replaceable.
 
 2. **Safety**
+
    - We run untrusted code with strong guardrails.
    - Target state: **gVisor** sandboxes for user workloads (defense against kernel exploit classes).
    - Reality check: gVisor integration with Coolify requires deliberate engineering (see Security notes).
@@ -326,6 +322,7 @@ Once you have:
 ### Registry via Coolify API
 
 When deploying via API, specify the registry image directly:
+
 ```json
 {
   "docker_registry_image_name": "ghcr.io/user/app:latest"
@@ -369,15 +366,18 @@ DNS strategy (simplest):
 ### What we back up (by category)
 
 1. **InkMCP State (critical)**
+
    - metadata DB (projects/resources/usage/audit)
    - credits ledger + billing webhook state
    - encryption keys/secrets
 
 2. **Coolify State (critical)**
+
    - Coolify configuration + metadata
    - Use Coolify's S3-compatible backup feature ([Coolify][7])
 
 3. **User Data (critical)**
+
    - Databases: provider-native backups (Neon), and/or scheduled dumps
    - Persistent volumes: only if explicitly supported; define policy
 
@@ -407,17 +407,18 @@ DNS strategy (simplest):
 
 Coolify supports container resource limits via API:
 
-| Setting | Coolify Field | Example |
-|---------|---------------|---------|
-| Memory limit | `limits_memory` | `512m` |
-| Memory + swap | `limits_memory_swap` | `512m` |
-| CPU limit | `limits_cpus` | `0.5` |
-| CPU pinning | `limits_cpuset` | `0,1` |
+| Setting               | Coolify Field               | Example                           |
+| --------------------- | --------------------------- | --------------------------------- |
+| Memory limit          | `limits_memory`             | `512m`                            |
+| Memory + swap         | `limits_memory_swap`        | `512m`                            |
+| CPU limit             | `limits_cpus`               | `0.5`                             |
+| CPU pinning           | `limits_cpuset`             | `0,1`                             |
 | Custom Docker options | `custom_docker_run_options` | `--cap-drop=ALL --pids-limit=256` |
 
 ### Host-Level Hardening
 
 See `infra/hetzner/hardening/` for complete setup scripts including:
+
 - Egress restrictions (iptables rules for metadata service, SMTP)
 - gVisor integration (`runsc` runtime)
 - Least-privilege container policies
@@ -431,18 +432,19 @@ InkMCP deploys applications via Coolify's REST API.
 ### Authentication
 
 All API requests require a Bearer token (Laravel Sanctum):
+
 ```
 Authorization: Bearer <coolify-api-token>
 ```
 
 ### Key Endpoints
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/v1/applications/dockerimage` | POST | Deploy from Docker image |
-| `/api/v1/applications/public` | POST | Deploy from public Git repo |
-| `/api/v1/applications/{uuid}` | PATCH | Update application settings |
-| `/api/v1/deploy` | POST | Trigger deployment |
+| Endpoint                           | Method | Purpose                     |
+| ---------------------------------- | ------ | --------------------------- |
+| `/api/v1/applications/dockerimage` | POST   | Deploy from Docker image    |
+| `/api/v1/applications/public`      | POST   | Deploy from public Git repo |
+| `/api/v1/applications/{uuid}`      | PATCH  | Update application settings |
+| `/api/v1/deploy`                   | POST   | Trigger deployment          |
 
 ### Deploying an Application
 
@@ -466,10 +468,12 @@ curl -X POST https://coolify.example.com/api/v1/applications/dockerimage \
 ### Persistent Storage
 
 Coolify supports two volume types:
+
 - **LocalPersistentVolume** - Docker named volume or host path bind mount
 - **LocalFileVolume** - Embed file content (for configs)
 
 For disk-backed user storage:
+
 ```json
 {
   "name": "user-data",

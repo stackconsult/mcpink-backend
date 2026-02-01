@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.30.0
 
-package services
+package apps
 
 import (
 	"github.com/jackc/pgx/v5/pgtype"
@@ -19,7 +19,7 @@ type ApiKey struct {
 	ID         string             `json:"id"`
 }
 
-type Service struct {
+type App struct {
 	ID             string             `json:"id"`
 	UserID         string             `json:"user_id"`
 	CoolifyAppUuid *string            `json:"coolify_app_uuid"`

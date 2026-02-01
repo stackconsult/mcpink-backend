@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/apikeys"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/users"
 	pgxdecimal "github.com/jackc/pgx-shopspring-decimal"
 	"github.com/jackc/pgx/v5"
@@ -24,10 +24,10 @@ type DbConfig struct {
 
 type DB struct {
 	*pgxpool.Pool
-	logger          *slog.Logger
-	userQueries     users.Querier
-	apiKeyQueries   apikeys.Querier
-	serviceQueries  services.Querier
+	logger        *slog.Logger
+	userQueries   users.Querier
+	apiKeyQueries apikeys.Querier
+	appQueries    apps.Querier
 }
 
 func NewDatabase(config DbConfig, logger *slog.Logger) (*DB, error) {
@@ -93,11 +93,11 @@ func NewDatabase(config DbConfig, logger *slog.Logger) (*DB, error) {
 	logger.Info("Database migrations completed successfully")
 
 	return &DB{
-		Pool:           pool,
-		logger:         logger,
-		userQueries:    users.New(pool),
-		apiKeyQueries:  apikeys.New(pool),
-		serviceQueries: services.New(pool),
+		Pool:          pool,
+		logger:        logger,
+		userQueries:   users.New(pool),
+		apiKeyQueries: apikeys.New(pool),
+		appQueries:    apps.New(pool),
 	}, nil
 }
 
@@ -113,6 +113,6 @@ func NewAPIKeyQueries(database *DB) apikeys.Querier {
 	return database.apiKeyQueries
 }
 
-func NewServiceQueries(database *DB) services.Querier {
-	return database.serviceQueries
+func NewAppQueries(database *DB) apps.Querier {
+	return database.appQueries
 }

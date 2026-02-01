@@ -21,7 +21,7 @@ func main() {
 			bootstrap.NewLogger,
 			bootstrap.NewConfig,
 			pg.NewDatabase,
-			pg.NewServiceQueries,
+			pg.NewAppQueries,
 			bootstrap.CreateTemporalClient,
 			bootstrap.NewTemporalWorker,
 			bootstrap.NewNatsClient,
@@ -35,21 +35,21 @@ func main() {
 	).Run()
 }
 
-func startWorker(lc fx.Lifecycle, worker worker.Worker, logger *slog.Logger) {
+func startWorker(lc fx.Lifecycle, w worker.Worker, logger *slog.Logger) {
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			logger.Info("Starting temporal workers")
+			logger.Info("Starting temporal worker")
 			go func() {
-				if err := worker.Run(nil); err != nil {
-					logger.Error(fmt.Sprintf("Default worker failed: %v", err))
+				if err := w.Run(worker.InterruptCh()); err != nil {
+					logger.Error(fmt.Sprintf("Worker failed: %v", err))
 					os.Exit(1)
 				}
 			}()
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			logger.Info("Stopping temporal workers")
-			worker.Stop()
+			logger.Info("Stopping temporal worker")
+			w.Stop()
 			return nil
 		},
 	})
