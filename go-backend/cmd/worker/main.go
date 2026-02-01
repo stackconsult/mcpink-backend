@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/augustdev/autoclip/internal/account"
 	"github.com/augustdev/autoclip/internal/bootstrap"
 	"github.com/augustdev/autoclip/internal/deployments"
 	"github.com/augustdev/autoclip/internal/storage/pg"
@@ -22,14 +23,17 @@ func main() {
 			bootstrap.NewConfig,
 			pg.NewDatabase,
 			pg.NewAppQueries,
+			pg.NewProjectQueries,
 			bootstrap.CreateTemporalClient,
 			bootstrap.NewTemporalWorker,
 			bootstrap.NewNatsClient,
 			bootstrap.NewCoolifyClient,
 			deployments.NewActivities,
+			account.NewActivities,
 		),
 		fx.Invoke(
 			deployments.RegisterWorkflowsAndActivities,
+			account.RegisterWorkflowsAndActivities,
 			startWorker,
 		),
 	).Run()

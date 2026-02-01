@@ -1,0 +1,18 @@
+extend type Query {
+  listProjects(first: Int, after: String): ProjectConnection! @isAuthenticated
+  projectDetails(id: ID!): Project @isAuthenticated
+}
+
+type ProjectConnection {
+  nodes: [Project!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type Project {
+  id: ID!
+  name: String!
+  apps: [App!]!
+  createdAt: Time!
+  updatedAt: Time!
+}

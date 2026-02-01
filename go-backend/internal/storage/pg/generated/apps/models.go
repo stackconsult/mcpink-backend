@@ -38,17 +38,36 @@ type App struct {
 	WorkflowRunID  *string            `json:"workflow_run_id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	ProjectID      string             `json:"project_id"`
+}
+
+type GithubCred struct {
+	ID                      string             `json:"id"`
+	UserID                  string             `json:"user_id"`
+	GithubID                int64              `json:"github_id"`
+	GithubOauthToken        string             `json:"github_oauth_token"`
+	GithubOauthScopes       []string           `json:"github_oauth_scopes"`
+	GithubOauthUpdatedAt    pgtype.Timestamptz `json:"github_oauth_updated_at"`
+	GithubAppInstallationID *int64             `json:"github_app_installation_id"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Project struct {
+	ID        string             `json:"id"`
+	UserID    string             `json:"user_id"`
+	Name      string             `json:"name"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	IsDefault bool               `json:"is_default"`
 }
 
 type User struct {
-	CreatedAt               pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
-	GithubID                int64              `json:"github_id"`
-	GithubUsername          string             `json:"github_username"`
-	GithubToken             string             `json:"github_token"`
-	AvatarUrl               *string            `json:"avatar_url"`
-	GithubAppInstallationID *int64             `json:"github_app_installation_id"`
-	ID                      string             `json:"id"`
-	GithubScopes            []string           `json:"github_scopes"`
-	CoolifyGithubAppUuid    *string            `json:"coolify_github_app_uuid"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	GithubID             int64              `json:"github_id"`
+	GithubUsername       string             `json:"github_username"`
+	AvatarUrl            *string            `json:"avatar_url"`
+	ID                   string             `json:"id"`
+	CoolifyGithubAppUuid *string            `json:"coolify_github_app_uuid"`
 }

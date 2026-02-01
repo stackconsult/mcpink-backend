@@ -15,11 +15,17 @@ func (s *Server) handleWhoami(ctx context.Context, req *mcp.CallToolRequest, inp
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, WhoamiOutput{}, nil
 	}
 
+	hasGitHubApp := false
+	creds, err := s.authService.GetGitHubCredsByUserID(ctx, user.ID)
+	if err == nil && creds.GithubAppInstallationID != nil {
+		hasGitHubApp = true
+	}
+
 	output := WhoamiOutput{
 		UserID:         user.ID,
 		GitHubUsername: user.GithubUsername,
 		AvatarURL:      user.AvatarUrl,
-		HasGitHubApp:   user.GithubAppInstallationID != nil,
+		HasGitHubApp:   hasGitHubApp,
 	}
 
 	return nil, output, nil
@@ -31,7 +37,12 @@ func (s *Server) handleDeploy(ctx context.Context, req *mcp.CallToolRequest, inp
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, DeployOutput{}, nil
 	}
 
-	if user.GithubAppInstallationID == nil {
+	creds, err := s.authService.GetGitHubCredsByUserID(ctx, user.ID)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "Failed to get GitHub credentials."}}}, DeployOutput{}, nil
+	}
+
+	if creds.GithubAppInstallationID == nil {
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "GitHub App not installed. Please install the GitHub App first."}}}, DeployOutput{}, nil
 	}
 
@@ -40,6 +51,9 @@ func (s *Server) handleDeploy(ctx context.Context, req *mcp.CallToolRequest, inp
 	}
 	if input.Branch == "" {
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "branch is required"}}}, DeployOutput{}, nil
+	}
+	if input.Name == "" {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, DeployOutput{}, nil
 	}
 
 	if user.CoolifyGithubAppUuid == nil {
@@ -76,6 +90,7 @@ func (s *Server) handleDeploy(ctx context.Context, req *mcp.CallToolRequest, inp
 
 	s.logger.Info("starting deployment",
 		"user_id", user.ID,
+		"project", input.Project,
 		"repo", input.Repo,
 		"branch", input.Branch,
 		"build_pack", buildPack,
@@ -84,6 +99,7 @@ func (s *Server) handleDeploy(ctx context.Context, req *mcp.CallToolRequest, inp
 
 	result, err := s.deployService.CreateApp(ctx, deployments.CreateAppInput{
 		UserID:        user.ID,
+		ProjectName:   input.Project,
 		GitHubAppUUID: githubAppUUID,
 		Repo:          input.Repo,
 		Branch:        input.Branch,

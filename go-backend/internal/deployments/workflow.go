@@ -36,6 +36,7 @@ func DeployToCoolifyWorkflow(ctx workflow.Context, input DeployWorkflowInput) (D
 	createRecordInput := CreateAppRecordInput{
 		AppID:         appID,
 		UserID:        input.UserID,
+		ProjectID:     input.ProjectID,
 		WorkflowID:    workflowInfo.WorkflowExecution.ID,
 		WorkflowRunID: workflowInfo.WorkflowExecution.RunID,
 		Repo:          input.Repo,

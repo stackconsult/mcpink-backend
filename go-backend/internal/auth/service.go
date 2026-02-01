@@ -9,35 +9,42 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/lithammer/shortuuid/v4"
+	"go.temporal.io/sdk/client"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/augustdev/autoclip/internal/account"
 	"github.com/augustdev/autoclip/internal/coolify"
 	"github.com/augustdev/autoclip/internal/github_oauth"
 	"github.com/augustdev/autoclip/internal/githubapp"
 	"github.com/augustdev/autoclip/internal/helpers"
 	"github.com/augustdev/autoclip/internal/storage/pg"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/apikeys"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/githubcreds"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/users"
 )
 
 type Service struct {
-	config       Config
-	db           *pg.DB
-	usersQ       users.Querier
-	apiKeysQ     apikeys.Querier
-	githubOAuth  *github_oauth.OAuthService
-	coolify      *coolify.Client
-	githubAppCfg githubapp.Config
+	config        Config
+	db            *pg.DB
+	usersQ        users.Querier
+	apiKeysQ      apikeys.Querier
+	githubCredsQ  githubcreds.Querier
+	githubOAuth   *github_oauth.OAuthService
+	coolify       *coolify.Client
+	githubAppCfg  githubapp.Config
+	temporal      client.Client
+	logger        *slog.Logger
 }
 
 type Session struct {
 	Token  string
 	UserID string
-	User   *users.User
 }
 
 type APIKeyResult struct {
@@ -53,18 +60,24 @@ func NewService(
 	db *pg.DB,
 	usersQ users.Querier,
 	apiKeysQ apikeys.Querier,
+	githubCredsQ githubcreds.Querier,
 	githubOAuth *github_oauth.OAuthService,
 	coolify *coolify.Client,
 	githubAppCfg githubapp.Config,
+	temporal client.Client,
+	logger *slog.Logger,
 ) *Service {
 	return &Service{
-		config:       config,
-		db:           db,
-		usersQ:       usersQ,
-		apiKeysQ:     apiKeysQ,
-		githubOAuth:  githubOAuth,
-		coolify:      coolify,
-		githubAppCfg: githubAppCfg,
+		config:        config,
+		db:            db,
+		usersQ:        usersQ,
+		apiKeysQ:      apiKeysQ,
+		githubCredsQ:  githubCredsQ,
+		githubOAuth:   githubOAuth,
+		coolify:       coolify,
+		githubAppCfg:  githubAppCfg,
+		temporal:      temporal,
+		logger:        logger,
 	}
 }
 
@@ -84,71 +97,93 @@ func (s *Service) HandleOAuthCallback(ctx context.Context, code string) (*Sessio
 		return nil, fmt.Errorf("failed to encrypt token: %w", err)
 	}
 
-	// Parse scopes from GitHub response
 	newScopes := parseScopes(tokenResp.Scope)
 
+	var userID string
 	user, err := s.usersQ.GetUserByGitHubID(ctx, ghUser.ID)
 	if err != nil {
-		// New user - just store the scopes we got
+		// New user - create user and github_creds, trigger async account setup
+		userID = shortuuid.New()
 		var avatarURL *string
 		if ghUser.AvatarURL != "" {
 			avatarURL = helpers.Ptr(ghUser.AvatarURL)
 		}
-		user, err = s.usersQ.CreateUser(ctx, users.CreateUserParams{
+
+		_, err = s.usersQ.CreateUser(ctx, users.CreateUserParams{
+			ID:             userID,
 			GithubID:       ghUser.ID,
 			GithubUsername: ghUser.Login,
-			GithubToken:    encryptedToken,
 			AvatarUrl:      avatarURL,
-			GithubScopes:   newScopes,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create user: %w", err)
 		}
+
+		_, err = s.githubCredsQ.CreateGitHubCreds(ctx, githubcreds.CreateGitHubCredsParams{
+			UserID:            userID,
+			GithubID:          ghUser.ID,
+			GithubOauthToken:  encryptedToken,
+			GithubOauthScopes: newScopes,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create github creds: %w", err)
+		}
+
+		s.triggerAccountSetup(userID)
 	} else {
-		// Existing user - apply downgrade protection
+		userID = user.ID
+
+		// Get existing github creds for downgrade protection
+		existingCreds, credsErr := s.githubCredsQ.GetGitHubCredsByUserID(ctx, user.ID)
+		if credsErr != nil {
+			return nil, fmt.Errorf("failed to get github creds: %w", credsErr)
+		}
+
+		// Apply downgrade protection
 		finalToken := encryptedToken
 		finalScopes := newScopes
 
-		hasRepoScopeOld := contains(user.GithubScopes, "repo")
-		hasRepoScopeNew := contains(newScopes, "repo")
-
-		// Downgrade attempt: old has repo, new doesn't
-		if hasRepoScopeOld && !hasRepoScopeNew {
-			// Check if old token is still valid
-			oldTokenPlain, decryptErr := s.DecryptToken(user.GithubToken)
+		if contains(existingCreds.GithubOauthScopes, "repo") && !contains(newScopes, "repo") {
+			oldTokenPlain, decryptErr := s.DecryptToken(existingCreds.GithubOauthToken)
 			if decryptErr == nil && s.githubOAuth.IsTokenValid(ctx, oldTokenPlain) {
-				// Old token still works - keep it
-				finalToken = user.GithubToken
-				finalScopes = user.GithubScopes
+				finalToken = existingCreds.GithubOauthToken
+				finalScopes = existingCreds.GithubOauthScopes
 			}
-			// Otherwise accept the new weak token
 		}
 
+		// Update user profile
 		var avatarURLUpdate *string
 		if ghUser.AvatarURL != "" {
 			avatarURLUpdate = helpers.Ptr(ghUser.AvatarURL)
 		}
-		user, err = s.usersQ.UpdateGitHubToken(ctx, users.UpdateGitHubTokenParams{
+		_, err = s.usersQ.UpdateUserProfile(ctx, users.UpdateUserProfileParams{
 			ID:             user.ID,
-			GithubToken:    finalToken,
 			GithubUsername: ghUser.Login,
 			AvatarUrl:      avatarURLUpdate,
-			GithubScopes:   finalScopes,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update user: %w", err)
+			return nil, fmt.Errorf("failed to update user profile: %w", err)
+		}
+
+		// Update github creds
+		_, err = s.githubCredsQ.UpdateGitHubOAuthToken(ctx, githubcreds.UpdateGitHubOAuthTokenParams{
+			UserID:            user.ID,
+			GithubOauthToken:  finalToken,
+			GithubOauthScopes: finalScopes,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update github creds: %w", err)
 		}
 	}
 
-	token, err := s.generateJWT(user.ID)
+	token, err := s.generateJWT(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate jwt: %w", err)
 	}
 
 	return &Session{
 		Token:  token,
-		UserID: user.ID,
-		User:   &user,
+		UserID: userID,
 	}, nil
 }
 
@@ -249,15 +284,15 @@ func (s *Service) ListAPIKeys(ctx context.Context, userID string) ([]apikeys.Lis
 }
 
 func (s *Service) SetGitHubAppInstallation(ctx context.Context, userID string, installationID int64) error {
-	_, err := s.usersQ.SetGitHubAppInstallation(ctx, users.SetGitHubAppInstallationParams{
-		ID:                      userID,
+	_, err := s.githubCredsQ.SetGitHubAppInstallation(ctx, githubcreds.SetGitHubAppInstallationParams{
+		UserID:                  userID,
 		GithubAppInstallationID: helpers.Ptr(installationID),
 	})
 	return err
 }
 
 func (s *Service) ClearGitHubAppInstallation(ctx context.Context, userID string) error {
-	_, err := s.usersQ.ClearGitHubAppInstallation(ctx, userID)
+	_, err := s.githubCredsQ.ClearGitHubAppInstallation(ctx, userID)
 	return err
 }
 
@@ -293,6 +328,14 @@ func (s *Service) CreateCoolifyGitHubAppSource(ctx context.Context, userID strin
 	}
 
 	return source.UUID, nil
+}
+
+func (s *Service) GetGitHubCredsByUserID(ctx context.Context, userID string) (*githubcreds.GithubCred, error) {
+	creds, err := s.githubCredsQ.GetGitHubCredsByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("github creds not found: %w", err)
+	}
+	return &creds, nil
 }
 
 func (s *Service) EncryptToken(token string) (string, error) {
@@ -380,4 +423,29 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+func (s *Service) triggerAccountSetup(userID string) {
+	if s.temporal == nil {
+		s.logger.Warn("Temporal client not available, skipping account setup workflow")
+		return
+	}
+
+	workflowID := fmt.Sprintf("setup-account-%s", userID)
+	options := client.StartWorkflowOptions{
+		ID:        workflowID,
+		TaskQueue: account.TaskQueue,
+	}
+
+	input := account.SetupAccountInput{
+		UserID: userID,
+	}
+
+	_, err := s.temporal.ExecuteWorkflow(context.Background(), options, account.SetupAccountWorkflow, input)
+	if err != nil {
+		s.logger.Error("Failed to start account setup workflow", "userID", userID, "error", err)
+		return
+	}
+
+	s.logger.Info("Started account setup workflow", "userID", userID, "workflowID", workflowID)
 }

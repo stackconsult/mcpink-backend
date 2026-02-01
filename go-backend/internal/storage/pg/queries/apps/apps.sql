@@ -1,8 +1,8 @@
 -- name: CreateApp :one
 INSERT INTO apps (
-    id, user_id, repo, branch, server_uuid, name, build_pack, port, env_vars, workflow_id, workflow_run_id, build_status
+    id, user_id, project_id, repo, branch, server_uuid, name, build_pack, port, env_vars, workflow_id, workflow_run_id, build_status
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'queued'
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'queued'
 )
 RETURNING *;
 
@@ -21,8 +21,17 @@ WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
+-- name: ListAppsByProjectID :many
+SELECT * FROM apps
+WHERE project_id = $1
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3;
+
 -- name: CountAppsByUserID :one
 SELECT COUNT(*) FROM apps WHERE user_id = $1;
+
+-- name: CountAppsByProjectID :one
+SELECT COUNT(*) FROM apps WHERE project_id = $1;
 
 -- name: UpdateBuildStatus :one
 UPDATE apps

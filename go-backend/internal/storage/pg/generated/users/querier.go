@@ -9,15 +9,12 @@ import (
 )
 
 type Querier interface {
-	ClearGitHubAppInstallation(ctx context.Context, id string) (User, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteUser(ctx context.Context, id string) error
 	GetUserByGitHubID(ctx context.Context, githubID int64) (User, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	SetCoolifyGitHubAppUUID(ctx context.Context, arg SetCoolifyGitHubAppUUIDParams) (User, error)
-	SetGitHubAppInstallation(ctx context.Context, arg SetGitHubAppInstallationParams) (User, error)
-	UpdateGitHubScopes(ctx context.Context, arg UpdateGitHubScopesParams) (User, error)
-	UpdateGitHubToken(ctx context.Context, arg UpdateGitHubTokenParams) (User, error)
+	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 }
 
 var _ Querier = (*Queries)(nil)

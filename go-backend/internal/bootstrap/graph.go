@@ -18,6 +18,8 @@ import (
 	"github.com/augustdev/autoclip/internal/graph"
 	"github.com/augustdev/autoclip/internal/mcpserver"
 	"github.com/augustdev/autoclip/internal/storage/pg"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/gorilla/websocket"
@@ -37,6 +39,8 @@ func NewResolver(
 	authService *auth.Service,
 	githubAppService *githubapp.Service,
 	coolifyClient *coolify.Client,
+	appQueries apps.Querier,
+	projectQueries projects.Querier,
 ) *graph.Resolver {
 	return &graph.Resolver{
 		Db:               pgdb,
@@ -44,6 +48,8 @@ func NewResolver(
 		AuthService:      authService,
 		GitHubAppService: githubAppService,
 		CoolifyClient:    coolifyClient,
+		AppQueries:       appQueries,
+		ProjectQueries:   projectQueries,
 	}
 }
 

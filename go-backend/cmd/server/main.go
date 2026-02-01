@@ -24,6 +24,8 @@ func main() {
 			pg.NewUserQueries,
 			pg.NewAPIKeyQueries,
 			pg.NewAppQueries,
+			pg.NewProjectQueries,
+			pg.NewGitHubCredsQueries,
 			bootstrap.CreateTemporalClient,
 			github_oauth.NewOAuthService,
 			githubapp.NewService,

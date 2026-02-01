@@ -38,6 +38,7 @@ func (a *Activities) CreateAppRecord(ctx context.Context, input CreateAppRecordI
 	_, err := a.appsQ.CreateApp(ctx, apps.CreateAppParams{
 		ID:            input.AppID,
 		UserID:        input.UserID,
+		ProjectID:     input.ProjectID,
 		Repo:          input.Repo,
 		Branch:        input.Branch,
 		ServerUuid:    serverID,
@@ -67,6 +68,7 @@ func (a *Activities) CreateAppRecord(ctx context.Context, input CreateAppRecordI
 type CreateAppRecordInput struct {
 	AppID         string
 	UserID        string
+	ProjectID     string
 	WorkflowID    string
 	WorkflowRunID string
 	Repo          string

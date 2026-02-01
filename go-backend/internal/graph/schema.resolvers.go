@@ -50,6 +50,11 @@ func (r *mutationResolver) RecheckGithubAppInstallation(ctx context.Context) (*s
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
+	creds, err := r.AuthService.GetGitHubCredsByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get github creds: %w", err)
+	}
+
 	// Check with GitHub API if the user has installed the app
 	installationID, err := r.GitHubAppService.GetUserInstallation(ctx, user.GithubUsername)
 	if err != nil {
@@ -59,14 +64,14 @@ func (r *mutationResolver) RecheckGithubAppInstallation(ctx context.Context) (*s
 
 	if installationID == 0 {
 		// User has uninstalled - clear cached value
-		if user.GithubAppInstallationID != nil {
+		if creds.GithubAppInstallationID != nil {
 			_ = r.AuthService.ClearGitHubAppInstallation(ctx, userID)
 		}
 		return nil, nil
 	}
 
 	// Update cache with new value
-	if user.GithubAppInstallationID == nil || *user.GithubAppInstallationID != installationID {
+	if creds.GithubAppInstallationID == nil || *creds.GithubAppInstallationID != installationID {
 		_ = r.AuthService.SetGitHubAppInstallation(ctx, userID, installationID)
 
 		// Create Coolify GitHub App source if not already created
@@ -128,14 +133,14 @@ func (r *queryResolver) MyAPIKeys(ctx context.Context) ([]*model1.APIKey, error)
 func (r *userResolver) GithubAppInstallationID(ctx context.Context, obj *model1.User) (*string, error) {
 	userID := authz.For(ctx).GetUserID()
 
-	user, err := r.AuthService.GetUserByID(ctx, userID)
+	creds, err := r.AuthService.GetGitHubCredsByUserID(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return nil, nil
 	}
 
 	// Return cached value if present
-	if user.GithubAppInstallationID != nil {
-		id := fmt.Sprintf("%d", *user.GithubAppInstallationID)
+	if creds.GithubAppInstallationID != nil {
+		id := fmt.Sprintf("%d", *creds.GithubAppInstallationID)
 		return &id, nil
 	}
 
@@ -144,11 +149,11 @@ func (r *userResolver) GithubAppInstallationID(ctx context.Context, obj *model1.
 
 // GithubScopes is the resolver for the githubScopes field.
 func (r *userResolver) GithubScopes(ctx context.Context, obj *model1.User) ([]string, error) {
-	user, err := r.AuthService.GetUserByID(ctx, authz.For(ctx).GetUserID())
+	creds, err := r.AuthService.GetGitHubCredsByUserID(ctx, authz.For(ctx).GetUserID())
 	if err != nil {
 		return []string{}, nil
 	}
-	return user.GithubScopes, nil
+	return creds.GithubOauthScopes, nil
 }
 
 // Mutation returns MutationResolver implementation.

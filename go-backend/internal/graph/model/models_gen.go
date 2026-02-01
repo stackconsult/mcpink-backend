@@ -18,49 +18,59 @@ type APIKey struct {
 	CreatedAt  time.Time  `json:"createdAt"`
 }
 
+type App struct {
+	ID            string    `json:"id"`
+	ProjectID     string    `json:"projectId"`
+	Name          *string   `json:"name,omitempty"`
+	Repo          string    `json:"repo"`
+	Branch        string    `json:"branch"`
+	BuildStatus   string    `json:"buildStatus"`
+	RuntimeStatus *string   `json:"runtimeStatus,omitempty"`
+	ErrorMessage  *string   `json:"errorMessage,omitempty"`
+	EnvVars       []*EnvVar `json:"envVars"`
+	Fqdn          *string   `json:"fqdn,omitempty"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+}
+
+type AppConnection struct {
+	Nodes      []*App    `json:"nodes"`
+	PageInfo   *PageInfo `json:"pageInfo"`
+	TotalCount int32     `json:"totalCount"`
+}
+
 type CreateAPIKeyResult struct {
 	APIKey *APIKey `json:"apiKey"`
 	Secret string  `json:"secret"`
 }
 
-type DeployInput struct {
-	Repo           string         `json:"repo"`
-	Branch         string         `json:"branch"`
-	ServerUUID     string         `json:"serverUuid"`
-	Name           *string        `json:"name,omitempty"`
-	BuildPack      *BuildPack     `json:"buildPack,omitempty"`
-	Port           *int32         `json:"port,omitempty"`
-	EnvVars        []*EnvVarInput `json:"envVars,omitempty"`
-	Memory         *string        `json:"memory,omitempty"`
-	CPU            *string        `json:"cpu,omitempty"`
-	InstallCommand *string        `json:"installCommand,omitempty"`
-	BuildCommand   *string        `json:"buildCommand,omitempty"`
-	StartCommand   *string        `json:"startCommand,omitempty"`
-	InstantDeploy  *bool          `json:"instantDeploy,omitempty"`
-}
-
-type DeployResult struct {
-	Deployment     *Deployment `json:"deployment"`
-	DeploymentUUID *string     `json:"deploymentUuid,omitempty"`
-	Message        string      `json:"message"`
-}
-
-type Deployment struct {
-	UUID      string  `json:"uuid"`
-	Name      string  `json:"name"`
-	Repo      string  `json:"repo"`
-	Branch    string  `json:"branch"`
-	Status    string  `json:"status"`
-	Fqdn      *string `json:"fqdn,omitempty"`
-	CreatedAt *string `json:"createdAt,omitempty"`
-}
-
-type EnvVarInput struct {
+type EnvVar struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
 
 type Mutation struct {
+}
+
+type PageInfo struct {
+	HasNextPage     bool    `json:"hasNextPage"`
+	HasPreviousPage bool    `json:"hasPreviousPage"`
+	StartCursor     *string `json:"startCursor,omitempty"`
+	EndCursor       *string `json:"endCursor,omitempty"`
+}
+
+type Project struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Apps      []*App    `json:"apps"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type ProjectConnection struct {
+	Nodes      []*Project `json:"nodes"`
+	PageInfo   *PageInfo  `json:"pageInfo"`
+	TotalCount int32      `json:"totalCount"`
 }
 
 type Query struct {
@@ -73,65 +83,6 @@ type User struct {
 	CreatedAt               time.Time `json:"createdAt"`
 	GithubAppInstallationID *string   `json:"githubAppInstallationId,omitempty"`
 	GithubScopes            []string  `json:"githubScopes"`
-}
-
-type BuildPack string
-
-const (
-	BuildPackNixpacks      BuildPack = "NIXPACKS"
-	BuildPackDockerfile    BuildPack = "DOCKERFILE"
-	BuildPackStatic        BuildPack = "STATIC"
-	BuildPackDockerCompose BuildPack = "DOCKER_COMPOSE"
-)
-
-var AllBuildPack = []BuildPack{
-	BuildPackNixpacks,
-	BuildPackDockerfile,
-	BuildPackStatic,
-	BuildPackDockerCompose,
-}
-
-func (e BuildPack) IsValid() bool {
-	switch e {
-	case BuildPackNixpacks, BuildPackDockerfile, BuildPackStatic, BuildPackDockerCompose:
-		return true
-	}
-	return false
-}
-
-func (e BuildPack) String() string {
-	return string(e)
-}
-
-func (e *BuildPack) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = BuildPack(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid BuildPack", str)
-	}
-	return nil
-}
-
-func (e BuildPack) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *BuildPack) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e BuildPack) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
 }
 
 type Role string

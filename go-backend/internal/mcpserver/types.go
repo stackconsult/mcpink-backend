@@ -17,8 +17,9 @@ type EnvVar struct {
 type DeployInput struct {
 	Repo   string `json:"repo" jsonschema:"GitHub repository in owner/repo format"`
 	Branch string `json:"branch" jsonschema:"Branch to deploy"`
+	Name   string `json:"name" jsonschema:"Name for the deployment"`
 
-	Name      string   `json:"name,omitempty" jsonschema:"Optional name for the deployment"`
+	Project string `json:"project,omitempty" jsonschema:"Project name to deploy to (default: user's default project)"`
 	BuildPack string   `json:"build_pack,omitempty" jsonschema:"Build pack to use: nixpacks (default) or dockerfile or static or dockercompose"`
 	Port      int      `json:"port,omitempty" jsonschema:"Port the application listens on (default: 3000)"`
 	EnvVars   []EnvVar `json:"env_vars,omitempty" jsonschema:"Environment variables"`

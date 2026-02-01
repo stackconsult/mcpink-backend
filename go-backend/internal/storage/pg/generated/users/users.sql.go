@@ -9,52 +9,25 @@ import (
 	"context"
 )
 
-const clearGitHubAppInstallation = `-- name: ClearGitHubAppInstallation :one
-UPDATE users
-SET github_app_installation_id = NULL, updated_at = NOW()
-WHERE id = $1
-RETURNING created_at, updated_at, github_id, github_username, github_token, avatar_url, github_app_installation_id, id, github_scopes, coolify_github_app_uuid
-`
-
-func (q *Queries) ClearGitHubAppInstallation(ctx context.Context, id string) (User, error) {
-	row := q.db.QueryRow(ctx, clearGitHubAppInstallation, id)
-	var i User
-	err := row.Scan(
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.GithubID,
-		&i.GithubUsername,
-		&i.GithubToken,
-		&i.AvatarUrl,
-		&i.GithubAppInstallationID,
-		&i.ID,
-		&i.GithubScopes,
-		&i.CoolifyGithubAppUuid,
-	)
-	return i, err
-}
-
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, github_id, github_username, github_token, avatar_url, github_scopes)
-VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5)
-RETURNING created_at, updated_at, github_id, github_username, github_token, avatar_url, github_app_installation_id, id, github_scopes, coolify_github_app_uuid
+INSERT INTO users (id, github_id, github_username, avatar_url)
+VALUES ($1, $2, $3, $4)
+RETURNING created_at, updated_at, github_id, github_username, avatar_url, id, coolify_github_app_uuid
 `
 
 type CreateUserParams struct {
-	GithubID       int64    `json:"github_id"`
-	GithubUsername string   `json:"github_username"`
-	GithubToken    string   `json:"github_token"`
-	AvatarUrl      *string  `json:"avatar_url"`
-	GithubScopes   []string `json:"github_scopes"`
+	ID             string  `json:"id"`
+	GithubID       int64   `json:"github_id"`
+	GithubUsername string  `json:"github_username"`
+	AvatarUrl      *string `json:"avatar_url"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, createUser,
+		arg.ID,
 		arg.GithubID,
 		arg.GithubUsername,
-		arg.GithubToken,
 		arg.AvatarUrl,
-		arg.GithubScopes,
 	)
 	var i User
 	err := row.Scan(
@@ -62,11 +35,8 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.GithubID,
 		&i.GithubUsername,
-		&i.GithubToken,
 		&i.AvatarUrl,
-		&i.GithubAppInstallationID,
 		&i.ID,
-		&i.GithubScopes,
 		&i.CoolifyGithubAppUuid,
 	)
 	return i, err
@@ -82,7 +52,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id string) error {
 }
 
 const getUserByGitHubID = `-- name: GetUserByGitHubID :one
-SELECT created_at, updated_at, github_id, github_username, github_token, avatar_url, github_app_installation_id, id, github_scopes, coolify_github_app_uuid FROM users WHERE github_id = $1
+SELECT created_at, updated_at, github_id, github_username, avatar_url, id, coolify_github_app_uuid FROM users WHERE github_id = $1
 `
 
 func (q *Queries) GetUserByGitHubID(ctx context.Context, githubID int64) (User, error) {
@@ -93,18 +63,15 @@ func (q *Queries) GetUserByGitHubID(ctx context.Context, githubID int64) (User, 
 		&i.UpdatedAt,
 		&i.GithubID,
 		&i.GithubUsername,
-		&i.GithubToken,
 		&i.AvatarUrl,
-		&i.GithubAppInstallationID,
 		&i.ID,
-		&i.GithubScopes,
 		&i.CoolifyGithubAppUuid,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT created_at, updated_at, github_id, github_username, github_token, avatar_url, github_app_installation_id, id, github_scopes, coolify_github_app_uuid FROM users WHERE id = $1
+SELECT created_at, updated_at, github_id, github_username, avatar_url, id, coolify_github_app_uuid FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -115,11 +82,8 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.UpdatedAt,
 		&i.GithubID,
 		&i.GithubUsername,
-		&i.GithubToken,
 		&i.AvatarUrl,
-		&i.GithubAppInstallationID,
 		&i.ID,
-		&i.GithubScopes,
 		&i.CoolifyGithubAppUuid,
 	)
 	return i, err
@@ -129,7 +93,7 @@ const setCoolifyGitHubAppUUID = `-- name: SetCoolifyGitHubAppUUID :one
 UPDATE users
 SET coolify_github_app_uuid = $2, updated_at = NOW()
 WHERE id = $1
-RETURNING created_at, updated_at, github_id, github_username, github_token, avatar_url, github_app_installation_id, id, github_scopes, coolify_github_app_uuid
+RETURNING created_at, updated_at, github_id, github_username, avatar_url, id, coolify_github_app_uuid
 `
 
 type SetCoolifyGitHubAppUUIDParams struct {
@@ -145,110 +109,36 @@ func (q *Queries) SetCoolifyGitHubAppUUID(ctx context.Context, arg SetCoolifyGit
 		&i.UpdatedAt,
 		&i.GithubID,
 		&i.GithubUsername,
-		&i.GithubToken,
 		&i.AvatarUrl,
-		&i.GithubAppInstallationID,
 		&i.ID,
-		&i.GithubScopes,
 		&i.CoolifyGithubAppUuid,
 	)
 	return i, err
 }
 
-const setGitHubAppInstallation = `-- name: SetGitHubAppInstallation :one
+const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE users
-SET github_app_installation_id = $2, updated_at = NOW()
+SET github_username = $2, avatar_url = $3, updated_at = NOW()
 WHERE id = $1
-RETURNING created_at, updated_at, github_id, github_username, github_token, avatar_url, github_app_installation_id, id, github_scopes, coolify_github_app_uuid
+RETURNING created_at, updated_at, github_id, github_username, avatar_url, id, coolify_github_app_uuid
 `
 
-type SetGitHubAppInstallationParams struct {
-	ID                      string `json:"id"`
-	GithubAppInstallationID *int64 `json:"github_app_installation_id"`
+type UpdateUserProfileParams struct {
+	ID             string  `json:"id"`
+	GithubUsername string  `json:"github_username"`
+	AvatarUrl      *string `json:"avatar_url"`
 }
 
-func (q *Queries) SetGitHubAppInstallation(ctx context.Context, arg SetGitHubAppInstallationParams) (User, error) {
-	row := q.db.QueryRow(ctx, setGitHubAppInstallation, arg.ID, arg.GithubAppInstallationID)
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserProfile, arg.ID, arg.GithubUsername, arg.AvatarUrl)
 	var i User
 	err := row.Scan(
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.GithubID,
 		&i.GithubUsername,
-		&i.GithubToken,
 		&i.AvatarUrl,
-		&i.GithubAppInstallationID,
 		&i.ID,
-		&i.GithubScopes,
-		&i.CoolifyGithubAppUuid,
-	)
-	return i, err
-}
-
-const updateGitHubScopes = `-- name: UpdateGitHubScopes :one
-UPDATE users
-SET github_scopes = $2, updated_at = NOW()
-WHERE id = $1
-RETURNING created_at, updated_at, github_id, github_username, github_token, avatar_url, github_app_installation_id, id, github_scopes, coolify_github_app_uuid
-`
-
-type UpdateGitHubScopesParams struct {
-	ID           string   `json:"id"`
-	GithubScopes []string `json:"github_scopes"`
-}
-
-func (q *Queries) UpdateGitHubScopes(ctx context.Context, arg UpdateGitHubScopesParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateGitHubScopes, arg.ID, arg.GithubScopes)
-	var i User
-	err := row.Scan(
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.GithubID,
-		&i.GithubUsername,
-		&i.GithubToken,
-		&i.AvatarUrl,
-		&i.GithubAppInstallationID,
-		&i.ID,
-		&i.GithubScopes,
-		&i.CoolifyGithubAppUuid,
-	)
-	return i, err
-}
-
-const updateGitHubToken = `-- name: UpdateGitHubToken :one
-UPDATE users
-SET github_token = $2, github_username = $3, avatar_url = $4, github_scopes = $5, updated_at = NOW()
-WHERE id = $1
-RETURNING created_at, updated_at, github_id, github_username, github_token, avatar_url, github_app_installation_id, id, github_scopes, coolify_github_app_uuid
-`
-
-type UpdateGitHubTokenParams struct {
-	ID             string   `json:"id"`
-	GithubToken    string   `json:"github_token"`
-	GithubUsername string   `json:"github_username"`
-	AvatarUrl      *string  `json:"avatar_url"`
-	GithubScopes   []string `json:"github_scopes"`
-}
-
-func (q *Queries) UpdateGitHubToken(ctx context.Context, arg UpdateGitHubTokenParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateGitHubToken,
-		arg.ID,
-		arg.GithubToken,
-		arg.GithubUsername,
-		arg.AvatarUrl,
-		arg.GithubScopes,
-	)
-	var i User
-	err := row.Scan(
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.GithubID,
-		&i.GithubUsername,
-		&i.GithubToken,
-		&i.AvatarUrl,
-		&i.GithubAppInstallationID,
-		&i.ID,
-		&i.GithubScopes,
 		&i.CoolifyGithubAppUuid,
 	)
 	return i, err

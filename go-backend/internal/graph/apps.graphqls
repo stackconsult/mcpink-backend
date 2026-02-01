@@ -1,0 +1,37 @@
+extend type Query {
+  listApps(first: Int, after: String): AppConnection! @isAuthenticated
+  appDetails(id: ID!): App @isAuthenticated
+}
+
+type AppConnection {
+  nodes: [App!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type App {
+  id: ID!
+  projectId: ID!
+  name: String
+  repo: String!
+  branch: String!
+  buildStatus: String!
+  runtimeStatus: String
+  errorMessage: String
+  envVars: [EnvVar!]!
+  fqdn: String
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type EnvVar {
+  key: String!
+  value: String!
+}
