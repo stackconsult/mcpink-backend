@@ -13,8 +13,10 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/augustdev/autoclip/internal/auth"
 	"github.com/augustdev/autoclip/internal/authz"
+	"github.com/augustdev/autoclip/internal/coolify"
 	"github.com/augustdev/autoclip/internal/githubapp"
 	"github.com/augustdev/autoclip/internal/graph"
+	"github.com/augustdev/autoclip/internal/mcpserver"
 	"github.com/augustdev/autoclip/internal/storage/pg"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
@@ -34,12 +36,14 @@ func NewResolver(
 	logger *slog.Logger,
 	authService *auth.Service,
 	githubAppService *githubapp.Service,
+	coolifyClient *coolify.Client,
 ) *graph.Resolver {
 	return &graph.Resolver{
 		Db:               pgdb,
 		Logger:           logger,
 		AuthService:      authService,
 		GitHubAppService: githubAppService,
+		CoolifyClient:    coolifyClient,
 	}
 }
 
@@ -61,6 +65,7 @@ func NewGraphQLRouter(
 	authRouter chi.Router,
 	authConfig auth.Config,
 	authService *auth.Service,
+	mcpServer *mcpserver.Server,
 ) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -134,6 +139,11 @@ func NewGraphQLRouter(
 	router.Handle("/", playground.Handler("GraphQL playground", "/graphql"))
 	router.Handle("/graphql", authMiddleware)
 
+	if mcpServer != nil {
+		router.Mount("/mcp", mcpserver.AuthMiddleware(authService, logger, mcpServer.Handler()))
+		logger.Info("MCP server mounted", "path", "/mcp")
+	}
+
 	return router
 }
 
@@ -145,6 +155,20 @@ func gqlSchema(resolver *graph.Resolver) graphql.ExecutableSchema {
 		},
 	}
 	return graph.NewExecutableSchema(c)
+}
+
+func NewCoolifyClient(config coolify.Config, logger *slog.Logger) *coolify.Client {
+	if config.BaseURL == "" || config.Token == "" {
+		logger.Info("Coolify client not configured, skipping")
+		return nil
+	}
+
+	client, err := coolify.NewClient(config)
+	if err != nil {
+		logger.Error("failed to create Coolify client", "error", err)
+		return nil
+	}
+	return client
 }
 
 func StartServer(lc fx.Lifecycle, router *chi.Mux, config GraphQLAPIConfig, logger *slog.Logger) {

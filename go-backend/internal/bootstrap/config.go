@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/augustdev/autoclip/internal/auth"
+	"github.com/augustdev/autoclip/internal/coolify"
 	"github.com/augustdev/autoclip/internal/github_oauth"
 	"github.com/augustdev/autoclip/internal/githubapp"
 	"github.com/augustdev/autoclip/internal/storage/pg"
@@ -27,6 +28,7 @@ func NewConfig() (Config, error) {
 		Auth       auth.Config
 		Temporal   TemporalClientConfig
 		NATS       NATSConfig
+		Coolify    coolify.Config
 	}
 
 	if err := viper.Unmarshal(&cfg); err != nil {
@@ -41,6 +43,7 @@ func NewConfig() (Config, error) {
 		Auth:       cfg.Auth,
 		Temporal:   cfg.Temporal,
 		NATS:       cfg.NATS,
+		Coolify:    cfg.Coolify,
 	}, nil
 }
 
@@ -54,6 +57,7 @@ type Config struct {
 	Auth       auth.Config
 	Temporal   TemporalClientConfig
 	NATS       NATSConfig
+	Coolify    coolify.Config
 }
 
 func InitConfig() error {

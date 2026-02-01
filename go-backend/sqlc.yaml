@@ -11,6 +11,7 @@ sql:
         emit_json_tags: true
         emit_interface: true
         emit_empty_slices: true
+        emit_pointers_for_null_types: true
   - engine: "postgresql"
     queries: "internal/storage/pg/queries/apikeys"
     schema: "internal/storage/pg/migrations"
@@ -22,3 +23,16 @@ sql:
         emit_json_tags: true
         emit_interface: true
         emit_empty_slices: true
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    queries: "internal/storage/pg/queries/services"
+    schema: "internal/storage/pg/migrations"
+    gen:
+      go:
+        package: "services"
+        out: "internal/storage/pg/generated/services"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_interface: true
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true

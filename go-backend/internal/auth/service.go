@@ -13,21 +13,25 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/augustdev/autoclip/internal/coolify"
 	"github.com/augustdev/autoclip/internal/github_oauth"
+	"github.com/augustdev/autoclip/internal/githubapp"
+	"github.com/augustdev/autoclip/internal/helpers"
 	"github.com/augustdev/autoclip/internal/storage/pg"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/apikeys"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/users"
 )
 
 type Service struct {
-	config      Config
-	db          *pg.DB
-	usersQ      users.Querier
-	apiKeysQ    apikeys.Querier
-	githubOAuth *github_oauth.OAuthService
+	config       Config
+	db           *pg.DB
+	usersQ       users.Querier
+	apiKeysQ     apikeys.Querier
+	githubOAuth  *github_oauth.OAuthService
+	coolify      *coolify.Client
+	githubAppCfg githubapp.Config
 }
 
 type Session struct {
@@ -50,13 +54,17 @@ func NewService(
 	usersQ users.Querier,
 	apiKeysQ apikeys.Querier,
 	githubOAuth *github_oauth.OAuthService,
+	coolify *coolify.Client,
+	githubAppCfg githubapp.Config,
 ) *Service {
 	return &Service{
-		config:      config,
-		db:          db,
-		usersQ:      usersQ,
-		apiKeysQ:    apiKeysQ,
-		githubOAuth: githubOAuth,
+		config:       config,
+		db:           db,
+		usersQ:       usersQ,
+		apiKeysQ:     apiKeysQ,
+		githubOAuth:  githubOAuth,
+		coolify:      coolify,
+		githubAppCfg: githubAppCfg,
 	}
 }
 
@@ -82,11 +90,15 @@ func (s *Service) HandleOAuthCallback(ctx context.Context, code string) (*Sessio
 	user, err := s.usersQ.GetUserByGitHubID(ctx, ghUser.ID)
 	if err != nil {
 		// New user - just store the scopes we got
+		var avatarURL *string
+		if ghUser.AvatarURL != "" {
+			avatarURL = helpers.Ptr(ghUser.AvatarURL)
+		}
 		user, err = s.usersQ.CreateUser(ctx, users.CreateUserParams{
 			GithubID:       ghUser.ID,
 			GithubUsername: ghUser.Login,
 			GithubToken:    encryptedToken,
-			AvatarUrl:      pgtype.Text{String: ghUser.AvatarURL, Valid: ghUser.AvatarURL != ""},
+			AvatarUrl:      avatarURL,
 			GithubScopes:   newScopes,
 		})
 		if err != nil {
@@ -112,11 +124,15 @@ func (s *Service) HandleOAuthCallback(ctx context.Context, code string) (*Sessio
 			// Otherwise accept the new weak token
 		}
 
+		var avatarURLUpdate *string
+		if ghUser.AvatarURL != "" {
+			avatarURLUpdate = helpers.Ptr(ghUser.AvatarURL)
+		}
 		user, err = s.usersQ.UpdateGitHubToken(ctx, users.UpdateGitHubTokenParams{
 			ID:             user.ID,
 			GithubToken:    finalToken,
 			GithubUsername: ghUser.Login,
-			AvatarUrl:      pgtype.Text{String: ghUser.AvatarURL, Valid: ghUser.AvatarURL != ""},
+			AvatarUrl:      avatarURLUpdate,
 			GithubScopes:   finalScopes,
 		})
 		if err != nil {
@@ -235,7 +251,7 @@ func (s *Service) ListAPIKeys(ctx context.Context, userID string) ([]apikeys.Lis
 func (s *Service) SetGitHubAppInstallation(ctx context.Context, userID string, installationID int64) error {
 	_, err := s.usersQ.SetGitHubAppInstallation(ctx, users.SetGitHubAppInstallationParams{
 		ID:                      userID,
-		GithubAppInstallationID: pgtype.Int8{Int64: installationID, Valid: true},
+		GithubAppInstallationID: helpers.Ptr(installationID),
 	})
 	return err
 }
@@ -243,6 +259,40 @@ func (s *Service) SetGitHubAppInstallation(ctx context.Context, userID string, i
 func (s *Service) ClearGitHubAppInstallation(ctx context.Context, userID string) error {
 	_, err := s.usersQ.ClearGitHubAppInstallation(ctx, userID)
 	return err
+}
+
+func (s *Service) CreateCoolifyGitHubAppSource(ctx context.Context, userID string, installationID int64, githubUsername string) (string, error) {
+	sourceName := fmt.Sprintf("gh-%s-%d", githubUsername, installationID)
+
+	req := &coolify.CreateGitHubAppSourceRequest{
+		Name:           sourceName,
+		APIUrl:         "https://api.github.com",
+		HTMLUrl:        "https://github.com",
+		CustomUser:     "git",
+		CustomPort:     22,
+		AppID:          s.githubAppCfg.AppID,
+		InstallationID: installationID,
+		ClientID:       s.githubAppCfg.ClientID,
+		ClientSecret:   s.githubAppCfg.ClientSecret,
+		WebhookSecret:  "not-used",
+		PrivateKeyUUID: s.githubAppCfg.CoolifyPrivKeyUUID,
+		IsSystemWide:   false,
+	}
+
+	source, err := s.coolify.Sources.CreateGitHubApp(ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("failed to create coolify github app source: %w", err)
+	}
+
+	_, err = s.usersQ.SetCoolifyGitHubAppUUID(ctx, users.SetCoolifyGitHubAppUUIDParams{
+		ID:                   userID,
+		CoolifyGithubAppUuid: helpers.Ptr(source.UUID),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to save coolify github app uuid: %w", err)
+	}
+
+	return source.UUID, nil
 }
 
 func (s *Service) EncryptToken(token string) (string, error) {

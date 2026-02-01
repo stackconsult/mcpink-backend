@@ -321,7 +321,7 @@ func (s *ApplicationsService) Start(ctx context.Context, uuid string, opts *Star
 	}
 
 	var resp StartApplicationResponse
-	if err := s.client.do(ctx, "GET", "/api/v1/applications/"+uuid+"/start", query, nil, &resp); err != nil {
+	if err := s.client.do(ctx, "POST", "/api/v1/applications/"+uuid+"/start", query, nil, &resp); err != nil {
 		return nil, fmt.Errorf("failed to start application: %w", err)
 	}
 	return &resp, nil
@@ -332,7 +332,7 @@ func (s *ApplicationsService) Stop(ctx context.Context, uuid string) error {
 		return fmt.Errorf("coolify: uuid is required")
 	}
 
-	if err := s.client.do(ctx, "GET", "/api/v1/applications/"+uuid+"/stop", nil, nil, nil); err != nil {
+	if err := s.client.do(ctx, "POST", "/api/v1/applications/"+uuid+"/stop", nil, nil, nil); err != nil {
 		return fmt.Errorf("failed to stop application: %w", err)
 	}
 	return nil
@@ -344,7 +344,7 @@ func (s *ApplicationsService) Restart(ctx context.Context, uuid string) (*StartA
 	}
 
 	var resp StartApplicationResponse
-	if err := s.client.do(ctx, "GET", "/api/v1/applications/"+uuid+"/restart", nil, nil, &resp); err != nil {
+	if err := s.client.do(ctx, "POST", "/api/v1/applications/"+uuid+"/restart", nil, nil, &resp); err != nil {
 		return nil, fmt.Errorf("failed to restart application: %w", err)
 	}
 	return &resp, nil

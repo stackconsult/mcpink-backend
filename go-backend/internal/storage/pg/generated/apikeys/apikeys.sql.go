@@ -88,7 +88,7 @@ type GetAPIKeyWithUserRow struct {
 	ID             string             `json:"id"`
 	GithubID       int64              `json:"github_id"`
 	GithubUsername string             `json:"github_username"`
-	AvatarUrl      pgtype.Text        `json:"avatar_url"`
+	AvatarUrl      *string            `json:"avatar_url"`
 }
 
 func (q *Queries) GetAPIKeyWithUser(ctx context.Context, keyPrefix string) (GetAPIKeyWithUserRow, error) {

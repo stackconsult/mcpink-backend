@@ -19,14 +19,36 @@ type ApiKey struct {
 	ID         string             `json:"id"`
 }
 
+type Service struct {
+	ID             string             `json:"id"`
+	UserID         string             `json:"user_id"`
+	CoolifyAppUuid *string            `json:"coolify_app_uuid"`
+	BuildStatus    string             `json:"build_status"`
+	RuntimeStatus  *string            `json:"runtime_status"`
+	ErrorMessage   *string            `json:"error_message"`
+	Repo           string             `json:"repo"`
+	Branch         string             `json:"branch"`
+	ServerUuid     string             `json:"server_uuid"`
+	Name           *string            `json:"name"`
+	BuildPack      string             `json:"build_pack"`
+	Port           string             `json:"port"`
+	EnvVars        []byte             `json:"env_vars"`
+	Fqdn           *string            `json:"fqdn"`
+	WorkflowID     string             `json:"workflow_id"`
+	WorkflowRunID  *string            `json:"workflow_run_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type User struct {
 	CreatedAt               pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
 	GithubID                int64              `json:"github_id"`
 	GithubUsername          string             `json:"github_username"`
 	GithubToken             string             `json:"github_token"`
-	AvatarUrl               pgtype.Text        `json:"avatar_url"`
-	GithubAppInstallationID pgtype.Int8        `json:"github_app_installation_id"`
+	AvatarUrl               *string            `json:"avatar_url"`
+	GithubAppInstallationID *int64             `json:"github_app_installation_id"`
 	ID                      string             `json:"id"`
 	GithubScopes            []string           `json:"github_scopes"`
+	CoolifyGithubAppUuid    *string            `json:"coolify_github_app_uuid"`
 }

@@ -35,3 +35,9 @@ UPDATE users
 SET github_scopes = $2, updated_at = NOW()
 WHERE id = $1
 RETURNING *;
+
+-- name: SetCoolifyGitHubAppUUID :one
+UPDATE users
+SET coolify_github_app_uuid = $2, updated_at = NOW()
+WHERE id = $1
+RETURNING *;

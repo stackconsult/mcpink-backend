@@ -244,6 +244,25 @@ Example: Adding an `orders` domain
 
 ```bash
 make run-server    # Run the server
+make run-worker    # Run the Temporal worker
 make sqlc          # Generate sqlc code
 make gqlgen        # Generate GraphQL code
 ```
+
+## Invisible Processes
+
+When running `go run`, Go compiles the binary to a temp folder and executes it. The `go run` wrapper process and the actual binary are separate processes.
+
+**Problem**: `pkill -f "cmd/worker"` only kills the `go run` wrapper, not the compiled binary running from `/var/folders/.../go-build.../b001/exe/main`.
+
+**To find hidden Go binaries**:
+```bash
+ps aux | grep "go-build" | grep -v grep
+```
+
+**To kill all Go worker binaries**:
+```bash
+ps aux | grep "go-build" | grep -v grep | awk '{print $2}' | xargs kill -9
+```
+
+This is especially relevant for Temporal workers which maintain persistent connections - they'll keep showing as "live" in Temporal UI until properly killed.

@@ -41,6 +41,47 @@ func (r *mutationResolver) RevokeAPIKey(ctx context.Context, id string) (bool, e
 	return true, nil
 }
 
+// RecheckGithubAppInstallation is the resolver for the recheckGithubAppInstallation field.
+func (r *mutationResolver) RecheckGithubAppInstallation(ctx context.Context) (*string, error) {
+	userID := authz.For(ctx).GetUserID()
+
+	user, err := r.AuthService.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Check with GitHub API if the user has installed the app
+	installationID, err := r.GitHubAppService.GetUserInstallation(ctx, user.GithubUsername)
+	if err != nil {
+		r.Logger.Error("failed to check GitHub App installation", "error", err, "username", user.GithubUsername)
+		return nil, nil
+	}
+
+	if installationID == 0 {
+		// User has uninstalled - clear cached value
+		if user.GithubAppInstallationID != nil {
+			_ = r.AuthService.ClearGitHubAppInstallation(ctx, userID)
+		}
+		return nil, nil
+	}
+
+	// Update cache with new value
+	if user.GithubAppInstallationID == nil || *user.GithubAppInstallationID != installationID {
+		_ = r.AuthService.SetGitHubAppInstallation(ctx, userID, installationID)
+
+		// Create Coolify GitHub App source if not already created
+		if user.CoolifyGithubAppUuid == nil || *user.CoolifyGithubAppUuid == "" {
+			_, err := r.AuthService.CreateCoolifyGitHubAppSource(ctx, userID, installationID, user.GithubUsername)
+			if err != nil {
+				r.Logger.Error("failed to create coolify github app source", "error", err, "user_id", userID)
+			}
+		}
+	}
+
+	id := fmt.Sprintf("%d", installationID)
+	return &id, nil
+}
+
 // Me is the resolver for the me field.
 func (r *queryResolver) Me(ctx context.Context) (*model1.User, error) {
 	user, err := r.AuthService.GetUserByID(ctx, authz.For(ctx).GetUserID())
@@ -48,15 +89,10 @@ func (r *queryResolver) Me(ctx context.Context) (*model1.User, error) {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	var avatarURL *string
-	if user.AvatarUrl.Valid {
-		avatarURL = &user.AvatarUrl.String
-	}
-
 	return &model1.User{
 		ID:             user.ID,
 		GithubUsername: user.GithubUsername,
-		AvatarURL:      avatarURL,
+		AvatarURL:      user.AvatarUrl,
 		CreatedAt:      user.CreatedAt.Time,
 	}, nil
 }
@@ -88,39 +124,6 @@ func (r *queryResolver) MyAPIKeys(ctx context.Context) ([]*model1.APIKey, error)
 	return result, nil
 }
 
-// RecheckGithubAppInstallation is the resolver for the recheckGithubAppInstallation field.
-func (r *mutationResolver) RecheckGithubAppInstallation(ctx context.Context) (*string, error) {
-	userID := authz.For(ctx).GetUserID()
-
-	user, err := r.AuthService.GetUserByID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
-	}
-
-	// Check with GitHub API if the user has installed the app
-	installationID, err := r.GitHubAppService.GetUserInstallation(ctx, user.GithubUsername)
-	if err != nil {
-		r.Logger.Error("failed to check GitHub App installation", "error", err, "username", user.GithubUsername)
-		return nil, nil
-	}
-
-	if installationID == 0 {
-		// User has uninstalled - clear cached value
-		if user.GithubAppInstallationID.Valid {
-			_ = r.AuthService.ClearGitHubAppInstallation(ctx, userID)
-		}
-		return nil, nil
-	}
-
-	// Update cache with new value
-	if !user.GithubAppInstallationID.Valid || user.GithubAppInstallationID.Int64 != installationID {
-		_ = r.AuthService.SetGitHubAppInstallation(ctx, userID, installationID)
-	}
-
-	id := fmt.Sprintf("%d", installationID)
-	return &id, nil
-}
-
 // GithubAppInstallationID is the resolver for the githubAppInstallationId field.
 func (r *userResolver) GithubAppInstallationID(ctx context.Context, obj *model1.User) (*string, error) {
 	userID := authz.For(ctx).GetUserID()
@@ -131,8 +134,8 @@ func (r *userResolver) GithubAppInstallationID(ctx context.Context, obj *model1.
 	}
 
 	// Return cached value if present
-	if user.GithubAppInstallationID.Valid {
-		id := fmt.Sprintf("%d", user.GithubAppInstallationID.Int64)
+	if user.GithubAppInstallationID != nil {
+		id := fmt.Sprintf("%d", *user.GithubAppInstallationID)
 		return &id, nil
 	}
 

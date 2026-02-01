@@ -6,8 +6,10 @@ import (
 	"github.com/augustdev/autoclip/internal/auth"
 	"github.com/augustdev/autoclip/internal/authz"
 	"github.com/augustdev/autoclip/internal/bootstrap"
+	"github.com/augustdev/autoclip/internal/deployments"
 	"github.com/augustdev/autoclip/internal/github_oauth"
 	"github.com/augustdev/autoclip/internal/githubapp"
+	"github.com/augustdev/autoclip/internal/mcpserver"
 	"github.com/augustdev/autoclip/internal/storage/pg"
 	"go.uber.org/fx"
 )
@@ -21,13 +23,18 @@ func main() {
 			pg.NewDatabase,
 			pg.NewUserQueries,
 			pg.NewAPIKeyQueries,
+			pg.NewServiceQueries,
+			bootstrap.CreateTemporalClient,
 			github_oauth.NewOAuthService,
 			githubapp.NewService,
 			auth.NewService,
 			auth.NewHandlers,
 			authz.NewAPIKeyValidator,
+			bootstrap.NewCoolifyClient,
+			deployments.NewManager,
 			bootstrap.NewResolver,
 			bootstrap.NewTokenValidator,
+			mcpserver.NewServer,
 			bootstrap.NewGraphQLRouter,
 			bootstrap.NewAuthRouter,
 		),

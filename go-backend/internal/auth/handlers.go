@@ -195,7 +195,23 @@ func (h *Handlers) HandleGitHubAppCallback(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	h.logger.Info("github app installed", "user_id", userID, "installation_id", installationID)
+	// Get user to retrieve github username for the source name
+	user, err := h.service.GetUserByID(r.Context(), userID)
+	if err != nil {
+		h.logger.Error("failed to get user for coolify source creation", "error", err, "user_id", userID)
+		http.Redirect(w, r, errorURL, http.StatusTemporaryRedirect)
+		return
+	}
+
+	// Create Coolify GitHub App source for this user
+	coolifyUUID, err := h.service.CreateCoolifyGitHubAppSource(r.Context(), userID, installationID, user.GithubUsername)
+	if err != nil {
+		h.logger.Error("failed to create coolify github app source", "error", err, "user_id", userID, "installation_id", installationID)
+		http.Redirect(w, r, errorURL, http.StatusTemporaryRedirect)
+		return
+	}
+
+	h.logger.Info("github app installed", "user_id", userID, "installation_id", installationID, "coolify_uuid", coolifyUUID)
 	http.Redirect(w, r, successURL, http.StatusTemporaryRedirect)
 }
 
@@ -237,8 +253,8 @@ func (h *Handlers) HandleMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	avatarURL := ""
-	if user.AvatarUrl.Valid {
-		avatarURL = user.AvatarUrl.String
+	if user.AvatarUrl != nil {
+		avatarURL = *user.AvatarUrl
 	}
 
 	w.Header().Set("Content-Type", "application/json")

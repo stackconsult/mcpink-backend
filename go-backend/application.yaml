@@ -22,6 +22,9 @@ github:
 githubapp:
   appid: 2764764
   privatekey: ""
+  clientid: ""
+  clientsecret: ""
+  coolifyprivkeyuuid: ""
 
 auth:
   jwtsecret: ""
@@ -47,3 +50,12 @@ temporal:
 nats:
   url: "nats://localhost:4222"
   token: ""
+
+coolify:
+  baseurl: ""
+  token: ""
+  timeout: "30s"
+  projectuuid: ""
+  serveruuids: []
+  environmentname: "production"
+  githubappuuid: ""

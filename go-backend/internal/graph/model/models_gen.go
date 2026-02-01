@@ -23,6 +23,43 @@ type CreateAPIKeyResult struct {
 	Secret string  `json:"secret"`
 }
 
+type DeployInput struct {
+	Repo           string         `json:"repo"`
+	Branch         string         `json:"branch"`
+	ServerUUID     string         `json:"serverUuid"`
+	Name           *string        `json:"name,omitempty"`
+	BuildPack      *BuildPack     `json:"buildPack,omitempty"`
+	Port           *int32         `json:"port,omitempty"`
+	EnvVars        []*EnvVarInput `json:"envVars,omitempty"`
+	Memory         *string        `json:"memory,omitempty"`
+	CPU            *string        `json:"cpu,omitempty"`
+	InstallCommand *string        `json:"installCommand,omitempty"`
+	BuildCommand   *string        `json:"buildCommand,omitempty"`
+	StartCommand   *string        `json:"startCommand,omitempty"`
+	InstantDeploy  *bool          `json:"instantDeploy,omitempty"`
+}
+
+type DeployResult struct {
+	Deployment     *Deployment `json:"deployment"`
+	DeploymentUUID *string     `json:"deploymentUuid,omitempty"`
+	Message        string      `json:"message"`
+}
+
+type Deployment struct {
+	UUID      string  `json:"uuid"`
+	Name      string  `json:"name"`
+	Repo      string  `json:"repo"`
+	Branch    string  `json:"branch"`
+	Status    string  `json:"status"`
+	Fqdn      *string `json:"fqdn,omitempty"`
+	CreatedAt *string `json:"createdAt,omitempty"`
+}
+
+type EnvVarInput struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 type Mutation struct {
 }
 
@@ -36,6 +73,65 @@ type User struct {
 	CreatedAt               time.Time `json:"createdAt"`
 	GithubAppInstallationID *string   `json:"githubAppInstallationId,omitempty"`
 	GithubScopes            []string  `json:"githubScopes"`
+}
+
+type BuildPack string
+
+const (
+	BuildPackNixpacks      BuildPack = "NIXPACKS"
+	BuildPackDockerfile    BuildPack = "DOCKERFILE"
+	BuildPackStatic        BuildPack = "STATIC"
+	BuildPackDockerCompose BuildPack = "DOCKER_COMPOSE"
+)
+
+var AllBuildPack = []BuildPack{
+	BuildPackNixpacks,
+	BuildPackDockerfile,
+	BuildPackStatic,
+	BuildPackDockerCompose,
+}
+
+func (e BuildPack) IsValid() bool {
+	switch e {
+	case BuildPackNixpacks, BuildPackDockerfile, BuildPackStatic, BuildPackDockerCompose:
+		return true
+	}
+	return false
+}
+
+func (e BuildPack) String() string {
+	return string(e)
+}
+
+func (e *BuildPack) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BuildPack(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BuildPack", str)
+	}
+	return nil
+}
+
+func (e BuildPack) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BuildPack) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BuildPack) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type Role string

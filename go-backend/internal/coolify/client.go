@@ -12,9 +12,13 @@ import (
 )
 
 type Config struct {
-	BaseURL string
-	Token   string
-	Timeout time.Duration
+	BaseURL         string
+	Token           string
+	Timeout         time.Duration
+	ProjectUUID     string
+	ServerUUIDs     []string
+	EnvironmentName string
+	GitHubAppUUID   string
 }
 
 type Client struct {
@@ -23,6 +27,7 @@ type Client struct {
 	baseURL    *url.URL
 
 	Applications *ApplicationsService
+	Sources      *SourcesService
 }
 
 func NewClient(config Config) (*Client, error) {
@@ -52,6 +57,7 @@ func NewClient(config Config) (*Client, error) {
 	}
 
 	c.Applications = &ApplicationsService{client: c}
+	c.Sources = &SourcesService{client: c}
 
 	return c, nil
 }
@@ -60,6 +66,15 @@ type Error struct {
 	StatusCode int
 	Message    string
 	Body       string
+}
+
+func (c *Client) Config() Config {
+	return c.config
+}
+
+func (c *Client) GetMuscleServer() string {
+	// TODO: implement server selection logic
+	return c.config.ServerUUIDs[0]
 }
 
 func (e *Error) Error() string {
