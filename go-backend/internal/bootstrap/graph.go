@@ -20,6 +20,8 @@ import (
 	"github.com/augustdev/autoclip/internal/storage/pg"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
+	"github.com/augustdev/autoclip/internal/turso"
+	"github.com/augustdev/autoclip/internal/webhooks"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/gorilla/websocket"
@@ -72,6 +74,7 @@ func NewGraphQLRouter(
 	authConfig auth.Config,
 	authService *auth.Service,
 	mcpServer *mcpserver.Server,
+	webhookHandlers *webhooks.Handlers,
 ) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -150,6 +153,12 @@ func NewGraphQLRouter(
 		logger.Info("MCP server mounted", "path", "/mcp")
 	}
 
+	// Webhook routes (no auth - uses signature verification)
+	if webhookHandlers != nil {
+		webhookHandlers.RegisterRoutes(router)
+		logger.Info("Webhook handlers mounted", "path", "/webhooks/github")
+	}
+
 	return router
 }
 
@@ -175,6 +184,15 @@ func NewCoolifyClient(config coolify.Config, logger *slog.Logger) *coolify.Clien
 		return nil
 	}
 	return client
+}
+
+func NewTursoClient(config turso.Config, logger *slog.Logger) *turso.Client {
+	if config.APIKey == "" || config.OrgSlug == "" {
+		logger.Info("Turso client not configured, skipping")
+		return nil
+	}
+
+	return turso.NewClient(config, logger)
 }
 
 func StartServer(lc fx.Lifecycle, router *chi.Mux, config GraphQLAPIConfig, logger *slog.Logger) {

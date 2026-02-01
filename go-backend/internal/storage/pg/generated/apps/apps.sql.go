@@ -37,7 +37,7 @@ INSERT INTO apps (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'queued'
 )
-RETURNING id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id
+RETURNING id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id, commit_hash
 `
 
 type CreateAppParams struct {
@@ -91,6 +91,7 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ProjectID,
+		&i.CommitHash,
 	)
 	return i, err
 }
@@ -105,7 +106,7 @@ func (q *Queries) DeleteApp(ctx context.Context, id string) error {
 }
 
 const getAppByCoolifyUUID = `-- name: GetAppByCoolifyUUID :one
-SELECT id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id FROM apps WHERE coolify_app_uuid = $1
+SELECT id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id, commit_hash FROM apps WHERE coolify_app_uuid = $1
 `
 
 func (q *Queries) GetAppByCoolifyUUID(ctx context.Context, coolifyAppUuid *string) (App, error) {
@@ -131,12 +132,13 @@ func (q *Queries) GetAppByCoolifyUUID(ctx context.Context, coolifyAppUuid *strin
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ProjectID,
+		&i.CommitHash,
 	)
 	return i, err
 }
 
 const getAppByID = `-- name: GetAppByID :one
-SELECT id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id FROM apps WHERE id = $1
+SELECT id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id, commit_hash FROM apps WHERE id = $1
 `
 
 func (q *Queries) GetAppByID(ctx context.Context, id string) (App, error) {
@@ -162,12 +164,94 @@ func (q *Queries) GetAppByID(ctx context.Context, id string) (App, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ProjectID,
+		&i.CommitHash,
+	)
+	return i, err
+}
+
+const getAppByNameAndProject = `-- name: GetAppByNameAndProject :one
+SELECT id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id, commit_hash FROM apps
+WHERE name = $1 AND project_id = $2 AND coolify_app_uuid IS NOT NULL
+`
+
+type GetAppByNameAndProjectParams struct {
+	Name      *string `json:"name"`
+	ProjectID string  `json:"project_id"`
+}
+
+func (q *Queries) GetAppByNameAndProject(ctx context.Context, arg GetAppByNameAndProjectParams) (App, error) {
+	row := q.db.QueryRow(ctx, getAppByNameAndProject, arg.Name, arg.ProjectID)
+	var i App
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CoolifyAppUuid,
+		&i.BuildStatus,
+		&i.RuntimeStatus,
+		&i.ErrorMessage,
+		&i.Repo,
+		&i.Branch,
+		&i.ServerUuid,
+		&i.Name,
+		&i.BuildPack,
+		&i.Port,
+		&i.EnvVars,
+		&i.Fqdn,
+		&i.WorkflowID,
+		&i.WorkflowRunID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProjectID,
+		&i.CommitHash,
+	)
+	return i, err
+}
+
+const getAppByNameAndUserProject = `-- name: GetAppByNameAndUserProject :one
+SELECT a.id, a.user_id, a.coolify_app_uuid, a.build_status, a.runtime_status, a.error_message, a.repo, a.branch, a.server_uuid, a.name, a.build_pack, a.port, a.env_vars, a.fqdn, a.workflow_id, a.workflow_run_id, a.created_at, a.updated_at, a.project_id, a.commit_hash FROM apps a
+JOIN projects p ON a.project_id = p.id
+WHERE a.name = $1
+  AND p.user_id = $2
+  AND (p.ref = $3 OR ($3 = 'default' AND p.is_default = true))
+LIMIT 1
+`
+
+type GetAppByNameAndUserProjectParams struct {
+	Name   *string `json:"name"`
+	UserID string  `json:"user_id"`
+	Ref    string  `json:"ref"`
+}
+
+func (q *Queries) GetAppByNameAndUserProject(ctx context.Context, arg GetAppByNameAndUserProjectParams) (App, error) {
+	row := q.db.QueryRow(ctx, getAppByNameAndUserProject, arg.Name, arg.UserID, arg.Ref)
+	var i App
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CoolifyAppUuid,
+		&i.BuildStatus,
+		&i.RuntimeStatus,
+		&i.ErrorMessage,
+		&i.Repo,
+		&i.Branch,
+		&i.ServerUuid,
+		&i.Name,
+		&i.BuildPack,
+		&i.Port,
+		&i.EnvVars,
+		&i.Fqdn,
+		&i.WorkflowID,
+		&i.WorkflowRunID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProjectID,
+		&i.CommitHash,
 	)
 	return i, err
 }
 
 const getAppByWorkflowID = `-- name: GetAppByWorkflowID :one
-SELECT id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id FROM apps WHERE workflow_id = $1
+SELECT id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id, commit_hash FROM apps WHERE workflow_id = $1
 `
 
 func (q *Queries) GetAppByWorkflowID(ctx context.Context, workflowID string) (App, error) {
@@ -193,12 +277,64 @@ func (q *Queries) GetAppByWorkflowID(ctx context.Context, workflowID string) (Ap
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ProjectID,
+		&i.CommitHash,
 	)
 	return i, err
 }
 
+const getAppsByRepoBranch = `-- name: GetAppsByRepoBranch :many
+SELECT id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id, commit_hash FROM apps
+WHERE repo = $1 AND branch = $2 AND coolify_app_uuid IS NOT NULL
+`
+
+type GetAppsByRepoBranchParams struct {
+	Repo   string `json:"repo"`
+	Branch string `json:"branch"`
+}
+
+func (q *Queries) GetAppsByRepoBranch(ctx context.Context, arg GetAppsByRepoBranchParams) ([]App, error) {
+	rows, err := q.db.Query(ctx, getAppsByRepoBranch, arg.Repo, arg.Branch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []App{}
+	for rows.Next() {
+		var i App
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CoolifyAppUuid,
+			&i.BuildStatus,
+			&i.RuntimeStatus,
+			&i.ErrorMessage,
+			&i.Repo,
+			&i.Branch,
+			&i.ServerUuid,
+			&i.Name,
+			&i.BuildPack,
+			&i.Port,
+			&i.EnvVars,
+			&i.Fqdn,
+			&i.WorkflowID,
+			&i.WorkflowRunID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProjectID,
+			&i.CommitHash,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAppsByProjectID = `-- name: ListAppsByProjectID :many
-SELECT id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id FROM apps
+SELECT id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id, commit_hash FROM apps
 WHERE project_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -239,6 +375,7 @@ func (q *Queries) ListAppsByProjectID(ctx context.Context, arg ListAppsByProject
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ProjectID,
+			&i.CommitHash,
 		); err != nil {
 			return nil, err
 		}
@@ -251,7 +388,7 @@ func (q *Queries) ListAppsByProjectID(ctx context.Context, arg ListAppsByProject
 }
 
 const listAppsByUserID = `-- name: ListAppsByUserID :many
-SELECT id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id FROM apps
+SELECT id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id, commit_hash FROM apps
 WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -292,6 +429,7 @@ func (q *Queries) ListAppsByUserID(ctx context.Context, arg ListAppsByUserIDPara
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ProjectID,
+			&i.CommitHash,
 		); err != nil {
 			return nil, err
 		}
@@ -307,7 +445,7 @@ const updateAppCoolifyUUID = `-- name: UpdateAppCoolifyUUID :one
 UPDATE apps
 SET coolify_app_uuid = $2, build_status = 'building', updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id
+RETURNING id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id, commit_hash
 `
 
 type UpdateAppCoolifyUUIDParams struct {
@@ -338,6 +476,7 @@ func (q *Queries) UpdateAppCoolifyUUID(ctx context.Context, arg UpdateAppCoolify
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ProjectID,
+		&i.CommitHash,
 	)
 	return i, err
 }
@@ -346,7 +485,7 @@ const updateAppFailed = `-- name: UpdateAppFailed :one
 UPDATE apps
 SET build_status = 'failed', error_message = $2, updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id
+RETURNING id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id, commit_hash
 `
 
 type UpdateAppFailedParams struct {
@@ -377,24 +516,20 @@ func (q *Queries) UpdateAppFailed(ctx context.Context, arg UpdateAppFailedParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ProjectID,
+		&i.CommitHash,
 	)
 	return i, err
 }
 
-const updateAppRunning = `-- name: UpdateAppRunning :one
+const updateAppRedeploying = `-- name: UpdateAppRedeploying :one
 UPDATE apps
-SET build_status = 'success', runtime_status = 'running', fqdn = $2, updated_at = NOW()
+SET build_status = 'building', updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id
+RETURNING id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id, commit_hash
 `
 
-type UpdateAppRunningParams struct {
-	ID   string  `json:"id"`
-	Fqdn *string `json:"fqdn"`
-}
-
-func (q *Queries) UpdateAppRunning(ctx context.Context, arg UpdateAppRunningParams) (App, error) {
-	row := q.db.QueryRow(ctx, updateAppRunning, arg.ID, arg.Fqdn)
+func (q *Queries) UpdateAppRedeploying(ctx context.Context, id string) (App, error) {
+	row := q.db.QueryRow(ctx, updateAppRedeploying, id)
 	var i App
 	err := row.Scan(
 		&i.ID,
@@ -416,6 +551,48 @@ func (q *Queries) UpdateAppRunning(ctx context.Context, arg UpdateAppRunningPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ProjectID,
+		&i.CommitHash,
+	)
+	return i, err
+}
+
+const updateAppRunning = `-- name: UpdateAppRunning :one
+UPDATE apps
+SET build_status = 'success', runtime_status = 'running', fqdn = $2, commit_hash = $3, updated_at = NOW()
+WHERE id = $1
+RETURNING id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id, commit_hash
+`
+
+type UpdateAppRunningParams struct {
+	ID         string  `json:"id"`
+	Fqdn       *string `json:"fqdn"`
+	CommitHash *string `json:"commit_hash"`
+}
+
+func (q *Queries) UpdateAppRunning(ctx context.Context, arg UpdateAppRunningParams) (App, error) {
+	row := q.db.QueryRow(ctx, updateAppRunning, arg.ID, arg.Fqdn, arg.CommitHash)
+	var i App
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CoolifyAppUuid,
+		&i.BuildStatus,
+		&i.RuntimeStatus,
+		&i.ErrorMessage,
+		&i.Repo,
+		&i.Branch,
+		&i.ServerUuid,
+		&i.Name,
+		&i.BuildPack,
+		&i.Port,
+		&i.EnvVars,
+		&i.Fqdn,
+		&i.WorkflowID,
+		&i.WorkflowRunID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProjectID,
+		&i.CommitHash,
 	)
 	return i, err
 }
@@ -424,7 +601,7 @@ const updateBuildStatus = `-- name: UpdateBuildStatus :one
 UPDATE apps
 SET build_status = $2, updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id
+RETURNING id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id, commit_hash
 `
 
 type UpdateBuildStatusParams struct {
@@ -455,6 +632,7 @@ func (q *Queries) UpdateBuildStatus(ctx context.Context, arg UpdateBuildStatusPa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ProjectID,
+		&i.CommitHash,
 	)
 	return i, err
 }
@@ -463,7 +641,7 @@ const updateRuntimeStatus = `-- name: UpdateRuntimeStatus :one
 UPDATE apps
 SET runtime_status = $2, updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id
+RETURNING id, user_id, coolify_app_uuid, build_status, runtime_status, error_message, repo, branch, server_uuid, name, build_pack, port, env_vars, fqdn, workflow_id, workflow_run_id, created_at, updated_at, project_id, commit_hash
 `
 
 type UpdateRuntimeStatusParams struct {
@@ -494,6 +672,7 @@ func (q *Queries) UpdateRuntimeStatus(ctx context.Context, arg UpdateRuntimeStat
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ProjectID,
+		&i.CommitHash,
 	)
 	return i, err
 }

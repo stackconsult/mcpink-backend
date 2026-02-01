@@ -10,6 +10,7 @@ import (
 	"github.com/augustdev/autoclip/internal/github_oauth"
 	"github.com/augustdev/autoclip/internal/githubapp"
 	"github.com/augustdev/autoclip/internal/storage/pg"
+	"github.com/augustdev/autoclip/internal/turso"
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 	"go.uber.org/fx"
@@ -29,6 +30,7 @@ func NewConfig() (Config, error) {
 		Temporal   TemporalClientConfig
 		NATS       NATSConfig
 		Coolify    coolify.Config
+		Turso      turso.Config
 	}
 
 	if err := viper.Unmarshal(&cfg); err != nil {
@@ -44,6 +46,7 @@ func NewConfig() (Config, error) {
 		Temporal:   cfg.Temporal,
 		NATS:       cfg.NATS,
 		Coolify:    cfg.Coolify,
+		Turso:      cfg.Turso,
 	}, nil
 }
 
@@ -58,6 +61,7 @@ type Config struct {
 	Temporal   TemporalClientConfig
 	NATS       NATSConfig
 	Coolify    coolify.Config
+	Turso      turso.Config
 }
 
 func InitConfig() error {

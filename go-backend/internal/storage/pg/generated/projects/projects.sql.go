@@ -21,9 +21,9 @@ func (q *Queries) CountProjectsByUserID(ctx context.Context, userID string) (int
 }
 
 const createDefaultProject = `-- name: CreateDefaultProject :one
-INSERT INTO projects (user_id, name, is_default)
-VALUES ($1, 'default', TRUE)
-RETURNING id, user_id, name, created_at, updated_at, is_default
+INSERT INTO projects (user_id, name, ref, is_default)
+VALUES ($1, 'default', 'default', TRUE)
+RETURNING id, user_id, name, created_at, updated_at, is_default, ref
 `
 
 func (q *Queries) CreateDefaultProject(ctx context.Context, userID string) (Project, error) {
@@ -36,23 +36,25 @@ func (q *Queries) CreateDefaultProject(ctx context.Context, userID string) (Proj
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.Ref,
 	)
 	return i, err
 }
 
 const createProject = `-- name: CreateProject :one
-INSERT INTO projects (user_id, name)
-VALUES ($1, $2)
-RETURNING id, user_id, name, created_at, updated_at, is_default
+INSERT INTO projects (user_id, name, ref)
+VALUES ($1, $2, $3)
+RETURNING id, user_id, name, created_at, updated_at, is_default, ref
 `
 
 type CreateProjectParams struct {
 	UserID string `json:"user_id"`
 	Name   string `json:"name"`
+	Ref    string `json:"ref"`
 }
 
 func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error) {
-	row := q.db.QueryRow(ctx, createProject, arg.UserID, arg.Name)
+	row := q.db.QueryRow(ctx, createProject, arg.UserID, arg.Name, arg.Ref)
 	var i Project
 	err := row.Scan(
 		&i.ID,
@@ -61,6 +63,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.Ref,
 	)
 	return i, err
 }
@@ -75,7 +78,7 @@ func (q *Queries) DeleteProject(ctx context.Context, id string) error {
 }
 
 const getDefaultProject = `-- name: GetDefaultProject :one
-SELECT id, user_id, name, created_at, updated_at, is_default FROM projects WHERE user_id = $1 AND is_default = TRUE
+SELECT id, user_id, name, created_at, updated_at, is_default, ref FROM projects WHERE user_id = $1 AND is_default = TRUE
 `
 
 func (q *Queries) GetDefaultProject(ctx context.Context, userID string) (Project, error) {
@@ -88,12 +91,13 @@ func (q *Queries) GetDefaultProject(ctx context.Context, userID string) (Project
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.Ref,
 	)
 	return i, err
 }
 
 const getProjectByID = `-- name: GetProjectByID :one
-SELECT id, user_id, name, created_at, updated_at, is_default FROM projects WHERE id = $1
+SELECT id, user_id, name, created_at, updated_at, is_default, ref FROM projects WHERE id = $1
 `
 
 func (q *Queries) GetProjectByID(ctx context.Context, id string) (Project, error) {
@@ -106,21 +110,22 @@ func (q *Queries) GetProjectByID(ctx context.Context, id string) (Project, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.Ref,
 	)
 	return i, err
 }
 
-const getProjectByName = `-- name: GetProjectByName :one
-SELECT id, user_id, name, created_at, updated_at, is_default FROM projects WHERE user_id = $1 AND name = $2
+const getProjectByRef = `-- name: GetProjectByRef :one
+SELECT id, user_id, name, created_at, updated_at, is_default, ref FROM projects WHERE user_id = $1 AND ref = $2
 `
 
-type GetProjectByNameParams struct {
+type GetProjectByRefParams struct {
 	UserID string `json:"user_id"`
-	Name   string `json:"name"`
+	Ref    string `json:"ref"`
 }
 
-func (q *Queries) GetProjectByName(ctx context.Context, arg GetProjectByNameParams) (Project, error) {
-	row := q.db.QueryRow(ctx, getProjectByName, arg.UserID, arg.Name)
+func (q *Queries) GetProjectByRef(ctx context.Context, arg GetProjectByRefParams) (Project, error) {
+	row := q.db.QueryRow(ctx, getProjectByRef, arg.UserID, arg.Ref)
 	var i Project
 	err := row.Scan(
 		&i.ID,
@@ -129,12 +134,13 @@ func (q *Queries) GetProjectByName(ctx context.Context, arg GetProjectByNamePara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.Ref,
 	)
 	return i, err
 }
 
 const listProjectsByUserID = `-- name: ListProjectsByUserID :many
-SELECT id, user_id, name, created_at, updated_at, is_default FROM projects
+SELECT id, user_id, name, created_at, updated_at, is_default, ref FROM projects
 WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -162,6 +168,7 @@ func (q *Queries) ListProjectsByUserID(ctx context.Context, arg ListProjectsByUs
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.IsDefault,
+			&i.Ref,
 		); err != nil {
 			return nil, err
 		}
@@ -175,18 +182,19 @@ func (q *Queries) ListProjectsByUserID(ctx context.Context, arg ListProjectsByUs
 
 const updateProjectName = `-- name: UpdateProjectName :one
 UPDATE projects
-SET name = $2, updated_at = NOW()
+SET name = $2, ref = $3, updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, name, created_at, updated_at, is_default
+RETURNING id, user_id, name, created_at, updated_at, is_default, ref
 `
 
 type UpdateProjectNameParams struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+	Ref  string `json:"ref"`
 }
 
 func (q *Queries) UpdateProjectName(ctx context.Context, arg UpdateProjectNameParams) (Project, error) {
-	row := q.db.QueryRow(ctx, updateProjectName, arg.ID, arg.Name)
+	row := q.db.QueryRow(ctx, updateProjectName, arg.ID, arg.Name, arg.Ref)
 	var i Project
 	err := row.Scan(
 		&i.ID,
@@ -195,6 +203,7 @@ func (q *Queries) UpdateProjectName(ctx context.Context, arg UpdateProjectNamePa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.Ref,
 	)
 	return i, err
 }

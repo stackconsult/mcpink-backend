@@ -1,4 +1,6 @@
 .env
 keys/*
-sever
+go-backend/server
+go-backend/worker
+server
 worker

@@ -39,6 +39,7 @@ type App struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	ProjectID      string             `json:"project_id"`
+	CommitHash     *string            `json:"commit_hash"`
 }
 
 type GithubCred struct {
@@ -60,6 +61,23 @@ type Project struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 	IsDefault bool               `json:"is_default"`
+	Ref       string             `json:"ref"`
+}
+
+type Resource struct {
+	ID          string             `json:"id"`
+	UserID      string             `json:"user_id"`
+	ProjectID   *string            `json:"project_id"`
+	Name        string             `json:"name"`
+	Type        string             `json:"type"`
+	Provider    string             `json:"provider"`
+	Region      string             `json:"region"`
+	ExternalID  *string            `json:"external_id"`
+	Credentials string             `json:"credentials"`
+	Metadata    []byte             `json:"metadata"`
+	Status      string             `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
 type User struct {

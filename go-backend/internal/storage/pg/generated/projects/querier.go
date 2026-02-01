@@ -15,7 +15,7 @@ type Querier interface {
 	DeleteProject(ctx context.Context, id string) error
 	GetDefaultProject(ctx context.Context, userID string) (Project, error)
 	GetProjectByID(ctx context.Context, id string) (Project, error)
-	GetProjectByName(ctx context.Context, arg GetProjectByNameParams) (Project, error)
+	GetProjectByRef(ctx context.Context, arg GetProjectByRefParams) (Project, error)
 	ListProjectsByUserID(ctx context.Context, arg ListProjectsByUserIDParams) ([]Project, error)
 	UpdateProjectName(ctx context.Context, arg UpdateProjectNameParams) (Project, error)
 }

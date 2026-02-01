@@ -34,7 +34,7 @@ func NewService(
 
 type CreateAppInput struct {
 	UserID        string
-	ProjectName   string
+	ProjectRef    string
 	GitHubAppUUID string
 	Repo          string
 	Branch        string
@@ -53,15 +53,15 @@ type CreateAppResult struct {
 }
 
 func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateAppResult, error) {
-	// Look up project by name or get default
+	// Look up project by ref or get default
 	var projectID string
-	if input.ProjectName != "" {
-		project, err := s.projectsQ.GetProjectByName(ctx, projects.GetProjectByNameParams{
+	if input.ProjectRef != "" {
+		project, err := s.projectsQ.GetProjectByRef(ctx, projects.GetProjectByRefParams{
 			UserID: input.UserID,
-			Name:   input.ProjectName,
+			Ref:    input.ProjectRef,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("project not found: %s", input.ProjectName)
+			return nil, fmt.Errorf("project not found: %s", input.ProjectRef)
 		}
 		projectID = project.ID
 	} else {
@@ -124,4 +124,75 @@ func (s *Service) ListApps(ctx context.Context, userID string, limit, offset int
 		return nil, fmt.Errorf("failed to list apps: %w", err)
 	}
 	return appList, nil
+}
+
+func (s *Service) GetProjectByRef(ctx context.Context, userID, ref string) (*projects.Project, error) {
+	project, err := s.projectsQ.GetProjectByRef(ctx, projects.GetProjectByRefParams{
+		UserID: userID,
+		Ref:    ref,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("project not found: %s", ref)
+	}
+	return &project, nil
+}
+
+func (s *Service) GetAppByNameAndProject(ctx context.Context, name, projectID string) (*apps.App, error) {
+	app, err := s.appsQ.GetAppByNameAndProject(ctx, apps.GetAppByNameAndProjectParams{
+		Name:      &name,
+		ProjectID: projectID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("app not found: %s", name)
+	}
+	return &app, nil
+}
+
+type GetAppByNameParams struct {
+	Name    string
+	Project string // "default" uses user's default project
+	UserID  string
+}
+
+func (s *Service) GetAppByName(ctx context.Context, params GetAppByNameParams) (*apps.App, error) {
+	project := params.Project
+	if project == "" {
+		project = "default"
+	}
+
+	app, err := s.appsQ.GetAppByNameAndUserProject(ctx, apps.GetAppByNameAndUserProjectParams{
+		Name:   &params.Name,
+		UserID: params.UserID,
+		Ref:    project,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("app not found: %s in project %s", params.Name, project)
+	}
+	return &app, nil
+}
+
+func (s *Service) RedeployApp(ctx context.Context, appID, coolifyAppUUID string) (string, error) {
+	workflowID := fmt.Sprintf("redeploy-%s-%s", appID, shortuuid.New())
+
+	workflowOptions := client.StartWorkflowOptions{
+		ID:        workflowID,
+		TaskQueue: "default",
+	}
+
+	we, err := s.temporalClient.ExecuteWorkflow(ctx, workflowOptions, RedeployToCoolifyWorkflow, RedeployWorkflowInput{
+		AppID:          appID,
+		CoolifyAppUUID: coolifyAppUUID,
+	})
+	if err != nil {
+		s.logger.Error("failed to start redeploy workflow",
+			"workflowID", workflowID,
+			"error", err)
+		return "", fmt.Errorf("failed to start redeploy workflow: %w", err)
+	}
+
+	s.logger.Info("started redeploy workflow",
+		"workflowID", workflowID,
+		"runID", we.GetRunID())
+
+	return we.GetID(), nil
 }

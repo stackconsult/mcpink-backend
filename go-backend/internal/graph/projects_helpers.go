@@ -32,6 +32,7 @@ func dbProjectToModel(dbProject *projects.Project, projectApps []*model.App) *mo
 	return &model.Project{
 		ID:        dbProject.ID,
 		Name:      dbProject.Name,
+		Ref:       dbProject.Ref,
 		Apps:      projectApps,
 		CreatedAt: dbProject.CreatedAt.Time,
 		UpdatedAt: dbProject.UpdatedAt.Time,

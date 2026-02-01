@@ -1,17 +1,17 @@
 -- name: CreateProject :one
-INSERT INTO projects (user_id, name)
-VALUES ($1, $2)
+INSERT INTO projects (user_id, name, ref)
+VALUES ($1, $2, $3)
 RETURNING *;
 
 -- name: GetProjectByID :one
 SELECT * FROM projects WHERE id = $1;
 
--- name: GetProjectByName :one
-SELECT * FROM projects WHERE user_id = $1 AND name = $2;
+-- name: GetProjectByRef :one
+SELECT * FROM projects WHERE user_id = $1 AND ref = $2;
 
 -- name: CreateDefaultProject :one
-INSERT INTO projects (user_id, name, is_default)
-VALUES ($1, 'default', TRUE)
+INSERT INTO projects (user_id, name, ref, is_default)
+VALUES ($1, 'default', 'default', TRUE)
 RETURNING *;
 
 -- name: GetDefaultProject :one
@@ -28,7 +28,7 @@ SELECT COUNT(*) FROM projects WHERE user_id = $1;
 
 -- name: UpdateProjectName :one
 UPDATE projects
-SET name = $2, updated_at = NOW()
+SET name = $2, ref = $3, updated_at = NOW()
 WHERE id = $1
 RETURNING *;
 

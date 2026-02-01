@@ -53,7 +53,7 @@ RETURNING *;
 
 -- name: UpdateAppRunning :one
 UPDATE apps
-SET build_status = 'success', runtime_status = 'running', fqdn = $2, updated_at = NOW()
+SET build_status = 'success', runtime_status = 'running', fqdn = $2, commit_hash = $3, updated_at = NOW()
 WHERE id = $1
 RETURNING *;
 
@@ -70,3 +70,25 @@ WHERE id = $1;
 
 -- name: DeleteApp :exec
 DELETE FROM apps WHERE id = $1;
+
+-- name: GetAppsByRepoBranch :many
+SELECT * FROM apps
+WHERE repo = $1 AND branch = $2 AND coolify_app_uuid IS NOT NULL;
+
+-- name: UpdateAppRedeploying :one
+UPDATE apps
+SET build_status = 'building', updated_at = NOW()
+WHERE id = $1
+RETURNING *;
+
+-- name: GetAppByNameAndProject :one
+SELECT * FROM apps
+WHERE name = $1 AND project_id = $2 AND coolify_app_uuid IS NOT NULL;
+
+-- name: GetAppByNameAndUserProject :one
+SELECT a.* FROM apps a
+JOIN projects p ON a.project_id = p.id
+WHERE a.name = $1
+  AND p.user_id = $2
+  AND (p.ref = $3 OR ($3 = 'default' AND p.is_default = true))
+LIMIT 1;

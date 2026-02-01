@@ -14,14 +14,25 @@ When provisioning a new Muscle server, complete this checklist:
 - [ ] Docker installed
 - [ ] Server registered in Coolify as a destination
 
-### Hardening Steps
+### One-Command Setup (Recommended)
+
+```bash
+# From the infra/hetzner/hardening directory:
+./setup-muscle.sh <server-ip>
+```
+
+This applies baseline security (egress rules, gVisor available, miner detection) without making gVisor the default runtime.
+
+### Manual Hardening Steps
+
+If you prefer step-by-step:
 
 ```bash
 # Set the new server IP
 export MUSCLE_IP="<new-server-ip>"
 
 # 1. Copy all hardening scripts
-scp setup-egress-rules.sh install-gvisor.sh detect-miners.sh root@${MUSCLE_IP}:/root/
+scp setup-egress-rules.sh install-gvisor.sh detect-miners.sh verify-hardening.sh root@${MUSCLE_IP}:/root/
 ssh root@${MUSCLE_IP} "chmod +x /root/*.sh"
 
 # 2. Apply egress firewall rules
@@ -30,24 +41,51 @@ ssh root@${MUSCLE_IP} "bash /root/setup-egress-rules.sh"
 # 3. Install gVisor
 ssh root@${MUSCLE_IP} "bash /root/install-gvisor.sh"
 
-# 4. Configure Docker daemon
-scp daemon.json root@${MUSCLE_IP}:/etc/docker/daemon.json
+# 4. Configure Docker daemon (baseline - gVisor available but not default)
+scp daemon-baseline.json root@${MUSCLE_IP}:/etc/docker/daemon.json
 ssh root@${MUSCLE_IP} "systemctl restart docker"
 
 # 5. Set up miner detection cron (runs every 5 min)
 ssh root@${MUSCLE_IP} 'echo "*/5 * * * * /root/detect-miners.sh" | crontab -'
 
 # 6. Verify setup
-ssh root@${MUSCLE_IP} "docker run --rm hello-world"
-ssh root@${MUSCLE_IP} "docker run --rm alpine timeout 5 nc -zv smtp.gmail.com 25 || echo 'SMTP blocked (good)'"
+ssh root@${MUSCLE_IP} "bash /root/verify-hardening.sh"
+```
+
+### Testing gVisor
+
+After baseline setup, test gVisor before making it default:
+
+```bash
+# Basic test
+ssh root@${MUSCLE_IP} "docker run --runtime=runsc --rm hello-world"
+
+# Alpine test
+ssh root@${MUSCLE_IP} "docker run --runtime=runsc --rm alpine echo 'gVisor works'"
+
+# Node.js test
+ssh root@${MUSCLE_IP} "docker run --runtime=runsc --rm node:20-alpine node -e 'console.log(process.version)'"
+```
+
+### Making gVisor the Default Runtime
+
+Once testing is complete:
+
+```bash
+# Switch to gVisor as default
+scp daemon.json root@${MUSCLE_IP}:/etc/docker/daemon.json
+ssh root@${MUSCLE_IP} "systemctl restart docker"
+
+# Verify system containers still running
+ssh root@${MUSCLE_IP} "docker ps | grep -E 'traefik|coolify'"
 ```
 
 ### Verification Checklist
 - [ ] `iptables -L DOCKER-USER -n` shows DROP rules for metadata, SMTP, mining ports
-- [ ] `docker info | grep "Default Runtime"` shows `runsc`
-- [ ] `docker run --rm hello-world` succeeds
+- [ ] `docker run --runtime=runsc --rm hello-world` succeeds
 - [ ] SMTP test times out or refuses (not "open")
 - [ ] Traefik still running: `docker ps | grep traefik`
+- [ ] `bash /root/verify-hardening.sh` passes all critical checks
 
 ---
 
@@ -243,11 +281,15 @@ Since we set `default-runtime: runsc`, these system containers need explicit `--
 | File | Purpose |
 |------|---------|
 | `README.md` | This documentation |
-| `setup-egress-rules.sh` | Egress firewall script |
+| `setup-muscle.sh` | **One-command setup** for new Muscle servers |
+| `setup-egress-rules.sh` | Egress firewall rules (metadata, SMTP, mining, IRC, Tor) |
 | `install-gvisor.sh` | gVisor installation |
 | `detect-miners.sh` | Runtime abuse detection (cron) |
-| `daemon.json` | Docker daemon config with gVisor |
-| `daemon-baseline.json` | Docker daemon config without gVisor |
+| `verify-hardening.sh` | Automated security verification |
+| `harden-ssh.sh` | SSH hardening (disable password auth) |
+| `setup-host-firewall.sh` | UFW host firewall configuration |
+| `daemon.json` | Docker daemon config with gVisor as default |
+| `daemon-baseline.json` | Docker daemon config with gVisor available (not default) |
 
 ---
 

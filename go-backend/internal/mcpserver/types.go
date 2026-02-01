@@ -14,12 +14,12 @@ type EnvVar struct {
 	Value string `json:"value" jsonschema:"Environment variable value"`
 }
 
-type DeployInput struct {
+type CreateAppInput struct {
 	Repo   string `json:"repo" jsonschema:"GitHub repository in owner/repo format"`
 	Branch string `json:"branch" jsonschema:"Branch to deploy"`
 	Name   string `json:"name" jsonschema:"Name for the deployment"`
 
-	Project string `json:"project,omitempty" jsonschema:"Project name to deploy to (default: user's default project)"`
+	Project   string   `json:"project,omitempty" jsonschema:"Project name to deploy to (default: user's default project)"`
 	BuildPack string   `json:"build_pack,omitempty" jsonschema:"Build pack to use: nixpacks (default) or dockerfile or static or dockercompose"`
 	Port      int      `json:"port,omitempty" jsonschema:"Port the application listens on (default: 3000)"`
 	EnvVars   []EnvVar `json:"env_vars,omitempty" jsonschema:"Environment variables"`
@@ -34,12 +34,26 @@ type DeployInput struct {
 	InstantDeploy *bool `json:"instant_deploy,omitempty" jsonschema:"Start deployment immediately (default: true)"`
 }
 
-type DeployOutput struct {
-	AppID   string `json:"app_id"`
-	Name    string `json:"name"`
-	Status  string `json:"status"`
-	Repo    string `json:"repo"`
-	Message string `json:"message"`
+type CreateAppOutput struct {
+	AppID      string `json:"app_id"`
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	Repo       string `json:"repo"`
+	CommitHash string `json:"commit_hash,omitempty"`
+	Message    string `json:"message"`
+}
+
+type RedeployInput struct {
+	Name    string `json:"name" jsonschema:"Name of the app to redeploy (required)"`
+	Project string `json:"project,omitempty" jsonschema:"Project name (default: default)"`
+}
+
+type RedeployOutput struct {
+	AppID      string `json:"app_id"`
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	CommitHash string `json:"commit_hash,omitempty"`
+	Message    string `json:"message"`
 }
 
 type ListAppsInput struct{}
@@ -49,14 +63,106 @@ type ListAppsOutput struct {
 }
 
 type AppInfo struct {
-	AppID  string  `json:"app_id"`
-	Name   string  `json:"name"`
-	Status string  `json:"status"`
-	Repo   string  `json:"repo"`
-	URL    *string `json:"url,omitempty"`
+	AppID      string  `json:"app_id"`
+	Name       string  `json:"name"`
+	Status     string  `json:"status"`
+	Repo       string  `json:"repo"`
+	URL        *string `json:"url,omitempty"`
+	CommitHash *string `json:"commit_hash,omitempty"`
 }
 
 const (
 	DefaultPort      = 3000
 	DefaultBuildPack = "nixpacks"
 )
+
+type ProvisionDatabaseInput struct {
+	Name       string `json:"name" jsonschema:"Name for the database (required)"`
+	Type       string `json:"type,omitempty" jsonschema:"Database type (default: sqlite, only option for now)"`
+	Size       string `json:"size,omitempty" jsonschema:"Database size limit (default: 100mb)"`
+	Region     string `json:"region,omitempty" jsonschema:"Region (default: eu-west, only option for now)"`
+	ProjectRef string `json:"project_ref,omitempty" jsonschema:"Project reference (default: default)"`
+}
+
+type ProvisionDatabaseOutput struct {
+	ResourceID string `json:"resource_id"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Region     string `json:"region"`
+	URL        string `json:"url"`
+	Status     string `json:"status"`
+}
+
+const (
+	DefaultRegion     = "eu-west"
+	DefaultProjectRef = "default"
+	DefaultDBType     = "sqlite"
+	DefaultDBSize     = "100mb"
+)
+
+type CreateGitHubRepoInput struct {
+	Name        string `json:"name" jsonschema:"Repository name (required)"`
+	Private     *bool  `json:"private,omitempty" jsonschema:"Make repository private (default: true)"`
+	Description string `json:"description,omitempty" jsonschema:"Repository description"`
+}
+
+type CreateGitHubRepoOutput struct {
+	RepoFullName string `json:"repo_full_name"`
+	AccessToken  string `json:"access_token"`
+}
+
+type GetGitHubPushTokenInput struct {
+	Repo string `json:"repo" jsonschema:"GitHub repository in owner/repo format (required)"`
+}
+
+type GetGitHubPushTokenOutput struct {
+	AccessToken      string `json:"access_token"`
+	ExpiresAt        string `json:"expires_at"`
+	ExpiresInMinutes int    `json:"expires_in_minutes"`
+}
+
+type DebugGitHubAppInput struct{}
+
+type DebugGitHubAppOutput struct {
+	InstallationID      int64             `json:"installation_id"`
+	RepositorySelection string            `json:"repository_selection"`
+	Permissions         map[string]string `json:"permissions"`
+}
+
+type GetAppDetailsInput struct {
+	Name          string `json:"name" jsonschema:"App name (required)"`
+	Project       string `json:"project,omitempty" jsonschema:"Project name (default: user's default project)"`
+	IncludeEnv    bool   `json:"include_env,omitempty" jsonschema:"Include environment variables (default: false)"`
+	BuildLogLines int    `json:"build_log_lines,omitempty" jsonschema:"Number of build log lines to fetch (max: 200, default: 0)"`
+	RunLogLines   int    `json:"run_log_lines,omitempty" jsonschema:"Number of runtime log lines to fetch (max: 200, default: 0)"`
+}
+
+type GetAppDetailsOutput struct {
+	AppID         string       `json:"app_id"`
+	Name          string       `json:"name"`
+	Project       string       `json:"project"`
+	Repo          string       `json:"repo"`
+	Branch        string       `json:"branch"`
+	BuildStatus   string       `json:"build_status"`
+	RuntimeStatus *string      `json:"runtime_status,omitempty"`
+	URL           *string      `json:"url,omitempty"`
+	CreatedAt     string       `json:"created_at"`
+	UpdatedAt     string       `json:"updated_at"`
+	ErrorMessage  *string      `json:"error_message,omitempty"`
+	EnvVars       []EnvVarInfo `json:"env_vars,omitempty"`
+	BuildLogs     []LogLine    `json:"build_logs,omitempty"`
+	RunLogs       []LogLine    `json:"run_logs,omitempty"`
+}
+
+type EnvVarInfo struct {
+	Key   string `json:"key"`
+	Value string `json:"value,omitempty"`
+}
+
+type LogLine struct {
+	Timestamp string `json:"timestamp,omitempty"`
+	Stream    string `json:"stream,omitempty"`
+	Message   string `json:"message"`
+}
+
+const MaxLogLines = 200

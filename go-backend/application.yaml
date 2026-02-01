@@ -25,6 +25,7 @@ githubapp:
   clientid: ""
   clientsecret: ""
   coolifyprivkeyuuid: ""
+  webhooksecret: ""
 
 auth:
   jwtsecret: ""
@@ -59,3 +60,7 @@ coolify:
   serveruuids: []
   environmentname: "production"
   githubappuuid: ""
+
+turso:
+  apikey: ""
+  orgslug: ""

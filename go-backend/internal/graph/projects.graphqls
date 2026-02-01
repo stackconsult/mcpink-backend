@@ -12,6 +12,7 @@ type ProjectConnection {
 type Project {
   id: ID!
   name: String!
+  ref: String!
   apps: [App!]!
   createdAt: Time!
   updatedAt: Time!

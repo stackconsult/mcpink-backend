@@ -108,6 +108,7 @@ type ComplexityRoot struct {
 		CreatedAt func(childComplexity int) int
 		ID        func(childComplexity int) int
 		Name      func(childComplexity int) int
+		Ref       func(childComplexity int) int
 		UpdatedAt func(childComplexity int) int
 	}
 
@@ -400,6 +401,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Project.Name(childComplexity), true
+	case "Project.ref":
+		if e.complexity.Project.Ref == nil {
+			break
+		}
+
+		return e.complexity.Project.Ref(childComplexity), true
 	case "Project.updatedAt":
 		if e.complexity.Project.UpdatedAt == nil {
 			break
@@ -1875,6 +1882,35 @@ func (ec *executionContext) fieldContext_Project_name(_ context.Context, field g
 	return fc, nil
 }
 
+func (ec *executionContext) _Project_ref(ctx context.Context, field graphql.CollectedField, obj *model.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Project_ref,
+		func(ctx context.Context) (any, error) {
+			return obj.Ref, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Project_ref(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Project",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Project_apps(ctx context.Context, field graphql.CollectedField, obj *model.Project) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -2016,6 +2052,8 @@ func (ec *executionContext) fieldContext_ProjectConnection_nodes(_ context.Conte
 				return ec.fieldContext_Project_id(ctx, field)
 			case "name":
 				return ec.fieldContext_Project_name(ctx, field)
+			case "ref":
+				return ec.fieldContext_Project_ref(ctx, field)
 			case "apps":
 				return ec.fieldContext_Project_apps(ctx, field)
 			case "createdAt":
@@ -2453,6 +2491,8 @@ func (ec *executionContext) fieldContext_Query_projectDetails(ctx context.Contex
 				return ec.fieldContext_Project_id(ctx, field)
 			case "name":
 				return ec.fieldContext_Project_name(ctx, field)
+			case "ref":
+				return ec.fieldContext_Project_ref(ctx, field)
 			case "apps":
 				return ec.fieldContext_Project_apps(ctx, field)
 			case "createdAt":
@@ -4614,6 +4654,11 @@ func (ec *executionContext) _Project(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "name":
 			out.Values[i] = ec._Project_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ref":
+			out.Values[i] = ec._Project_ref(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

@@ -10,6 +10,7 @@ import (
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/githubcreds"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/resources"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/users"
 	pgxdecimal "github.com/jackc/pgx-shopspring-decimal"
 	"github.com/jackc/pgx/v5"
@@ -32,6 +33,7 @@ type DB struct {
 	appQueries       apps.Querier
 	projectQueries   projects.Querier
 	githubCredsQ     githubcreds.Querier
+	resourceQueries  resources.Querier
 }
 
 func NewDatabase(config DbConfig, logger *slog.Logger) (*DB, error) {
@@ -97,13 +99,14 @@ func NewDatabase(config DbConfig, logger *slog.Logger) (*DB, error) {
 	logger.Info("Database migrations completed successfully")
 
 	return &DB{
-		Pool:           pool,
-		logger:         logger,
-		userQueries:    users.New(pool),
-		apiKeyQueries:  apikeys.New(pool),
-		appQueries:     apps.New(pool),
-		projectQueries: projects.New(pool),
-		githubCredsQ:   githubcreds.New(pool),
+		Pool:            pool,
+		logger:          logger,
+		userQueries:     users.New(pool),
+		apiKeyQueries:   apikeys.New(pool),
+		appQueries:      apps.New(pool),
+		projectQueries:  projects.New(pool),
+		githubCredsQ:    githubcreds.New(pool),
+		resourceQueries: resources.New(pool),
 	}, nil
 }
 
@@ -129,4 +132,8 @@ func NewProjectQueries(database *DB) projects.Querier {
 
 func NewGitHubCredsQueries(database *DB) githubcreds.Querier {
 	return database.githubCredsQ
+}
+
+func NewResourceQueries(database *DB) resources.Querier {
+	return database.resourceQueries
 }

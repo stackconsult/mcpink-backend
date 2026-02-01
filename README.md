@@ -289,7 +289,11 @@ Recommended: support a repo manifest (e.g. `inkmcp.yaml`) that defines service t
 
 ## Databases
 
-### Primary (initial): Neon Postgres
+### SQlite (initial)
+
+Turso - Managed SQLite, later migrate.
+
+### Primary (initial)
 
 InkMCP provisions Postgres via Neon and returns a connection string.
 

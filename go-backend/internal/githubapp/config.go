@@ -6,4 +6,5 @@ type Config struct {
 	ClientID           string `mapstructure:"clientid"`
 	ClientSecret       string `mapstructure:"clientsecret"`
 	CoolifyPrivKeyUUID string `mapstructure:"coolifyprivkeyuuid"`
+	WebhookSecret      string `mapstructure:"webhooksecret"`
 }

@@ -264,9 +264,17 @@ func (a *Activities) WaitForRunning(ctx context.Context, input WaitForRunningInp
 		activity.RecordHeartbeat(ctx, app.Status)
 
 		if strings.HasPrefix(app.Status, "running") {
+			// Extract short commit hash (first 7 chars) from Coolify response
+			var commitHash *string
+			if app.GitCommitSHA != "" && len(app.GitCommitSHA) >= 7 {
+				short := app.GitCommitSHA[:7]
+				commitHash = &short
+			}
+
 			_, err = a.appsQ.UpdateAppRunning(ctx, apps.UpdateAppRunningParams{
-				ID:   input.AppID,
-				Fqdn: &fqdn,
+				ID:         input.AppID,
+				Fqdn:       &fqdn,
+				CommitHash: commitHash,
 			})
 			if err != nil {
 				a.logger.Error("Failed to update app to running",
@@ -278,7 +286,8 @@ func (a *Activities) WaitForRunning(ctx context.Context, input WaitForRunningInp
 			a.logger.Info("Application is running",
 				"appID", input.AppID,
 				"coolifyUUID", input.CoolifyAppUUID,
-				"fqdn", fqdn)
+				"fqdn", fqdn,
+				"commitHash", commitHash)
 
 			return &WaitForRunningResult{FQDN: fqdn}, nil
 		}
@@ -322,6 +331,55 @@ func (a *Activities) UpdateAppFailed(ctx context.Context, input UpdateAppFailedI
 			"appID", input.AppID,
 			"error", err)
 		return fmt.Errorf("failed to update app as failed: %w", err)
+	}
+
+	return nil
+}
+
+type DeployAppInput struct {
+	AppID          string
+	CoolifyAppUUID string
+}
+
+type DeployAppResult struct {
+	DeploymentUUID string
+}
+
+func (a *Activities) DeployApp(ctx context.Context, input DeployAppInput) (*DeployAppResult, error) {
+	a.logger.Info("Deploying application",
+		"appID", input.AppID,
+		"coolifyUUID", input.CoolifyAppUUID)
+
+	resp, err := a.coolify.Applications.Deploy(ctx, input.CoolifyAppUUID, nil)
+	if err != nil {
+		a.logger.Error("Failed to deploy Coolify application",
+			"coolifyUUID", input.CoolifyAppUUID,
+			"error", err)
+		return nil, fmt.Errorf("failed to deploy Coolify application: %w", err)
+	}
+
+	deploymentUUID := ""
+	if len(resp.Deployments) > 0 {
+		deploymentUUID = resp.Deployments[0].DeploymentUUID
+	}
+
+	a.logger.Info("Deployed Coolify application",
+		"appID", input.AppID,
+		"coolifyUUID", input.CoolifyAppUUID,
+		"deploymentUUID", deploymentUUID)
+
+	return &DeployAppResult{DeploymentUUID: deploymentUUID}, nil
+}
+
+func (a *Activities) MarkAppBuilding(ctx context.Context, appID string) error {
+	a.logger.Info("Marking app as building", "appID", appID)
+
+	_, err := a.appsQ.UpdateAppRedeploying(ctx, appID)
+	if err != nil {
+		a.logger.Error("Failed to mark app as building",
+			"appID", appID,
+			"error", err)
+		return fmt.Errorf("failed to mark app as building: %w", err)
 	}
 
 	return nil

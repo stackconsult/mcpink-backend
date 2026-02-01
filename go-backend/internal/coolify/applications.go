@@ -360,3 +360,35 @@ func (s *ApplicationsService) Delete(ctx context.Context, uuid string) error {
 	}
 	return nil
 }
+
+type DeployOptions struct {
+	Force bool
+}
+
+type DeployResponse struct {
+	Deployments []DeploymentInfo `json:"deployments"`
+}
+
+type DeploymentInfo struct {
+	Message        string `json:"message"`
+	ResourceUUID   string `json:"resource_uuid"`
+	DeploymentUUID string `json:"deployment_uuid"`
+}
+
+func (s *ApplicationsService) Deploy(ctx context.Context, uuid string, opts *DeployOptions) (*DeployResponse, error) {
+	if uuid == "" {
+		return nil, fmt.Errorf("coolify: uuid is required")
+	}
+
+	query := url.Values{}
+	query.Set("uuid", uuid)
+	if opts != nil && opts.Force {
+		query.Set("force", "true")
+	}
+
+	var resp DeployResponse
+	if err := s.client.do(ctx, "GET", "/api/v1/deploy", query, nil, &resp); err != nil {
+		return nil, fmt.Errorf("failed to deploy application: %w", err)
+	}
+	return &resp, nil
+}

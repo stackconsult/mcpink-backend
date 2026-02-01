@@ -42,3 +42,15 @@ const (
 	RuntimeStatusStopped RuntimeStatus = "stopped"
 	RuntimeStatusExited  RuntimeStatus = "exited"
 )
+
+type RedeployWorkflowInput struct {
+	AppID          string
+	CoolifyAppUUID string
+}
+
+type RedeployWorkflowResult struct {
+	AppID        string
+	FQDN         string
+	Status       string
+	ErrorMessage string
+}
