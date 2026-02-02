@@ -165,11 +165,11 @@ type DebugGitHubAppOutput struct {
 }
 
 type GetAppDetailsInput struct {
-	Name               string `json:"name" jsonschema:"App name (required)"`
-	Project            string `json:"project,omitempty" jsonschema:"Project name (default: user's default project)"`
-	IncludeEnv         bool   `json:"include_env,omitempty" jsonschema:"Include environment variables (default: false)"`
-	IncludeDeployLogs  bool   `json:"include_deploy_logs,omitempty" jsonschema:"Include latest deployment logs (default: false)"`
-	RuntimeLogLines    int    `json:"runtime_log_lines,omitempty" jsonschema:"Number of runtime log lines to fetch (max: 200, default: 0)"`
+	Name            string `json:"name" jsonschema:"App name (required)"`
+	Project         string `json:"project,omitempty" jsonschema:"Project name (default: user's default project)"`
+	IncludeEnv      bool   `json:"include_env,omitempty" jsonschema:"Include environment variables (default: false)"`
+	DeployLogLines  int    `json:"deploy_log_lines,omitempty" jsonschema:"Number of deployment log lines to fetch (max: 500, default: 0)"`
+	RuntimeLogLines int    `json:"runtime_log_lines,omitempty" jsonschema:"Number of runtime log lines to fetch (max: 500, default: 0)"`
 }
 
 type GetAppDetailsOutput struct {
@@ -201,7 +201,7 @@ type LogLine struct {
 	Message   string `json:"message"`
 }
 
-const MaxLogLines = 200
+const MaxLogLines = 500
 
 type DeleteAppInput struct {
 	Name    string `json:"name" jsonschema:"Name of the app to delete (required)"`
@@ -212,4 +212,15 @@ type DeleteAppOutput struct {
 	AppID   string `json:"app_id"`
 	Name    string `json:"name"`
 	Message string `json:"message"`
+}
+
+type DeleteResourceInput struct {
+	Name    string `json:"name" jsonschema:"Resource name (required)"`
+	Project string `json:"project,omitempty" jsonschema:"Project name (default: default)"`
+}
+
+type DeleteResourceOutput struct {
+	ResourceID string `json:"resource_id"`
+	Name       string `json:"name"`
+	Message    string `json:"message"`
 }

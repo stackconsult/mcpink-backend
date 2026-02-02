@@ -110,15 +110,16 @@ func (a *Activities) CreateAppFromPrivateGithub(ctx context.Context, input Cooli
 
 	serverID := a.coolify.GetMuscleServer()
 	req := &coolify.CreatePrivateGitHubAppRequest{
-		ProjectUUID:     cfg.ProjectUUID,
-		ServerUUID:      serverID,
-		EnvironmentName: cfg.EnvironmentName,
-		GitHubAppUUID:   gitHubAppUUID,
-		GitRepository:   input.Repo,
-		GitBranch:       input.Branch,
-		PortsExposes:    input.Port,
-		BuildPack:       coolify.BuildPack(input.BuildPack),
-		Name:            input.Name,
+		ProjectUUID:            cfg.ProjectUUID,
+		ServerUUID:             serverID,
+		EnvironmentName:        cfg.EnvironmentName,
+		GitHubAppUUID:          gitHubAppUUID,
+		GitRepository:          input.Repo,
+		GitBranch:              input.Branch,
+		PortsExposes:           input.Port,
+		BuildPack:              coolify.BuildPack(input.BuildPack),
+		Name:                   input.Name,
+		CustomDockerRunOptions: "--runtime=runsc",
 	}
 
 	resp, err := a.coolify.Applications.CreatePrivateGitHubApp(ctx, req)

@@ -90,6 +90,11 @@ func (s *Server) registerTools() {
 	}, s.handleGetResourceDetails)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "delete_resource",
+		Description: "Delete a resource (e.g., sqlite database). This permanently removes the resource.",
+	}, s.handleDeleteResource)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "create_github_repo",
 		Description: "Create a new GitHub repository and return a temporary access token for pushing code. Requires GitHub App to be installed.",
 	}, s.handleCreateGitHubRepo)

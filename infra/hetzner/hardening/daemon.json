@@ -8,10 +8,10 @@
     "max-size": "10m",
     "max-file": "3"
   },
-  "default-runtime": "runsc",
   "runtimes": {
     "runsc": {
-      "path": "/usr/local/bin/runsc"
+      "path": "/usr/local/bin/runsc",
+      "runtimeArgs": ["--network=host"]
     }
   }
 }

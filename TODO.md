@@ -3,7 +3,7 @@
 ## Infra
 
 - gVisor and hardening
-- Firewalls
+- [x] Firewalls
 - Self hosted grafana for logs and metrics
 - Cloudflare DNS
 
@@ -12,14 +12,14 @@
 - Provision SQlite
 - Provision Postgres
 - MCP tool resources
-- Propagate errors to users
+- [x] Propagate errors to users
 
 ## Product
 
-- Build logs
-- Run logs
+- [x] Build logs
+- [x] Run logs
 - Metrics
-- Status to user
+- Status to user on deployment
 - Onboarding
 - UI for all MCP clients
 - Consider SKILL.md with API

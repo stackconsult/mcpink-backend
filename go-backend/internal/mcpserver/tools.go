@@ -582,6 +582,7 @@ func (s *Server) handleGetAppDetails(ctx context.Context, req *mcp.CallToolReque
 
 	// Cap log lines at max
 	runtimeLogLines := min(input.RuntimeLogLines, MaxLogLines)
+	deployLogLines := min(input.DeployLogLines, MaxLogLines)
 
 	// Look up app by name and project
 	app, err := s.deployService.GetAppByName(ctx, deployments.GetAppByNameParams{
@@ -639,11 +640,15 @@ func (s *Server) handleGetAppDetails(ctx context.Context, req *mcp.CallToolReque
 			}
 		}
 
-		if input.IncludeDeployLogs {
+		if deployLogLines > 0 {
 			logs, err := s.logProvider.GetDeploymentLogs(ctx, *app.CoolifyAppUuid)
 			if err != nil {
 				s.logger.Warn("failed to fetch deployment logs", "error", err)
 			} else {
+				// Limit to requested number of lines (from the end)
+				if len(logs) > deployLogLines {
+					logs = logs[len(logs)-deployLogLines:]
+				}
 				lines := make([]string, len(logs))
 				for i, l := range logs {
 					lines[i] = l.Message
@@ -654,6 +659,37 @@ func (s *Server) handleGetAppDetails(ctx context.Context, req *mcp.CallToolReque
 	}
 
 	return nil, output, nil
+}
+
+func (s *Server) handleDeleteResource(ctx context.Context, req *mcp.CallToolRequest, input DeleteResourceInput) (*mcp.CallToolResult, DeleteResourceOutput, error) {
+	user := UserFromContext(ctx)
+	if user == nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, DeleteResourceOutput{}, nil
+	}
+
+	if input.Name == "" {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, DeleteResourceOutput{}, nil
+	}
+
+	if s.resourcesService == nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "resources service is not configured"}}}, DeleteResourceOutput{}, nil
+	}
+
+	resource, err := s.resourcesService.GetResourceByName(ctx, user.ID, input.Name)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("resource not found: %s", input.Name)}}}, DeleteResourceOutput{}, nil
+	}
+
+	if err := s.resourcesService.DeleteResource(ctx, user.ID, resource.ID); err != nil {
+		s.logger.Error("failed to delete resource", "error", err)
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to delete resource: %v", err)}}}, DeleteResourceOutput{}, nil
+	}
+
+	return nil, DeleteResourceOutput{
+		ResourceID: resource.ID,
+		Name:       resource.Name,
+		Message:    "Resource deleted successfully",
+	}, nil
 }
 
 func (s *Server) handleDeleteApp(ctx context.Context, req *mcp.CallToolRequest, input DeleteAppInput) (*mcp.CallToolResult, DeleteAppOutput, error) {
