@@ -283,38 +283,28 @@ func (s *Service) ListAPIKeys(ctx context.Context, userID string) ([]apikeys.Lis
 	return s.apiKeysQ.ListAPIKeysByUserID(ctx, userID)
 }
 
-// SyncGitHubAppInstallation synchronizes all GitHub App installation state atomically.
-// - If installationID > 0: updates installation ID and creates/recreates Coolify source
-// - If installationID == 0: clears installation ID and deletes Coolify source
-// Returns the Coolify source UUID (empty string if uninstalled).
+// SyncGitHubAppInstallation synchronizes GitHub App installation state.
+// - If installationID > 0: updates installation ID in DB and Coolify source
+// - If installationID == 0: clears installation ID in DB (keeps Coolify source for future reconnect)
+// Returns the Coolify source UUID.
 func (s *Service) SyncGitHubAppInstallation(ctx context.Context, userID string, installationID int64, githubUsername string) (string, error) {
 	user, err := s.usersQ.GetUserByID(ctx, userID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// Delete existing Coolify source if any
-	if user.CoolifyGithubAppUuid != nil && *user.CoolifyGithubAppUuid != "" {
-		if err := s.coolify.Sources.DeleteGitHubApp(ctx, *user.CoolifyGithubAppUuid); err != nil {
-			s.logger.Warn("failed to delete coolify source (may already be deleted)", "uuid", *user.CoolifyGithubAppUuid, "error", err)
-		} else {
-			s.logger.Info("deleted coolify source", "uuid", *user.CoolifyGithubAppUuid)
-		}
-		if _, err := s.usersQ.ClearCoolifyGitHubAppUUID(ctx, userID); err != nil {
-			s.logger.Warn("failed to clear coolify uuid from db", "error", err)
-		}
-	}
-
-	// Handle uninstall case
+	// Handle disconnect - just clear installation ID, keep the source
 	if installationID == 0 {
 		if _, err := s.githubCredsQ.ClearGitHubAppInstallation(ctx, userID); err != nil {
 			return "", fmt.Errorf("failed to clear github app installation: %w", err)
 		}
-		s.logger.Info("github app uninstalled", "user_id", userID)
+		if user.CoolifyGithubAppUuid != nil {
+			return *user.CoolifyGithubAppUuid, nil
+		}
 		return "", nil
 	}
 
-	// Update installation ID
+	// Update installation ID in DB
 	if _, err := s.githubCredsQ.SetGitHubAppInstallation(ctx, githubcreds.SetGitHubAppInstallationParams{
 		UserID:                  userID,
 		GithubAppInstallationID: helpers.Ptr(installationID),
@@ -322,7 +312,19 @@ func (s *Service) SyncGitHubAppInstallation(ctx context.Context, userID string, 
 		return "", fmt.Errorf("failed to set github app installation: %w", err)
 	}
 
-	// Create new Coolify source
+	// Update existing Coolify source if we have one
+	if user.CoolifyGithubAppUuid != nil && *user.CoolifyGithubAppUuid != "" {
+		err := s.coolify.Sources.UpdateGitHubApp(ctx, *user.CoolifyGithubAppUuid, &coolify.UpdateGitHubAppSourceRequest{
+			InstallationID: installationID,
+		})
+		if err == nil {
+			return *user.CoolifyGithubAppUuid, nil
+		}
+		// Update failed (source may have been deleted externally), create new one below
+		_, _ = s.usersQ.ClearCoolifyGitHubAppUUID(ctx, userID)
+	}
+
+	// Create new Coolify source (first time or if previous was deleted externally)
 	sourceName := fmt.Sprintf("gh-%s-%d", githubUsername, installationID)
 	req := &coolify.CreateGitHubAppSourceRequest{
 		Name:           sourceName,
@@ -351,7 +353,6 @@ func (s *Service) SyncGitHubAppInstallation(ctx context.Context, userID string, 
 		return "", fmt.Errorf("failed to save coolify source uuid: %w", err)
 	}
 
-	s.logger.Info("github app synced", "user_id", userID, "installation_id", installationID, "coolify_uuid", source.UUID)
 	return source.UUID, nil
 }
 
