@@ -12,6 +12,6 @@ type Provider interface {
 	// GetRuntimeLogs fetches container stdout/stderr logs
 	GetRuntimeLogs(ctx context.Context, appIdentifier string, lines int) ([]LogLine, error)
 
-	// GetBuildLogs fetches deployment/build logs
-	GetBuildLogs(ctx context.Context, appIdentifier string, lines int) ([]LogLine, error)
+	// GetDeploymentLogs fetches the latest deployment/build logs
+	GetDeploymentLogs(ctx context.Context, appIdentifier string) ([]LogLine, error)
 }

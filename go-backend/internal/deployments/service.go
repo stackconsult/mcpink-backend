@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/augustdev/autoclip/internal/coolify"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
 	"github.com/lithammer/shortuuid/v4"
@@ -15,6 +16,7 @@ type Service struct {
 	temporalClient client.Client
 	appsQ          apps.Querier
 	projectsQ      projects.Querier
+	coolifyClient  *coolify.Client
 	logger         *slog.Logger
 }
 
@@ -22,12 +24,14 @@ func NewService(
 	temporalClient client.Client,
 	appsQ apps.Querier,
 	projectsQ projects.Querier,
+	coolifyClient *coolify.Client,
 	logger *slog.Logger,
 ) *Service {
 	return &Service{
 		temporalClient: temporalClient,
 		appsQ:          appsQ,
 		projectsQ:      projectsQ,
+		coolifyClient:  coolifyClient,
 		logger:         logger,
 	}
 }
@@ -195,4 +199,65 @@ func (s *Service) RedeployApp(ctx context.Context, appID, coolifyAppUUID string)
 		"runID", we.GetRunID())
 
 	return we.GetID(), nil
+}
+
+type DeleteAppParams struct {
+	Name    string
+	Project string
+	UserID  string
+}
+
+type DeleteAppResult struct {
+	AppID string
+	Name  string
+}
+
+func (s *Service) DeleteApp(ctx context.Context, params DeleteAppParams) (*DeleteAppResult, error) {
+	project := params.Project
+	if project == "" {
+		project = "default"
+	}
+
+	app, err := s.appsQ.GetAppByNameAndUserProject(ctx, apps.GetAppByNameAndUserProjectParams{
+		Name:   &params.Name,
+		UserID: params.UserID,
+		Ref:    project,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("app not found: %s in project %s", params.Name, project)
+	}
+
+	// Delete from Coolify if it was deployed
+	if app.CoolifyAppUuid != nil && s.coolifyClient != nil {
+		if err := s.coolifyClient.Applications.Delete(ctx, *app.CoolifyAppUuid); err != nil {
+			s.logger.Warn("failed to delete app from Coolify",
+				"app_id", app.ID,
+				"coolify_uuid", *app.CoolifyAppUuid,
+				"error", err)
+		} else {
+			s.logger.Info("deleted app from Coolify",
+				"app_id", app.ID,
+				"coolify_uuid", *app.CoolifyAppUuid)
+		}
+	}
+
+	// Soft delete in database
+	_, err = s.appsQ.SoftDeleteApp(ctx, app.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete app: %w", err)
+	}
+
+	var name string
+	if app.Name != nil {
+		name = *app.Name
+	}
+
+	s.logger.Info("soft deleted app",
+		"app_id", app.ID,
+		"name", name)
+
+	return &DeleteAppResult{
+		AppID: app.ID,
+		Name:  name,
+	}, nil
 }

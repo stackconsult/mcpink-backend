@@ -40,6 +40,7 @@ type App struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	ProjectID      string             `json:"project_id"`
 	CommitHash     *string            `json:"commit_hash"`
+	IsDeleted      bool               `json:"is_deleted"`
 }
 
 type GithubCred struct {

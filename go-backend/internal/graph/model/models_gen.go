@@ -44,6 +44,12 @@ type CreateAPIKeyResult struct {
 	Secret string  `json:"secret"`
 }
 
+type DeleteAppResult struct {
+	AppID   string `json:"appId"`
+	Name    string `json:"name"`
+	Message string `json:"message"`
+}
+
 type EnvVar struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`

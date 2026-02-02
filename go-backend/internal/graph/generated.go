@@ -85,6 +85,12 @@ type ComplexityRoot struct {
 		Secret func(childComplexity int) int
 	}
 
+	DeleteAppResult struct {
+		AppID   func(childComplexity int) int
+		Message func(childComplexity int) int
+		Name    func(childComplexity int) int
+	}
+
 	EnvVar struct {
 		Key   func(childComplexity int) int
 		Value func(childComplexity int) int
@@ -92,6 +98,7 @@ type ComplexityRoot struct {
 
 	Mutation struct {
 		CreateAPIKey                 func(childComplexity int, name string) int
+		DeleteApp                    func(childComplexity int, name string, project *string) int
 		RecheckGithubAppInstallation func(childComplexity int) int
 		RevokeAPIKey                 func(childComplexity int, id string) int
 	}
@@ -141,6 +148,7 @@ type MutationResolver interface {
 	CreateAPIKey(ctx context.Context, name string) (*model.CreateAPIKeyResult, error)
 	RevokeAPIKey(ctx context.Context, id string) (bool, error)
 	RecheckGithubAppInstallation(ctx context.Context) (*string, error)
+	DeleteApp(ctx context.Context, name string, project *string) (*model.DeleteAppResult, error)
 }
 type QueryResolver interface {
 	Me(ctx context.Context) (*model.User, error)
@@ -310,6 +318,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.CreateAPIKeyResult.Secret(childComplexity), true
 
+	case "DeleteAppResult.appId":
+		if e.complexity.DeleteAppResult.AppID == nil {
+			break
+		}
+
+		return e.complexity.DeleteAppResult.AppID(childComplexity), true
+	case "DeleteAppResult.message":
+		if e.complexity.DeleteAppResult.Message == nil {
+			break
+		}
+
+		return e.complexity.DeleteAppResult.Message(childComplexity), true
+	case "DeleteAppResult.name":
+		if e.complexity.DeleteAppResult.Name == nil {
+			break
+		}
+
+		return e.complexity.DeleteAppResult.Name(childComplexity), true
+
 	case "EnvVar.key":
 		if e.complexity.EnvVar.Key == nil {
 			break
@@ -334,6 +361,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.CreateAPIKey(childComplexity, args["name"].(string)), true
+	case "Mutation.deleteApp":
+		if e.complexity.Mutation.DeleteApp == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteApp_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteApp(childComplexity, args["name"].(string), args["project"].(*string)), true
 	case "Mutation.recheckGithubAppInstallation":
 		if e.complexity.Mutation.RecheckGithubAppInstallation == nil {
 			break
@@ -671,6 +709,22 @@ func (ec *executionContext) field_Mutation_createAPIKey_args(ctx context.Context
 		return nil, err
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteApp_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "name", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "project", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["project"] = arg1
 	return args, nil
 }
 
@@ -1494,6 +1548,93 @@ func (ec *executionContext) fieldContext_CreateAPIKeyResult_secret(_ context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _DeleteAppResult_appId(ctx context.Context, field graphql.CollectedField, obj *model.DeleteAppResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DeleteAppResult_appId,
+		func(ctx context.Context) (any, error) {
+			return obj.AppID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DeleteAppResult_appId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeleteAppResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeleteAppResult_name(ctx context.Context, field graphql.CollectedField, obj *model.DeleteAppResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DeleteAppResult_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DeleteAppResult_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeleteAppResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeleteAppResult_message(ctx context.Context, field graphql.CollectedField, obj *model.DeleteAppResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DeleteAppResult_message,
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DeleteAppResult_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeleteAppResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _EnvVar_key(ctx context.Context, field graphql.CollectedField, obj *model.EnvVar) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1704,6 +1845,68 @@ func (ec *executionContext) fieldContext_Mutation_recheckGithubAppInstallation(_
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteApp(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteApp,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().DeleteApp(ctx, fc.Args["name"].(string), fc.Args["project"].(*string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.directives.IsAuthenticated == nil {
+					var zeroVal *model.DeleteAppResult
+					return zeroVal, errors.New("directive isAuthenticated is not implemented")
+				}
+				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		ec.marshalNDeleteAppResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDeleteAppResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteApp(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "appId":
+				return ec.fieldContext_DeleteAppResult_appId(ctx, field)
+			case "name":
+				return ec.fieldContext_DeleteAppResult_name(ctx, field)
+			case "message":
+				return ec.fieldContext_DeleteAppResult_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DeleteAppResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteApp_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -4484,6 +4687,55 @@ func (ec *executionContext) _CreateAPIKeyResult(ctx context.Context, sel ast.Sel
 	return out
 }
 
+var deleteAppResultImplementors = []string{"DeleteAppResult"}
+
+func (ec *executionContext) _DeleteAppResult(ctx context.Context, sel ast.SelectionSet, obj *model.DeleteAppResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, deleteAppResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DeleteAppResult")
+		case "appId":
+			out.Values[i] = ec._DeleteAppResult_appId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._DeleteAppResult_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._DeleteAppResult_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var envVarImplementors = []string{"EnvVar"}
 
 func (ec *executionContext) _EnvVar(ctx context.Context, sel ast.SelectionSet, obj *model.EnvVar) graphql.Marshaler {
@@ -4565,6 +4817,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_recheckGithubAppInstallation(ctx, field)
 			})
+		case "deleteApp":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteApp(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5527,6 +5786,20 @@ func (ec *executionContext) marshalNCreateAPIKeyResult2ᚖgithubᚗcomᚋaugustd
 		return graphql.Null
 	}
 	return ec._CreateAPIKeyResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDeleteAppResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDeleteAppResult(ctx context.Context, sel ast.SelectionSet, v model.DeleteAppResult) graphql.Marshaler {
+	return ec._DeleteAppResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNDeleteAppResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDeleteAppResult(ctx context.Context, sel ast.SelectionSet, v *model.DeleteAppResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DeleteAppResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNEnvVar2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐEnvVarᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EnvVar) graphql.Marshaler {

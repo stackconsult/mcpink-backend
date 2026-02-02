@@ -76,21 +76,56 @@ const (
 	DefaultBuildPack = "nixpacks"
 )
 
-type ProvisionDatabaseInput struct {
-	Name       string `json:"name" jsonschema:"Name for the database (required)"`
-	Type       string `json:"type,omitempty" jsonschema:"Database type (default: sqlite, only option for now)"`
-	Size       string `json:"size,omitempty" jsonschema:"Database size limit (default: 100mb)"`
+type CreateResourceInput struct {
+	Name       string `json:"name" jsonschema:"Name for the resource (required)"`
+	Type       string `json:"type,omitempty" jsonschema:"Resource type (default: sqlite, only option for now)"`
+	Size       string `json:"size,omitempty" jsonschema:"Size limit for databases (default: 100mb)"`
 	Region     string `json:"region,omitempty" jsonschema:"Region (default: eu-west, only option for now)"`
 	ProjectRef string `json:"project_ref,omitempty" jsonschema:"Project reference (default: default)"`
 }
 
-type ProvisionDatabaseOutput struct {
+type CreateResourceOutput struct {
 	ResourceID string `json:"resource_id"`
 	Name       string `json:"name"`
 	Type       string `json:"type"`
 	Region     string `json:"region"`
-	URL        string `json:"url"`
+	URL        string `json:"database_url"`
+	AuthToken  string `json:"auth_token"`
 	Status     string `json:"status"`
+}
+
+type ListResourcesInput struct {
+	Project string `json:"project,omitempty" jsonschema:"Project name (default: default)"`
+}
+
+type ListResourcesOutput struct {
+	Resources []ResourceInfo `json:"resources"`
+}
+
+type ResourceInfo struct {
+	ResourceID string `json:"resource_id"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Region     string `json:"region"`
+	Status     string `json:"status"`
+	CreatedAt  string `json:"created_at"`
+}
+
+type GetResourceDetailsInput struct {
+	Name    string `json:"name" jsonschema:"Resource name (required)"`
+	Project string `json:"project,omitempty" jsonschema:"Project name (default: default)"`
+}
+
+type GetResourceDetailsOutput struct {
+	ResourceID  string `json:"resource_id"`
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	Region      string `json:"region"`
+	DatabaseURL string `json:"database_url"`
+	AuthToken   string `json:"auth_token"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 const (
@@ -130,11 +165,11 @@ type DebugGitHubAppOutput struct {
 }
 
 type GetAppDetailsInput struct {
-	Name          string `json:"name" jsonschema:"App name (required)"`
-	Project       string `json:"project,omitempty" jsonschema:"Project name (default: user's default project)"`
-	IncludeEnv    bool   `json:"include_env,omitempty" jsonschema:"Include environment variables (default: false)"`
-	BuildLogLines int    `json:"build_log_lines,omitempty" jsonschema:"Number of build log lines to fetch (max: 200, default: 0)"`
-	RunLogLines   int    `json:"run_log_lines,omitempty" jsonschema:"Number of runtime log lines to fetch (max: 200, default: 0)"`
+	Name               string `json:"name" jsonschema:"App name (required)"`
+	Project            string `json:"project,omitempty" jsonschema:"Project name (default: user's default project)"`
+	IncludeEnv         bool   `json:"include_env,omitempty" jsonschema:"Include environment variables (default: false)"`
+	IncludeDeployLogs  bool   `json:"include_deploy_logs,omitempty" jsonschema:"Include latest deployment logs (default: false)"`
+	RuntimeLogLines    int    `json:"runtime_log_lines,omitempty" jsonschema:"Number of runtime log lines to fetch (max: 200, default: 0)"`
 }
 
 type GetAppDetailsOutput struct {
@@ -143,15 +178,16 @@ type GetAppDetailsOutput struct {
 	Project       string       `json:"project"`
 	Repo          string       `json:"repo"`
 	Branch        string       `json:"branch"`
+	CommitHash    string       `json:"commit_hash,omitempty"`
 	BuildStatus   string       `json:"build_status"`
-	RuntimeStatus *string      `json:"runtime_status,omitempty"`
+	RuntimeStatus string       `json:"runtime_status"`
 	URL           *string      `json:"url,omitempty"`
 	CreatedAt     string       `json:"created_at"`
 	UpdatedAt     string       `json:"updated_at"`
 	ErrorMessage  *string      `json:"error_message,omitempty"`
-	EnvVars       []EnvVarInfo `json:"env_vars,omitempty"`
-	BuildLogs     []LogLine    `json:"build_logs,omitempty"`
-	RunLogs       []LogLine    `json:"run_logs,omitempty"`
+	EnvVars        []EnvVarInfo `json:"env_vars,omitempty"`
+	DeploymentLogs string       `json:"deployment_logs,omitempty"`
+	RuntimeLogs    string       `json:"runtime_logs,omitempty"`
 }
 
 type EnvVarInfo struct {
@@ -166,3 +202,14 @@ type LogLine struct {
 }
 
 const MaxLogLines = 200
+
+type DeleteAppInput struct {
+	Name    string `json:"name" jsonschema:"Name of the app to delete (required)"`
+	Project string `json:"project,omitempty" jsonschema:"Project name (default: user's default project)"`
+}
+
+type DeleteAppOutput struct {
+	AppID   string `json:"app_id"`
+	Name    string `json:"name"`
+	Message string `json:"message"`
+}

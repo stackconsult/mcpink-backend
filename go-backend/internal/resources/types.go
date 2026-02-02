@@ -44,6 +44,7 @@ type ProvisionDatabaseOutput struct {
 	Type       string `json:"type"`
 	Region     string `json:"region"`
 	URL        string `json:"url"`
+	AuthToken  string `json:"auth_token"`
 	Status     string `json:"status"`
 }
 

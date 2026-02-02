@@ -3,6 +3,16 @@ extend type Query {
   appDetails(id: ID!): App @isAuthenticated
 }
 
+extend type Mutation {
+  deleteApp(name: String!, project: String): DeleteAppResult! @isAuthenticated
+}
+
+type DeleteAppResult {
+  appId: ID!
+  name: String!
+  message: String!
+}
+
 type AppConnection {
   nodes: [App!]!
   pageInfo: PageInfo!

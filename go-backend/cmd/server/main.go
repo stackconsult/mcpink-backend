@@ -18,7 +18,7 @@ import (
 
 func main() {
 	fx.New(
-		fx.StopTimeout(1*time.Minute),
+		fx.StopTimeout(15*time.Second),
 		fx.Provide(
 			bootstrap.NewLogger,
 			bootstrap.NewConfig,
@@ -37,6 +37,7 @@ func main() {
 			authz.NewAPIKeyValidator,
 			bootstrap.NewCoolifyClient,
 			bootstrap.NewTursoClient,
+			bootstrap.NewLogProvider,
 			deployments.NewService,
 			resources.NewService,
 			bootstrap.NewResolver,

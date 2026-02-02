@@ -10,7 +10,7 @@ When provisioning a new Muscle server, complete this checklist:
 
 ### Prerequisites
 - [ ] Server provisioned in Hetzner
-- [ ] SSH access configured
+- [ ] SSH key access configured and tested
 - [ ] Docker installed
 - [ ] Server registered in Coolify as a destination
 
@@ -23,69 +23,194 @@ When provisioning a new Muscle server, complete this checklist:
 
 This applies baseline security (egress rules, gVisor available, miner detection) without making gVisor the default runtime.
 
-### Manual Hardening Steps
+### Full Hardening (Including gVisor Default + SSH)
 
-If you prefer step-by-step:
-
-```bash
-# Set the new server IP
-export MUSCLE_IP="<new-server-ip>"
-
-# 1. Copy all hardening scripts
-scp setup-egress-rules.sh install-gvisor.sh detect-miners.sh verify-hardening.sh root@${MUSCLE_IP}:/root/
-ssh root@${MUSCLE_IP} "chmod +x /root/*.sh"
-
-# 2. Apply egress firewall rules
-ssh root@${MUSCLE_IP} "bash /root/setup-egress-rules.sh"
-
-# 3. Install gVisor
-ssh root@${MUSCLE_IP} "bash /root/install-gvisor.sh"
-
-# 4. Configure Docker daemon (baseline - gVisor available but not default)
-scp daemon-baseline.json root@${MUSCLE_IP}:/etc/docker/daemon.json
-ssh root@${MUSCLE_IP} "systemctl restart docker"
-
-# 5. Set up miner detection cron (runs every 5 min)
-ssh root@${MUSCLE_IP} 'echo "*/5 * * * * /root/detect-miners.sh" | crontab -'
-
-# 6. Verify setup
-ssh root@${MUSCLE_IP} "bash /root/verify-hardening.sh"
-```
-
-### Testing gVisor
-
-After baseline setup, test gVisor before making it default:
+For complete hardening with gVisor as default and SSH hardening:
 
 ```bash
-# Basic test
-ssh root@${MUSCLE_IP} "docker run --runtime=runsc --rm hello-world"
+export MUSCLE_IP="<server-ip>"
 
-# Alpine test
-ssh root@${MUSCLE_IP} "docker run --runtime=runsc --rm alpine echo 'gVisor works'"
+# Step 1: Run baseline setup
+./setup-muscle.sh ${MUSCLE_IP}
 
-# Node.js test
-ssh root@${MUSCLE_IP} "docker run --runtime=runsc --rm node:20-alpine node -e 'console.log(process.version)'"
-```
+# Step 2: Apply SSH hardening
+scp harden-ssh.sh root@${MUSCLE_IP}:/root/
+ssh root@${MUSCLE_IP} "bash /root/harden-ssh.sh"
 
-### Making gVisor the Default Runtime
-
-Once testing is complete:
-
-```bash
-# Switch to gVisor as default
+# Step 3: Make gVisor the default runtime
 scp daemon.json root@${MUSCLE_IP}:/etc/docker/daemon.json
 ssh root@${MUSCLE_IP} "systemctl restart docker"
 
-# Verify system containers still running
-ssh root@${MUSCLE_IP} "docker ps | grep -E 'traefik|coolify'"
+# Step 4: Verify everything
+ssh root@${MUSCLE_IP} "bash /root/verify-hardening.sh"
 ```
 
-### Verification Checklist
-- [ ] `iptables -L DOCKER-USER -n` shows DROP rules for metadata, SMTP, mining ports
-- [ ] `docker run --runtime=runsc --rm hello-world` succeeds
-- [ ] SMTP test times out or refuses (not "open")
-- [ ] Traefik still running: `docker ps | grep traefik`
-- [ ] `bash /root/verify-hardening.sh` passes all critical checks
+### Manual Hardening Steps
+
+If you prefer step-by-step control:
+
+```bash
+export MUSCLE_IP="<new-server-ip>"
+
+# 1. Copy all hardening scripts
+scp setup-egress-rules.sh install-gvisor.sh detect-miners.sh \
+    verify-hardening.sh harden-ssh.sh root@${MUSCLE_IP}:/root/
+ssh root@${MUSCLE_IP} "chmod +x /root/*.sh"
+
+# 2. Apply egress firewall rules (immediate, no restart needed)
+ssh root@${MUSCLE_IP} "bash /root/setup-egress-rules.sh"
+
+# 3. Install gVisor binaries
+ssh root@${MUSCLE_IP} "bash /root/install-gvisor.sh"
+
+# 4. Configure Docker daemon (gVisor as default)
+scp daemon.json root@${MUSCLE_IP}:/etc/docker/daemon.json
+ssh root@${MUSCLE_IP} "systemctl restart docker"
+
+# 5. Set up miner detection cron (runs every 5 min)
+ssh root@${MUSCLE_IP} 'crontab -l 2>/dev/null | grep -v "detect-miners" | { cat; echo "*/5 * * * * /root/detect-miners.sh"; } | crontab -'
+
+# 6. Apply SSH hardening (AFTER verifying key auth works)
+ssh root@${MUSCLE_IP} "bash /root/harden-ssh.sh"
+
+# 7. Verify setup
+ssh root@${MUSCLE_IP} "bash /root/verify-hardening.sh"
+```
+
+---
+
+## Testing gVisor
+
+After setup, verify gVisor works:
+
+```bash
+# Basic test - should show gVisor's emulated kernel (4.4.0)
+ssh root@${MUSCLE_IP} "docker run --rm alpine cat /proc/version"
+# Expected: Linux version 4.4.0 ...
+
+# Verify new containers use runsc
+ssh root@${MUSCLE_IP} "docker run -d --name test-gvisor alpine sleep 60 && \
+    docker inspect --format '{{.HostConfig.Runtime}}' test-gvisor && \
+    docker rm -f test-gvisor"
+# Expected: runsc
+
+# Node.js test
+ssh root@${MUSCLE_IP} "docker run --rm node:20-alpine node -e 'console.log(process.version)'"
+```
+
+---
+
+## Verification Checklist
+
+Run the automated verification:
+```bash
+ssh root@${MUSCLE_IP} "bash /root/verify-hardening.sh"
+```
+
+Expected output (all green):
+```
+=== Security Verification ===
+
+1. gVisor:
+  [OK] gVisor installed (runsc version release-20260126.0)
+  [OK] gVisor is default runtime
+
+2. Egress Rules:
+  [OK] Cloud metadata endpoint blocked
+  [OK] SMTP port 25 blocked
+  [OK] Mining pool port 3333 blocked
+  [OK] IRC port 6667 blocked
+
+3. Miner Detection:
+  [OK] Miner detection cron configured
+  [OK] detect-miners.sh is executable
+
+4. Docker Configuration:
+  [OK] Docker live-restore enabled
+  [OK] Docker daemon.json exists
+
+5. System Containers:
+  [OK] Reverse proxy (Traefik/coolify-proxy) is running
+  [OK] Coolify services running
+
+6. SSH Hardening:
+  [OK] SSH password auth disabled
+  [OK] SSH root login key-only
+
+...
+All critical security checks passed.
+```
+
+---
+
+## Important Notes & Lessons Learned
+
+### Runtime Behavior After Enabling gVisor Default
+
+- **Existing containers** (started before the change): Continue using `runc`
+- **New containers**: Automatically use `runsc` (gVisor)
+- To check a container's runtime: `docker inspect --format '{{.HostConfig.Runtime}}' <container>`
+
+### gVisor Kernel Emulation
+
+Containers running under gVisor see an emulated kernel:
+```
+Linux version 4.4.0 #1 SMP Sun Jan 10 15:06:54 PST 2016
+```
+This is normal - gVisor intercepts syscalls and doesn't use the host kernel.
+
+### Docker Restart Issues
+
+If Docker fails to restart repeatedly, systemd may rate-limit it:
+```bash
+# Reset the failed state first
+ssh root@${MUSCLE_IP} "systemctl reset-failed docker.service && systemctl start docker.service"
+```
+
+### SSH Connection Drops
+
+If SSH connections drop during setup, wait 5-10 seconds and retry. This can happen due to:
+- Network latency
+- Too many concurrent SSH sessions
+- Server load during Docker restarts
+
+### Coolify Proxy Naming
+
+Coolify names its Traefik container `coolify-proxy`, not `traefik`. Both are the same thing.
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| Docker won't start after daemon.json change | Check logs: `journalctl -xeu docker.service`. Common issue: invalid JSON syntax |
+| App doesn't work under gVisor | Test with `--runtime=runc` to confirm. Some apps need raw sockets or io_uring |
+| Traefik/coolify-proxy down after restart | Containers with `live-restore: true` should survive. Check: `docker ps \| grep proxy` |
+| SSH locked out after harden-ssh.sh | Use Hetzner Robot console to restore: `cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config && systemctl restart sshd` |
+| "systemctl restart docker" rate-limited | Run `systemctl reset-failed docker.service` first |
+| gVisor test shows "command not found" | gVisor not installed. Run `install-gvisor.sh` again |
+| Container shows runtime "runc" after enabling gVisor default | Expected for containers started before the change. New containers use runsc |
+
+---
+
+## Rollback Procedures
+
+### Revert gVisor to Non-Default
+```bash
+scp daemon-baseline.json root@${MUSCLE_IP}:/etc/docker/daemon.json
+ssh root@${MUSCLE_IP} "systemctl restart docker"
+```
+
+### Remove Egress Rules
+```bash
+ssh root@${MUSCLE_IP} "iptables -F DOCKER-USER && iptables -A DOCKER-USER -j RETURN && netfilter-persistent save"
+```
+
+### Revert SSH Hardening
+```bash
+ssh root@${MUSCLE_IP} "cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config && systemctl restart sshd"
+```
 
 ---
 
@@ -115,7 +240,7 @@ ssh root@${MUSCLE_IP} "docker ps | grep -E 'traefik|coolify'"
 | Torrenting | qBittorrent, Transmission | Reject |
 | Mail servers | Postfix, Sendmail, SMTP apps | Reject |
 
-**Practical implementation**: Scan Dockerfile and start commands for keywords before deploying. Reject with clear error message.
+**Practical implementation**: Scan Dockerfile and start commands for keywords before deploying.
 
 ```go
 // InkMCP validation
@@ -136,9 +261,12 @@ See `setup-egress-rules.sh` - blocks:
 - IRC ports (botnet C&C)
 - Tor directory/relay ports
 
-### Runtime Monitoring (Detect & Kill)
+### Runtime Monitoring (Detect & Log)
 
 See `detect-miners.sh` - detects containers with sustained high CPU usage.
+- Runs every 5 minutes via cron
+- Logs to `/var/log/miner-detection.log`
+- Auto-kill disabled by default (logging only)
 
 ---
 
@@ -168,39 +296,11 @@ docker run -d \
 | Pro | 1g | 1.0 | 2GB (tmpfs) | Heavier workloads |
 | Custom | 2g+ | 2.0+ | 5GB+ | PDF processing, ML, etc. |
 
-### Ephemeral Storage Options
-
-**Option 1: tmpfs (RAM-backed)** - Default, fast, uses container memory allocation
-```bash
---tmpfs /tmp:size=512m,mode=1777
---tmpfs /app/data:size=1g
-```
-
-**Option 2: Disk-backed ephemeral volume** - For larger storage needs (5GB+), doesn't use RAM
-```bash
-# Requires overlay2 with xfs and project quotas on host
---storage-opt size=10G
-```
-
-**Trade-offs:**
-| Type | Speed | Size Limit | Uses RAM | Survives Restart |
-|------|-------|------------|----------|------------------|
-| tmpfs | Fast | Limited by RAM | Yes | No |
-| storage-opt | Disk speed | 10GB+ possible | No | No |
-
-For most MCP servers, tmpfs at 512MB-2GB is sufficient. If users need to process large files (PDFs, images, ML models), either:
-1. Stream directly to object storage (R2/S3)
-2. Upgrade to a tier with disk-backed ephemeral storage
-
-**Note**: Coolify may set some of these. Verify Coolify's compose output includes these constraints.
-
 ---
 
 ## Docker Daemon Configuration
 
-### With gVisor (Production)
-
-Use `daemon.json`:
+### daemon.json (gVisor Default - Production)
 
 ```json
 {
@@ -217,33 +317,32 @@ Use `daemon.json`:
   "runtimes": {
     "runsc": {
       "path": "/usr/local/bin/runsc"
-    },
-    "runc": {
-      "path": "/usr/bin/runc"
     }
   }
 }
 ```
 
-### Without gVisor (Baseline/Testing)
+**Note**: Do NOT add a `runc` entry to the runtimes - Docker already has runc built-in and adding it causes: `runtime name 'runc' is reserved`.
 
-Use `daemon-baseline.json` if gVisor isn't ready yet.
+### daemon-baseline.json (gVisor Available, Not Default)
+
+Use this for initial testing before making gVisor the default.
 
 ---
 
-## System Containers (Must Use runc)
+## System Containers (Use runc)
 
-These containers MUST run on runc (not gVisor):
+These containers run on runc (not gVisor) because they need special access:
 
 | Container | Why runc |
 |-----------|----------|
-| traefik | Coolify proxy - needs full network access |
-| coolify | Coolify core services |
+| coolify-proxy | Coolify's Traefik - needs full network access |
+| coolify-sentinel | Coolify health monitoring |
+| coolify-* | All Coolify internal services |
 | cadvisor | Needs /sys, /proc access for metrics |
-| alloy | Grafana agent - same reason |
-| Any container with `coolify` in name | Coolify internal |
+| alloy | Grafana agent - needs host access |
 
-Since we set `default-runtime: runsc`, these system containers need explicit `--runtime=runc` in their compose/run commands. Coolify handles its own containers, but verify after enabling gVisor.
+Since existing containers keep their runtime after changing the default, these system containers (started before gVisor was default) continue using runc automatically.
 
 ---
 
@@ -281,19 +380,24 @@ Since we set `default-runtime: runsc`, these system containers need explicit `--
 | File | Purpose |
 |------|---------|
 | `README.md` | This documentation |
-| `setup-muscle.sh` | **One-command setup** for new Muscle servers |
+| `setup-muscle.sh` | **One-command setup** for new Muscle servers (baseline) |
 | `setup-egress-rules.sh` | Egress firewall rules (metadata, SMTP, mining, IRC, Tor) |
 | `install-gvisor.sh` | gVisor installation |
 | `detect-miners.sh` | Runtime abuse detection (cron) |
 | `verify-hardening.sh` | Automated security verification |
 | `harden-ssh.sh` | SSH hardening (disable password auth) |
-| `setup-host-firewall.sh` | UFW host firewall configuration |
+| `setup-host-firewall.sh` | UFW host firewall configuration (optional) |
 | `daemon.json` | Docker daemon config with gVisor as default |
 | `daemon-baseline.json` | Docker daemon config with gVisor available (not default) |
 
 ---
 
 ## Monitoring for Abuse
+
+Check miner detection logs:
+```bash
+ssh root@${MUSCLE_IP} "cat /var/log/miner-detection.log"
+```
 
 Add to Grafana Cloud alerts:
 
@@ -304,15 +408,3 @@ avg_over_time(container_cpu_usage_seconds_total{container_name!~"traefik|cadviso
 # Unusual network egress
 rate(container_network_transmit_bytes_total[5m]) > 10000000  # 10MB/s
 ```
-
----
-
-## Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| App doesn't work under gVisor | Run with `--runtime=runc` as temporary workaround, investigate |
-| Traefik down after gVisor | Ensure Traefik uses runc: `docker update --runtime=runc traefik` |
-| Can't ssh after iptables | Hetzner rescue mode, or use Robot console |
-| User reports app is slow | gVisor has ~5-15% overhead, acceptable for security |
-| New server not receiving traffic | Check Coolify destination config, verify Traefik labels |

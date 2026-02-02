@@ -235,27 +235,27 @@ func (s *Server) handleRedeploy(ctx context.Context, req *mcp.CallToolRequest, i
 	return nil, output, nil
 }
 
-func (s *Server) handleProvisionDatabase(ctx context.Context, req *mcp.CallToolRequest, input ProvisionDatabaseInput) (*mcp.CallToolResult, ProvisionDatabaseOutput, error) {
+func (s *Server) handleCreateResource(ctx context.Context, req *mcp.CallToolRequest, input CreateResourceInput) (*mcp.CallToolResult, CreateResourceOutput, error) {
 	user := UserFromContext(ctx)
 	if user == nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, ProvisionDatabaseOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, CreateResourceOutput{}, nil
 	}
 
 	// Validate required field: name
 	if input.Name == "" {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, ProvisionDatabaseOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, CreateResourceOutput{}, nil
 	}
 
 	// Check if resources service is available
 	if s.resourcesService == nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "database provisioning is not configured"}}}, ProvisionDatabaseOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "resource provisioning is not configured"}}}, CreateResourceOutput{}, nil
 	}
 
 	// Set defaults for optional fields
 	dbType := DefaultDBType
 	if input.Type != "" {
 		if input.Type != "sqlite" {
-			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "invalid type: only 'sqlite' is supported"}}}, ProvisionDatabaseOutput{}, nil
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "invalid type: only 'sqlite' is supported"}}}, CreateResourceOutput{}, nil
 		}
 		dbType = input.Type
 	}
@@ -268,12 +268,12 @@ func (s *Server) handleProvisionDatabase(ctx context.Context, req *mcp.CallToolR
 	region := DefaultRegion
 	if input.Region != "" {
 		if input.Region != "eu-west" {
-			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "invalid region: only 'eu-west' is supported"}}}, ProvisionDatabaseOutput{}, nil
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "invalid region: only 'eu-west' is supported"}}}, CreateResourceOutput{}, nil
 		}
 		region = input.Region
 	}
 
-	s.logger.Info("provisioning database",
+	s.logger.Info("creating resource",
 		"user_id", user.ID,
 		"name", input.Name,
 		"type", dbType,
@@ -291,17 +291,86 @@ func (s *Server) handleProvisionDatabase(ctx context.Context, req *mcp.CallToolR
 		Region:    region,
 	})
 	if err != nil {
-		s.logger.Error("failed to provision database", "error", err)
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to provision database: %v", err)}}}, ProvisionDatabaseOutput{}, nil
+		s.logger.Error("failed to create resource", "error", err)
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to create resource: %v", err)}}}, CreateResourceOutput{}, nil
 	}
 
-	output := ProvisionDatabaseOutput{
+	output := CreateResourceOutput{
 		ResourceID: result.ResourceID,
 		Name:       result.Name,
 		Type:       result.Type,
 		Region:     result.Region,
 		URL:        result.URL,
+		AuthToken:  result.AuthToken,
 		Status:     result.Status,
+	}
+
+	return nil, output, nil
+}
+
+func (s *Server) handleListResources(ctx context.Context, req *mcp.CallToolRequest, input ListResourcesInput) (*mcp.CallToolResult, ListResourcesOutput, error) {
+	user := UserFromContext(ctx)
+	if user == nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, ListResourcesOutput{}, nil
+	}
+
+	if s.resourcesService == nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "resources service is not configured"}}}, ListResourcesOutput{}, nil
+	}
+
+	resources, err := s.resourcesService.ListResources(ctx, user.ID, 100, 0)
+	if err != nil {
+		s.logger.Error("failed to list resources", "error", err)
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to list resources: %v", err)}}}, ListResourcesOutput{}, nil
+	}
+
+	resourceInfos := make([]ResourceInfo, len(resources))
+	for i, r := range resources {
+		resourceInfos[i] = ResourceInfo{
+			ResourceID: r.ID,
+			Name:       r.Name,
+			Type:       r.Type,
+			Region:     r.Region,
+			Status:     r.Status,
+			CreatedAt:  r.CreatedAt.Format(time.RFC3339),
+		}
+	}
+
+	return nil, ListResourcesOutput{Resources: resourceInfos}, nil
+}
+
+func (s *Server) handleGetResourceDetails(ctx context.Context, req *mcp.CallToolRequest, input GetResourceDetailsInput) (*mcp.CallToolResult, GetResourceDetailsOutput, error) {
+	user := UserFromContext(ctx)
+	if user == nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, GetResourceDetailsOutput{}, nil
+	}
+
+	if input.Name == "" {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, GetResourceDetailsOutput{}, nil
+	}
+
+	if s.resourcesService == nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "resources service is not configured"}}}, GetResourceDetailsOutput{}, nil
+	}
+
+	resource, err := s.resourcesService.GetResourceByName(ctx, user.ID, input.Name)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("resource not found: %s", input.Name)}}}, GetResourceDetailsOutput{}, nil
+	}
+
+	output := GetResourceDetailsOutput{
+		ResourceID: resource.ID,
+		Name:       resource.Name,
+		Type:       resource.Type,
+		Region:     resource.Region,
+		Status:     resource.Status,
+		CreatedAt:  resource.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:  resource.UpdatedAt.Format(time.RFC3339),
+	}
+
+	if resource.Credentials != nil {
+		output.DatabaseURL = resource.Credentials.URL
+		output.AuthToken = resource.Credentials.AuthToken
 	}
 
 	return nil, output, nil
@@ -512,8 +581,7 @@ func (s *Server) handleGetAppDetails(ctx context.Context, req *mcp.CallToolReque
 	}
 
 	// Cap log lines at max
-	buildLogLines := min(input.BuildLogLines, MaxLogLines)
-	runLogLines := min(input.RunLogLines, MaxLogLines)
+	runtimeLogLines := min(input.RuntimeLogLines, MaxLogLines)
 
 	// Look up app by name and project
 	app, err := s.deployService.GetAppByName(ctx, deployments.GetAppByNameParams{
@@ -525,14 +593,20 @@ func (s *Server) handleGetAppDetails(ctx context.Context, req *mcp.CallToolReque
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, GetAppDetailsOutput{}, nil
 	}
 
+	runtimeStatus := "pending"
+	if app.RuntimeStatus != nil {
+		runtimeStatus = *app.RuntimeStatus
+	}
+
 	output := GetAppDetailsOutput{
 		AppID:         app.ID,
 		Name:          deref(app.Name),
 		Project:       project,
 		Repo:          app.Repo,
 		Branch:        app.Branch,
+		CommitHash:    deref(app.CommitHash),
 		BuildStatus:   app.BuildStatus,
-		RuntimeStatus: app.RuntimeStatus,
+		RuntimeStatus: runtimeStatus,
 		URL:           app.Fqdn,
 		CreatedAt:     app.CreatedAt.Time.Format(time.RFC3339),
 		UpdatedAt:     app.UpdatedAt.Time.Format(time.RFC3339),
@@ -551,37 +625,65 @@ func (s *Server) handleGetAppDetails(ctx context.Context, req *mcp.CallToolReque
 	}
 
 	// Fetch logs via provider
-	if runLogLines > 0 && app.CoolifyAppUuid != nil && s.logProvider != nil {
-		logs, err := s.logProvider.GetRuntimeLogs(ctx, *app.CoolifyAppUuid, runLogLines)
-		if err != nil {
-			s.logger.Warn("failed to fetch runtime logs", "error", err)
-		} else {
-			output.RunLogs = make([]LogLine, len(logs))
-			for i, l := range logs {
-				output.RunLogs[i] = LogLine{
-					Timestamp: l.Timestamp,
-					Stream:    l.Stream,
-					Message:   l.Message,
+	if s.logProvider != nil && app.CoolifyAppUuid != nil {
+		if runtimeLogLines > 0 {
+			logs, err := s.logProvider.GetRuntimeLogs(ctx, *app.CoolifyAppUuid, runtimeLogLines)
+			if err != nil {
+				s.logger.Warn("failed to fetch runtime logs", "error", err)
+			} else {
+				lines := make([]string, len(logs))
+				for i, l := range logs {
+					lines[i] = l.Message
 				}
+				output.RuntimeLogs = strings.Join(lines, "\n")
 			}
 		}
-	}
 
-	if buildLogLines > 0 && app.CoolifyAppUuid != nil && s.logProvider != nil {
-		logs, err := s.logProvider.GetBuildLogs(ctx, *app.CoolifyAppUuid, buildLogLines)
-		if err != nil {
-			s.logger.Warn("failed to fetch build logs", "error", err)
-		} else {
-			output.BuildLogs = make([]LogLine, len(logs))
-			for i, l := range logs {
-				output.BuildLogs[i] = LogLine{
-					Timestamp: l.Timestamp,
-					Stream:    l.Stream,
-					Message:   l.Message,
+		if input.IncludeDeployLogs {
+			logs, err := s.logProvider.GetDeploymentLogs(ctx, *app.CoolifyAppUuid)
+			if err != nil {
+				s.logger.Warn("failed to fetch deployment logs", "error", err)
+			} else {
+				lines := make([]string, len(logs))
+				for i, l := range logs {
+					lines[i] = l.Message
 				}
+				output.DeploymentLogs = strings.Join(lines, "\n")
 			}
 		}
 	}
 
 	return nil, output, nil
+}
+
+func (s *Server) handleDeleteApp(ctx context.Context, req *mcp.CallToolRequest, input DeleteAppInput) (*mcp.CallToolResult, DeleteAppOutput, error) {
+	user := UserFromContext(ctx)
+	if user == nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, DeleteAppOutput{}, nil
+	}
+
+	if input.Name == "" {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, DeleteAppOutput{}, nil
+	}
+
+	project := "default"
+	if input.Project != "" {
+		project = input.Project
+	}
+
+	result, err := s.deployService.DeleteApp(ctx, deployments.DeleteAppParams{
+		Name:    input.Name,
+		Project: project,
+		UserID:  user.ID,
+	})
+	if err != nil {
+		s.logger.Error("failed to delete app", "error", err)
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, DeleteAppOutput{}, nil
+	}
+
+	return nil, DeleteAppOutput{
+		AppID:   result.AppID,
+		Name:    result.Name,
+		Message: "App deleted successfully",
+	}, nil
 }

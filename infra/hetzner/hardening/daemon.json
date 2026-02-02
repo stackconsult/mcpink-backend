@@ -12,9 +12,6 @@
   "runtimes": {
     "runsc": {
       "path": "/usr/local/bin/runsc"
-    },
-    "runc": {
-      "path": "/usr/bin/runc"
     }
   }
 }

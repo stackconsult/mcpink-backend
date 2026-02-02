@@ -99,10 +99,10 @@ fi
 # 5. System Containers
 echo ""
 echo "5. System Containers:"
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q traefik; then
-    check_pass "Traefik is running"
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE 'traefik|coolify-proxy'; then
+    check_pass "Reverse proxy (Traefik/coolify-proxy) is running"
 else
-    check_fail "Traefik is NOT running"
+    check_fail "Reverse proxy is NOT running"
 fi
 
 if docker ps --format '{{.Names}}' 2>/dev/null | grep -q coolify; then

@@ -12,6 +12,7 @@ import (
 	"go.temporal.io/sdk/contrib/opentelemetry"
 	"go.temporal.io/sdk/interceptor"
 	"go.temporal.io/sdk/worker"
+	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
@@ -25,7 +26,7 @@ type TemporalClientConfig struct {
 	CloudAPIKey  string
 }
 
-func CreateTemporalClient(config TemporalClientConfig) (client.Client, error) {
+func CreateTemporalClient(lc fx.Lifecycle, config TemporalClientConfig) (client.Client, error) {
 	tracingInterceptor, err := opentelemetry.NewTracingInterceptor(opentelemetry.TracerOptions{})
 	if err != nil {
 		slog.Warn("Failed to create OpenTelemetry tracing interceptor, continuing without tracing",
@@ -128,6 +129,15 @@ func CreateTemporalClient(config TemporalClientConfig) (client.Client, error) {
 		"address", config.Address,
 		"namespace", config.Namespace,
 		"duration", healthCheckDuration)
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			slog.Info("Closing Temporal client...")
+			c.Close()
+			slog.Info("Temporal client closed")
+			return nil
+		},
+	})
 
 	return c, nil
 }

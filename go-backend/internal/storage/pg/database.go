@@ -15,6 +15,7 @@ import (
 	pgxdecimal "github.com/jackc/pgx-shopspring-decimal"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/fx"
 )
 
 type DbConfig struct {
@@ -36,7 +37,7 @@ type DB struct {
 	resourceQueries  resources.Querier
 }
 
-func NewDatabase(config DbConfig, logger *slog.Logger) (*DB, error) {
+func NewDatabase(lc fx.Lifecycle, config DbConfig, logger *slog.Logger) (*DB, error) {
 	ctx := context.Background()
 
 	poolConfig, err := pgxpool.ParseConfig(config.URL)
@@ -97,6 +98,15 @@ func NewDatabase(config DbConfig, logger *slog.Logger) (*DB, error) {
 		return nil, fmt.Errorf("failed to run database migrations: %w", err)
 	}
 	logger.Info("Database migrations completed successfully")
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			logger.Info("Closing database connection pool...")
+			pool.Close()
+			logger.Info("Database connection pool closed")
+			return nil
+		},
+	})
 
 	return &DB{
 		Pool:            pool,

@@ -21,6 +21,7 @@ type Querier interface {
 	GetAppsByRepoBranch(ctx context.Context, arg GetAppsByRepoBranchParams) ([]App, error)
 	ListAppsByProjectID(ctx context.Context, arg ListAppsByProjectIDParams) ([]App, error)
 	ListAppsByUserID(ctx context.Context, arg ListAppsByUserIDParams) ([]App, error)
+	SoftDeleteApp(ctx context.Context, id string) (App, error)
 	UpdateAppCoolifyUUID(ctx context.Context, arg UpdateAppCoolifyUUIDParams) (App, error)
 	UpdateAppFailed(ctx context.Context, arg UpdateAppFailedParams) (App, error)
 	UpdateAppRedeploying(ctx context.Context, id string) (App, error)

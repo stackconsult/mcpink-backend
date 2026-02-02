@@ -14,6 +14,53 @@ import (
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
 )
 
+// DeleteApp is the resolver for the deleteApp field.
+func (r *mutationResolver) DeleteApp(ctx context.Context, name string, project *string) (*model.DeleteAppResult, error) {
+	userID := authz.For(ctx).GetUserID()
+
+	projectRef := "default"
+	if project != nil && *project != "" {
+		projectRef = *project
+	}
+
+	// Look up app by name and project
+	app, err := r.AppQueries.GetAppByNameAndUserProject(ctx, apps.GetAppByNameAndUserProjectParams{
+		Name:   &name,
+		UserID: userID,
+		Ref:    projectRef,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("app not found: %s in project %s", name, projectRef)
+	}
+
+	// Delete from Coolify if it was deployed
+	if app.CoolifyAppUuid != nil && r.CoolifyClient != nil {
+		if err := r.CoolifyClient.Applications.Delete(ctx, *app.CoolifyAppUuid); err != nil {
+			r.Logger.Warn("failed to delete app from Coolify",
+				"app_id", app.ID,
+				"coolify_uuid", *app.CoolifyAppUuid,
+				"error", err)
+		}
+	}
+
+	// Soft delete in database
+	_, err = r.AppQueries.SoftDeleteApp(ctx, app.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete app: %w", err)
+	}
+
+	appName := ""
+	if app.Name != nil {
+		appName = *app.Name
+	}
+
+	return &model.DeleteAppResult{
+		AppID:   app.ID,
+		Name:    appName,
+		Message: "App deleted successfully",
+	}, nil
+}
+
 // ListApps is the resolver for the listApps field.
 func (r *queryResolver) ListApps(ctx context.Context, first *int32, after *string) (*model.AppConnection, error) {
 	userID := authz.For(ctx).GetUserID()

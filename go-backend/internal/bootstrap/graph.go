@@ -16,6 +16,7 @@ import (
 	"github.com/augustdev/autoclip/internal/coolify"
 	"github.com/augustdev/autoclip/internal/githubapp"
 	"github.com/augustdev/autoclip/internal/graph"
+	"github.com/augustdev/autoclip/internal/logs"
 	"github.com/augustdev/autoclip/internal/mcpserver"
 	"github.com/augustdev/autoclip/internal/storage/pg"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
@@ -195,6 +196,10 @@ func NewTursoClient(config turso.Config, logger *slog.Logger) *turso.Client {
 	return turso.NewClient(config, logger)
 }
 
+func NewLogProvider(client *coolify.Client) logs.Provider {
+	return logs.NewCoolifyProvider(client)
+}
+
 func StartServer(lc fx.Lifecycle, router *chi.Mux, config GraphQLAPIConfig, logger *slog.Logger) {
 	server := &http.Server{
 		Addr:    ":" + config.Port,
@@ -212,8 +217,30 @@ func StartServer(lc fx.Lifecycle, router *chi.Mux, config GraphQLAPIConfig, logg
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			logger.Info("Stopping server")
-			return server.Shutdown(ctx)
+			logger.Info("Shutting down HTTP server, draining connections...")
+			// Disable keep-alives to prevent new persistent connections during shutdown
+			server.SetKeepAlivesEnabled(false)
+
+			// Create a short timeout for graceful shutdown
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			err := server.Shutdown(shutdownCtx)
+			if shutdownCtx.Err() != nil {
+				logger.Warn("Graceful shutdown timed out after 2s, forcing close")
+				if closeErr := server.Close(); closeErr != nil {
+					logger.Error("Error force-closing server", "error", closeErr)
+					return closeErr
+				}
+				logger.Info("HTTP server force-closed")
+				return nil
+			}
+			if err != nil {
+				logger.Error("Error shutting down server", "error", err)
+				return err
+			}
+			logger.Info("HTTP server shut down gracefully")
+			return nil
 		},
 	})
 }

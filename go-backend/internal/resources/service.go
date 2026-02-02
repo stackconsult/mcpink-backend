@@ -133,6 +133,7 @@ func (s *Service) ProvisionDatabase(ctx context.Context, input ProvisionDatabase
 		Type:       resource.Type,
 		Region:     resource.Region,
 		URL:        url,
+		AuthToken:  authToken,
 		Status:     resource.Status,
 	}, nil
 }

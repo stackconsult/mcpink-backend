@@ -75,9 +75,19 @@ func (s *Server) registerTools() {
 	}, s.handleListApps)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "provision_database",
-		Description: "Provision a new database instance",
-	}, s.handleProvisionDatabase)
+		Name:        "create_resource",
+		Description: "Create a new resource (e.g., sqlite database). Returns connection URL and auth token.",
+	}, s.handleCreateResource)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "list_resources",
+		Description: "List all resources (databases, etc.) for the authenticated user",
+	}, s.handleListResources)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_resource_details",
+		Description: "Get detailed information about a resource including connection URL and auth token",
+	}, s.handleGetResourceDetails)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "create_github_repo",
@@ -98,6 +108,11 @@ func (s *Server) registerTools() {
 		Name:        "get_app_details",
 		Description: "Get detailed information about a deployed application, optionally including environment variables and logs",
 	}, s.handleGetAppDetails)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "delete_app",
+		Description: "Delete an application. This removes it from Coolify and marks it as deleted in the database.",
+	}, s.handleDeleteApp)
 }
 
 func (s *Server) Handler() http.Handler {
