@@ -76,3 +76,4 @@ gitea:
   sshport: 2222
   coolifyprivatekeyuuid: ""
   deploypublickey: ""
+  deploybotusername: ""

@@ -2,7 +2,6 @@ package internalgit
 
 import (
 	"fmt"
-	"os"
 	"net/url"
 	"strings"
 
@@ -42,10 +41,7 @@ func NewClient(config Config) (*Client, error) {
 	if config.DeployPublicKey == "" {
 		return nil, fmt.Errorf("internalgit: GITEA_DEPLOYPUBLICKEY is required")
 	}
-	if strings.TrimSpace(config.DeployBotUsername) == "" {
-		config.DeployBotUsername = os.Getenv("GITEA_DEPLOYBOTUSERNAME")
-	}
-	if strings.TrimSpace(config.DeployBotUsername) == "" {
+	if config.DeployBotUsername == "" {
 		return nil, fmt.Errorf("internalgit: GITEA_DEPLOYBOTUSERNAME is required")
 	}
 
