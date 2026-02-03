@@ -18,27 +18,22 @@ All code has been implemented. The following configuration is needed to activate
 
 ## Setup Steps
 
-### Step 1: Create Gitea Admin Token
+### Step 1: Create Gitea Admin Token ✅
 
-1. Log into `git.ml.ink` as admin
-2. Go to **Settings** → **Applications**
-3. Under "Manage Access Tokens", create a new token:
-   - **Name:** `mcp-deploy-admin`
-   - **Scopes:** Select all (or at minimum: `admin`, `write:user`, `write:repository`, `write:org`)
-4. Copy the token
-
-**Provide me:** The token value (I'll add it to config)
+Already done. Token saved to `.env`.
 
 ---
 
 ### Step 2: Generate Webhook Secret
 
-Run this command and save the output:
 ```bash
 openssl rand -hex 32
 ```
 
-**Provide me:** The generated secret
+Add to `.env`:
+```
+GITEA_WEBHOOKSECRET=<generated-secret>
+```
 
 ---
 
@@ -51,70 +46,51 @@ This allows Coolify to pull code from Gitea via SSH.
 ssh-keygen -t ed25519 -C "coolify-gitea-deploy" -f gitea-deploy-key -N ""
 ```
 
-This creates:
+Creates:
 - `gitea-deploy-key` (private key)
 - `gitea-deploy-key.pub` (public key)
 
-#### 3b. Add Public Key to Gitea
-
-**Option A: As a Machine User (Recommended)**
-1. Create a new Gitea user (e.g., `deploy-bot`)
-2. Add the public key to that user's SSH keys
-3. This user will be added as collaborator to repos automatically
-
-**Option B: As Global Deploy Key**
-1. Admin → Settings → Deploy Keys (if available)
-2. Add the public key
+#### 3b. Add Public Key to Gitea Admin Account
+1. Log into `git.ml.ink` as admin
+2. **Settings** → **SSH / GPG Keys** → **Add Key**
+3. Paste contents of `gitea-deploy-key.pub`
+4. Save
 
 #### 3c. Upload Private Key to Coolify
-1. Go to Coolify → **Keys** → **Add New**
-2. Paste the contents of `gitea-deploy-key` (private key)
-3. Save and copy the **UUID** shown
+1. Coolify → **Security** → **Private Keys** → **Add**
+2. Paste contents of `gitea-deploy-key`
+3. Name: `gitea-deploy`
+4. Save → Copy the **UUID**
 
-**Provide me:** The Coolify private key UUID
-
----
-
-## What I Need From You
-
-1. ✅ **Gitea Admin Token:** `48d83c13d5c33...` (saved to .env)
-
-2. ⏳ **Webhook Secret:** Generate with `openssl rand -hex 32` and provide
-
-3. ⏳ **Coolify Private Key UUID:**
-   - Generate SSH key: `ssh-keygen -t ed25519 -f gitea-deploy-key -N ""`
-   - Add `gitea-deploy-key.pub` to Gitea (as deploy key or machine user)
-   - Upload `gitea-deploy-key` (private) to Coolify → Keys
-   - Provide the UUID
-
-4. ✅ **Gitea Base URL:** `https://git.ml.ink`
-
-5. ✅ **User prefix:** `u` (creates users like `u-abc123`)
+Add to `.env`:
+```
+GITEA_COOLIFYPRIVATEKEYUUID=<uuid-from-coolify>
+```
 
 ---
 
-## Current Config in .env
+## Final `.env` Config
 
 ```bash
 GITEA_ENABLED=true
 GITEA_BASEURL=https://git.ml.ink
-GITEA_ADMINTOKEN=48d83c13d5c33...  # ✅ DONE
+GITEA_ADMINTOKEN=48d83c13d5c33...      # ✅ DONE
 GITEA_USERPREFIX=u
-GITEA_WEBHOOKSECRET=               # ⏳ NEEDS: Step 2
+GITEA_WEBHOOKSECRET=<step-2>           # ⏳ PENDING
 GITEA_SSHURL=git@git.ml.ink
-GITEA_COOLIFYPRIVATEKEYUUID=       # ⏳ NEEDS: Step 3
+GITEA_COOLIFYPRIVATEKEYUUID=<step-3>   # ⏳ PENDING
 ```
 
 ---
 
 ## After Configuration
 
-Once configured, the following MCP tools will be available:
+Restart the server. The following MCP tools will be available:
 
 | Tool | Description |
 |------|-------------|
-| `create_repo(name, source="private")` | Creates repo at `ml.ink/u-{user_id}/{name}` |
-| `get_push_token(repo="ml.ink/...")` | Gets fresh push credentials |
+| `create_repo(name)` | Creates repo at `ml.ink/u-{user_id}/{name}` |
+| `get_push_token(repo)` | Gets fresh push credentials |
 | `create_app(repo="ml.ink/...")` | Deploys from internal git |
 
 Webhook endpoint: `POST /webhooks/internal-git` (auto-redeploy on push)
