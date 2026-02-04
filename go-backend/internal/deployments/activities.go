@@ -178,7 +178,7 @@ func (a *Activities) CreateAppFromPrivateGithub(ctx context.Context, input Cooli
 		PortsExposes:           port,
 		BuildPack:              coolify.BuildPack(input.BuildPack),
 		Name:                   input.Name,
-		CustomDockerRunOptions: "--runtime=runsc --cap-drop=ALL",
+		CustomDockerRunOptions: "--runtime=runsc --cap-drop=ALL --pids-limit=256",
 		LimitsMemory:           memory,
 		LimitsMemorySwap:       memory, // Same as memory = no swap
 		LimitsCPUs:             cpu,
@@ -270,7 +270,7 @@ func (a *Activities) CreateAppFromInternalGit(ctx context.Context, input Interna
 		PortsExposes:           port,
 		BuildPack:              coolify.BuildPack(input.BuildPack),
 		Name:                   input.Name,
-		CustomDockerRunOptions: "--runtime=runsc --cap-drop=ALL",
+		CustomDockerRunOptions: "--runtime=runsc --cap-drop=ALL --pids-limit=256",
 		LimitsMemory:           memory,
 		LimitsMemorySwap:       memory, // Same as memory = no swap
 		LimitsCPUs:             cpu,
