@@ -231,6 +231,7 @@ type CreateRepoInput struct {
 type CreateRepoOutput struct {
 	Repo      string `json:"repo"`
 	GitRemote string `json:"git_remote"`
+	ExpiresAt string `json:"expires_at"`
 	Message   string `json:"message"`
 }
 
