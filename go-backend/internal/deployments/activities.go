@@ -157,6 +157,16 @@ func (a *Activities) CreateAppFromPrivateGithub(ctx context.Context, input Cooli
 		port = "80"
 	}
 
+	// Apply defaults for resource limits
+	memory := input.Memory
+	if memory == "" {
+		memory = "256m"
+	}
+	cpu := input.CPU
+	if cpu == "" {
+		cpu = "0.5"
+	}
+
 	req := &coolify.CreatePrivateGitHubAppRequest{
 		ProjectUUID:            cfg.ProjectUUID,
 		ServerUUID:             serverID,
@@ -167,9 +177,10 @@ func (a *Activities) CreateAppFromPrivateGithub(ctx context.Context, input Cooli
 		PortsExposes:           port,
 		BuildPack:              coolify.BuildPack(input.BuildPack),
 		Name:                   input.Name,
-		CustomDockerRunOptions: "--runtime=runsc",
-		LimitsMemory:           input.Memory,
-		LimitsCPUs:             input.CPU,
+		CustomDockerRunOptions: "--runtime=runsc --cap-drop=ALL",
+		LimitsMemory:           memory,
+		LimitsMemorySwap:       memory, // Same as memory = no swap
+		LimitsCPUs:             cpu,
 		InstallCommand:         input.InstallCommand,
 		BuildCommand:           input.BuildCommand,
 		StartCommand:           input.StartCommand,
@@ -238,6 +249,16 @@ func (a *Activities) CreateAppFromInternalGit(ctx context.Context, input Interna
 		port = "80"
 	}
 
+	// Apply defaults for resource limits
+	memory := input.Memory
+	if memory == "" {
+		memory = "256m"
+	}
+	cpu := input.CPU
+	if cpu == "" {
+		cpu = "0.5"
+	}
+
 	req := &coolify.CreatePrivateDeployKeyRequest{
 		ProjectUUID:            cfg.ProjectUUID,
 		ServerUUID:             serverID,
@@ -248,9 +269,10 @@ func (a *Activities) CreateAppFromInternalGit(ctx context.Context, input Interna
 		PortsExposes:           port,
 		BuildPack:              coolify.BuildPack(input.BuildPack),
 		Name:                   input.Name,
-		CustomDockerRunOptions: "--runtime=runsc",
-		LimitsMemory:           input.Memory,
-		LimitsCPUs:             input.CPU,
+		CustomDockerRunOptions: "--runtime=runsc --cap-drop=ALL",
+		LimitsMemory:           memory,
+		LimitsMemorySwap:       memory, // Same as memory = no swap
+		LimitsCPUs:             cpu,
 		InstallCommand:         input.InstallCommand,
 		BuildCommand:           input.BuildCommand,
 		StartCommand:           input.StartCommand,
