@@ -90,15 +90,14 @@ func (h *Handlers) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate redirect URIs - only allow localhost for MCP clients
+	// Validate redirect URIs - ensure valid URL format
 	for _, uri := range req.RedirectURIs {
-		parsed, err := url.Parse(uri)
-		if err != nil || (parsed.Hostname() != "localhost" && parsed.Hostname() != "127.0.0.1") {
+		if _, err := url.Parse(uri); err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error":             "invalid_redirect_uri",
-				"error_description": "redirect_uri must be localhost",
+				"error_description": "invalid URL format",
 			})
 			return
 		}
@@ -142,14 +141,8 @@ func (h *Handlers) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parsedURI, err := url.Parse(redirectURI)
-	if err != nil {
+	if _, err := url.Parse(redirectURI); err != nil {
 		http.Error(w, "invalid redirect_uri", http.StatusBadRequest)
-		return
-	}
-
-	if parsedURI.Hostname() != "localhost" && parsedURI.Hostname() != "127.0.0.1" {
-		http.Error(w, "redirect_uri must be localhost", http.StatusBadRequest)
 		return
 	}
 
