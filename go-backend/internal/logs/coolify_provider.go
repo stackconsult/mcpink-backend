@@ -20,10 +20,6 @@ func (p *CoolifyProvider) GetRuntimeLogs(ctx context.Context, coolifyUUID string
 		return nil, fmt.Errorf("app not deployed yet")
 	}
 
-	if p.client == nil {
-		return nil, fmt.Errorf("coolify client not configured")
-	}
-
 	coolifyLogs, err := p.client.Applications.GetRuntimeLogs(ctx, coolifyUUID, lines)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch runtime logs: %w", err)
@@ -43,10 +39,6 @@ func (p *CoolifyProvider) GetRuntimeLogs(ctx context.Context, coolifyUUID string
 func (p *CoolifyProvider) GetDeploymentLogs(ctx context.Context, coolifyUUID string) ([]LogLine, error) {
 	if coolifyUUID == "" {
 		return nil, fmt.Errorf("app not deployed yet")
-	}
-
-	if p.client == nil {
-		return nil, fmt.Errorf("coolify client not configured")
 	}
 
 	coolifyLogs, err := p.client.Applications.GetDeploymentLogs(ctx, coolifyUUID)

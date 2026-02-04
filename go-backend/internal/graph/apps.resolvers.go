@@ -33,8 +33,7 @@ func (r *mutationResolver) DeleteApp(ctx context.Context, name string, project *
 		return nil, fmt.Errorf("app not found: %s in project %s", name, projectRef)
 	}
 
-	// Delete from Coolify if it was deployed
-	if app.CoolifyAppUuid != nil && r.CoolifyClient != nil {
+	if app.CoolifyAppUuid != nil {
 		if err := r.CoolifyClient.Applications.Delete(ctx, *app.CoolifyAppUuid); err != nil {
 			r.Logger.Warn("failed to delete app from Coolify",
 				"app_id", app.ID,

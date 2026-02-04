@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -152,16 +153,8 @@ func NewGraphQLRouter(
 	router.Handle("/", playground.Handler("GraphQL playground", "/graphql"))
 	router.Handle("/graphql", authMiddleware)
 
-	if mcpServer != nil {
-		router.Mount("/mcp", mcpserver.AuthMiddleware(authService, logger, mcpServer.Handler()))
-		logger.Info("MCP server mounted", "path", "/mcp")
-	}
-
-	// Webhook routes (no auth - uses signature verification)
-	if webhookHandlers != nil {
-		webhookHandlers.RegisterRoutes(router)
-		logger.Info("Webhook handlers mounted", "path", "/webhooks/github")
-	}
+	router.Mount("/mcp", mcpserver.AuthMiddleware(authService, logger, mcpServer.Handler()))
+	webhookHandlers.RegisterRoutes(router)
 
 	return router
 }
@@ -176,27 +169,33 @@ func gqlSchema(resolver *graph.Resolver) graphql.ExecutableSchema {
 	return graph.NewExecutableSchema(c)
 }
 
-func NewCoolifyClient(config coolify.Config, logger *slog.Logger) *coolify.Client {
-	if config.BaseURL == "" || config.Token == "" {
-		logger.Info("Coolify client not configured, skipping")
-		return nil
+func NewCoolifyClient(config coolify.Config, logger *slog.Logger) (*coolify.Client, error) {
+	if config.BaseURL == "" {
+		return nil, fmt.Errorf("coolify: BaseURL is required")
+	}
+	if config.Token == "" {
+		return nil, fmt.Errorf("coolify: Token is required")
 	}
 
 	client, err := coolify.NewClient(config)
 	if err != nil {
-		logger.Error("failed to create Coolify client", "error", err)
-		return nil
+		return nil, fmt.Errorf("coolify: failed to create client: %w", err)
 	}
-	return client
+
+	logger.Info("Coolify client initialized", "baseURL", config.BaseURL)
+	return client, nil
 }
 
-func NewTursoClient(config turso.Config, logger *slog.Logger) *turso.Client {
-	if config.APIKey == "" || config.OrgSlug == "" {
-		logger.Info("Turso client not configured, skipping")
-		return nil
+func NewTursoClient(config turso.Config, logger *slog.Logger) (*turso.Client, error) {
+	if config.APIKey == "" {
+		return nil, fmt.Errorf("turso: APIKey is required")
+	}
+	if config.OrgSlug == "" {
+		return nil, fmt.Errorf("turso: OrgSlug is required")
 	}
 
-	return turso.NewClient(config, logger)
+	logger.Info("Turso client initialized")
+	return turso.NewClient(config, logger), nil
 }
 
 func NewLogProvider(client *coolify.Client) logs.Provider {

@@ -351,14 +351,8 @@ func (s *Server) handleCreateResource(ctx context.Context, req *mcp.CallToolRequ
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, CreateResourceOutput{}, nil
 	}
 
-	// Validate required field: name
 	if input.Name == "" {
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, CreateResourceOutput{}, nil
-	}
-
-	// Check if resources service is available
-	if s.resourcesService == nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "resource provisioning is not configured"}}}, CreateResourceOutput{}, nil
 	}
 
 	// Set defaults for optional fields

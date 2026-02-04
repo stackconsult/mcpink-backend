@@ -8,6 +8,11 @@ import (
 )
 
 func NewInternalGitService(config internalgit.Config, db *pg.DB, logger *slog.Logger) (*internalgit.Service, error) {
+	if config.BaseURL == "" {
+		logger.Info("Internal git (Gitea) not configured, skipping")
+		return nil, nil
+	}
+
 	client, err := internalgit.NewClient(config)
 	if err != nil {
 		return nil, err

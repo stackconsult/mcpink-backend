@@ -465,11 +465,6 @@ func contains(slice []string, item string) bool {
 }
 
 func (s *Service) triggerAccountSetup(userID string) {
-	if s.temporal == nil {
-		s.logger.Warn("Temporal client not available, skipping account setup workflow")
-		return
-	}
-
 	workflowID := fmt.Sprintf("setup-account-%s", userID)
 	options := client.StartWorkflowOptions{
 		ID:        workflowID,
