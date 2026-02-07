@@ -6,3 +6,6 @@
 
 # Keys/secrets
 keys/
+
+# Product pitches (private)
+PRODUCT_PITCH*
