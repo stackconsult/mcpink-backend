@@ -143,8 +143,6 @@ func buildDeployment(namespace, name, imageRef, port string) *appsv1.Deployment 
 		portInt = 3000
 	}
 
-	gvisor := "gvisor"
-
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{Kind: "Deployment", APIVersion: "apps/v1"},
 		ObjectMeta: metav1.ObjectMeta{
@@ -162,13 +160,8 @@ func buildDeployment(namespace, name, imageRef, port string) *appsv1.Deployment 
 					Labels: map[string]string{"app": name},
 				},
 				Spec: corev1.PodSpec{
-					RuntimeClassName:             &gvisor,
 					AutomountServiceAccountToken: ptr.To(false),
-					SecurityContext: &corev1.PodSecurityContext{
-						RunAsNonRoot: ptr.To(true),
-						RunAsUser:    ptr.To(int64(1000)),
-						RunAsGroup:   ptr.To(int64(1000)),
-					},
+					SecurityContext: &corev1.PodSecurityContext{},
 					Containers: []corev1.Container{
 						{
 							Name:  "app",

@@ -30,7 +30,7 @@ func (a *Activities) Deploy(ctx context.Context, input DeployInput) (*DeployResu
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
-	username := resolveUsername(user)
+	username := ResolveUsername(user)
 	if username == "" {
 		return nil, fmt.Errorf("user %s has no gitea or github username", app.UserID)
 	}
@@ -40,6 +40,9 @@ func (a *Activities) Deploy(ctx context.Context, input DeployInput) (*DeployResu
 	port := app.Port
 	if port == "" {
 		port = "3000"
+	}
+	if app.BuildPack == "static" {
+		port = "8080"
 	}
 
 	// Parse env vars

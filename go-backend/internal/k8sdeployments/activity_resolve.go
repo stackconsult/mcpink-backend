@@ -79,7 +79,7 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 			return nil, fmt.Errorf("build pack is 'dockerfile' but no Dockerfile found in repo")
 		}
 	case "static":
-		// OK
+		app.Port = "8080"
 	case "dockercompose":
 		return nil, fmt.Errorf("dockercompose build pack is not supported on k8s")
 	default:
@@ -124,7 +124,7 @@ func (a *Activities) resolveServiceIdentity(ctx context.Context, serviceID strin
 		return "", "", apps.App{}, fmt.Errorf("get user: %w", err)
 	}
 
-	username := resolveUsername(user)
+	username := ResolveUsername(user)
 	if username == "" {
 		return "", "", apps.App{}, fmt.Errorf("user %s has no gitea or github username", app.UserID)
 	}

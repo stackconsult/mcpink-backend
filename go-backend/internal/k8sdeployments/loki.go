@@ -10,11 +10,6 @@ import (
 	"time"
 )
 
-type lokiPushEntry struct {
-	Ts   string `json:"ts"`
-	Line string `json:"line"`
-}
-
 type lokiStream struct {
 	Stream map[string]string `json:"stream"`
 	Values [][]string        `json:"values"`
@@ -101,7 +96,7 @@ type LokiQueryResult struct {
 
 // QueryLoki retrieves logs from Loki for a given LogQL query within a time range.
 // queryURL should be the Loki query_range endpoint, e.g. http://loki:3100/loki/api/v1/query_range
-func QueryLoki(ctx context.Context, queryURL, logQL string, start, end time.Time, limit int) (*LokiQueryResult, error) {
+func QueryLoki(ctx context.Context, queryURL, username, password, logQL string, start, end time.Time, limit int) (*LokiQueryResult, error) {
 	if queryURL == "" {
 		return nil, fmt.Errorf("loki query URL is empty")
 	}
@@ -109,6 +104,9 @@ func QueryLoki(ctx context.Context, queryURL, logQL string, start, end time.Time
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, queryURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create loki query request: %w", err)
+	}
+	if username != "" && password != "" {
+		req.SetBasicAuth(username, password)
 	}
 
 	q := req.URL.Query()
@@ -140,12 +138,12 @@ func QueryLoki(ctx context.Context, queryURL, logQL string, start, end time.Time
 }
 
 // QueryBuildLogs retrieves build logs for a specific service from Loki.
-func QueryBuildLogs(ctx context.Context, lokiQueryURL, namespace, service string, since time.Duration, limit int) ([]string, error) {
+func QueryBuildLogs(ctx context.Context, lokiQueryURL, username, password, namespace, service string, since time.Duration, limit int) ([]string, error) {
 	logQL := fmt.Sprintf(`{job="build", namespace=%q, service=%q}`, namespace, service)
 	end := time.Now()
 	start := end.Add(-since)
 
-	result, err := QueryLoki(ctx, lokiQueryURL, logQL, start, end, limit)
+	result, err := QueryLoki(ctx, lokiQueryURL, username, password, logQL, start, end, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -162,12 +160,12 @@ func QueryBuildLogs(ctx context.Context, lokiQueryURL, namespace, service string
 }
 
 // QueryRunLogs retrieves runtime logs for a specific service from Loki.
-func QueryRunLogs(ctx context.Context, lokiQueryURL, namespace, service string, since time.Duration, limit int) ([]string, error) {
+func QueryRunLogs(ctx context.Context, lokiQueryURL, username, password, namespace, service string, since time.Duration, limit int) ([]string, error) {
 	logQL := fmt.Sprintf(`{namespace=%q, container=%q}`, namespace, service)
 	end := time.Now()
 	start := end.Add(-since)
 
-	result, err := QueryLoki(ctx, lokiQueryURL, logQL, start, end, limit)
+	result, err := QueryLoki(ctx, lokiQueryURL, username, password, logQL, start, end, limit)
 	if err != nil {
 		return nil, err
 	}

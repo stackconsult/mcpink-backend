@@ -21,8 +21,8 @@ func (a *Activities) DockerfileBuild(ctx context.Context, input BuildImageInput)
 	lokiLogger := a.newBuildLokiLogger(input.Name, input.Namespace)
 
 	cacheRef := ""
-	if a.config.RegistryHost != "" {
-		cacheRef = fmt.Sprintf("%s/cache/%s/%s:buildcache", a.config.RegistryHost, input.Namespace, input.Name)
+	if a.config.RegistryAddress != "" {
+		cacheRef = fmt.Sprintf("%s/cache/%s/%s:buildcache", a.config.RegistryAddress, input.Namespace, input.Name)
 	}
 
 	lokiLogger.Log("Building image from Dockerfile with BuildKit...")

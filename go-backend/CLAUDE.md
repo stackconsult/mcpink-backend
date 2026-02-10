@@ -249,6 +249,48 @@ make sqlc          # Generate sqlc code
 make gqlgen        # Generate GraphQL code
 ```
 
+## Worker Binaries
+
+There are multiple worker binaries — **do not confuse them**:
+
+| Binary | Path | Task Queue | Purpose |
+|--------|------|------------|---------|
+| `k8s-worker` | `cmd/k8s-worker/main.go` | `k8s-native` | K8s deployments (build, deploy, delete) |
+| `worker` | `cmd/worker/main.go` | `default` | Account workflows |
+
+**The k8s deployment in `infra/k8s/temporal-worker.yml` runs `cmd/k8s-worker`, NOT `cmd/worker`.**
+
+### Deploying the k8s-worker to the cluster
+
+```bash
+# 1. Build the correct binary
+cd go-backend
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/k8s-worker ./cmd/k8s-worker
+
+# 2. Copy into build context
+cp /tmp/k8s-worker .tmp-k8s-worker-image/k8s-worker
+cp application.yaml .tmp-k8s-worker-image/application.yaml
+
+# 3. Build Docker image (no provenance to avoid ctr import issues)
+docker build --platform linux/amd64 --provenance=false --sbom=false \
+  -t registry.internal:5000/dp-system/temporal-worker:latest .tmp-k8s-worker-image/
+
+# 4. Save, SCP, import, push to internal registry
+docker save registry.internal:5000/dp-system/temporal-worker:latest -o /tmp/worker-image.tar
+scp /tmp/worker-image.tar root@46.225.100.234:/tmp/worker-image.tar
+ssh root@46.225.100.234 "k3s ctr images import /tmp/worker-image.tar && \
+  k3s ctr images push --plain-http registry.internal:5000/dp-system/temporal-worker:latest && \
+  rm /tmp/worker-image.tar"
+
+# 5. Restart deployment
+kubectl rollout restart deployment/temporal-worker -n dp-system
+kubectl rollout status deployment/temporal-worker -n dp-system --timeout=120s
+
+# 6. Verify correct task queue in logs
+kubectl logs deployment/temporal-worker -n dp-system --tail=5
+# Should show: TaskQueue k8s-native (NOT "default")
+```
+
 ## Invisible Processes
 
 When running `go run`, Go compiles the binary to a temp folder and executes it. The `go run` wrapper process and the actual binary are separate processes.

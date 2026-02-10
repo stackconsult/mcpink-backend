@@ -21,16 +21,14 @@ func (a *Activities) StaticBuild(ctx context.Context, input BuildImageInput) (*B
 
 	lokiLogger := a.newBuildLokiLogger(input.Name, input.Namespace)
 
-	// Generate an nginx-based Dockerfile similar to Coolify static builds.
-	dockerfile := `FROM nginx:alpine
-WORKDIR /usr/share/nginx/html
+	dockerfile := `FROM nginx:alpine AS build
+WORKDIR /site
 COPY . .
-RUN rm -f /usr/share/nginx/html/nginx.conf \
-    /usr/share/nginx/html/Dockerfile \
-    /usr/share/nginx/html/docker-compose.yaml \
-    /usr/share/nginx/html/docker-compose.yml \
-    /usr/share/nginx/html/.env
-COPY ./nginx.conf /etc/nginx/conf.d/default.conf
+RUN rm -f nginx.conf Dockerfile docker-compose.yaml docker-compose.yml .env
+
+FROM nginxinc/nginx-unprivileged:alpine
+COPY --from=build --chown=nginx:nginx /site/ /usr/share/nginx/html/
+COPY --chown=nginx:nginx nginx.conf /etc/nginx/conf.d/default.conf
 `
 	if err := os.WriteFile(filepath.Join(input.SourcePath, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
 		if isPathMissingErr(err) {
@@ -40,7 +38,7 @@ COPY ./nginx.conf /etc/nginx/conf.d/default.conf
 	}
 
 	nginxConf := `server {
-    listen 80;
+    listen 8080;
     server_name _;
     root /usr/share/nginx/html;
     index index.html;

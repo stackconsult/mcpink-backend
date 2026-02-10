@@ -2,11 +2,14 @@ package k8sdeployments
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 
-	"github.com/railwayapp/railpack/buildkit"
 	"github.com/railwayapp/railpack/core"
 	"github.com/railwayapp/railpack/core/app"
 	"go.temporal.io/sdk/temporal"
@@ -66,25 +69,41 @@ func (a *Activities) RailpackBuild(ctx context.Context, input BuildImageInput) (
 		lokiLogger.Log(fmt.Sprintf("[railpack] %s", l.Msg))
 	}
 
-	// 2. Build with BuildKit using railpack's own BuildKit integration
-	lokiLogger.Log("Building image with railpack + BuildKit...")
+	// 2. Write plan to temp directory for BuildKit frontend
+	planDir, err := os.MkdirTemp("", "railpack-plan-*")
+	if err != nil {
+		return nil, fmt.Errorf("create plan dir: %w", err)
+	}
+	defer os.RemoveAll(planDir)
 
+	planBytes, err := json.Marshal(result.Plan)
+	if err != nil {
+		return nil, fmt.Errorf("marshal plan: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(planDir, "railpack-plan.json"), planBytes, 0o644); err != nil {
+		return nil, fmt.Errorf("write plan file: %w", err)
+	}
+
+	// 3. Build with Railpack BuildKit frontend
+	cacheKey := fmt.Sprintf("%s/%s", input.Namespace, input.Name)
 	cacheRef := ""
-	if a.config.RegistryHost != "" {
-		cacheRef = fmt.Sprintf("%s/cache/%s/%s:buildcache", a.config.RegistryHost, input.Namespace, input.Name)
+	if a.config.RegistryAddress != "" {
+		cacheRef = fmt.Sprintf("%s/cache/%s/%s:buildcache", a.config.RegistryAddress, input.Namespace, input.Name)
 	}
 
-	// Railpack reads BUILDKIT_HOST from env
-	os.Setenv("BUILDKIT_HOST", a.config.BuildkitHost)
+	lokiLogger.Log("Building image with Railpack frontend...")
 
-	buildOpts := buildkit.BuildWithBuildkitClientOptions{
-		ImageName:   input.ImageRef,
-		ImportCache: cacheRef,
-		ExportCache: cacheRef,
-		CacheKey:    fmt.Sprintf("%s/%s", input.Namespace, input.Name),
-	}
-
-	if err := buildkit.BuildWithBuildkitClient(input.SourcePath, result.Plan, buildOpts); err != nil {
+	if err := buildWithRailpackFrontend(ctx, planDir, railpackFrontendOpts{
+		CacheKey:    cacheKey,
+		SecretsHash: hashEnvVars(input.EnvVars),
+		Secrets:     input.EnvVars,
+	}, buildkitSolveOpts{
+		BuildkitHost: a.config.BuildkitHost,
+		SourcePath:   input.SourcePath,
+		ImageRef:     input.ImageRef,
+		CacheRef:     cacheRef,
+		LokiLogger:   lokiLogger,
+	}); err != nil {
 		if isPathMissingErr(err) {
 			return nil, sourcePathMissingError(input.SourcePath, err)
 		}
@@ -105,4 +124,21 @@ func (a *Activities) newBuildLokiLogger(name, namespace string) *LokiLogger {
 		"service":   name,
 		"namespace": namespace,
 	})
+}
+
+func hashEnvVars(envVars map[string]string) string {
+	keys := make([]string, 0, len(envVars))
+	for k := range envVars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	h := sha256.New()
+	for _, k := range keys {
+		h.Write([]byte(k))
+		h.Write([]byte("="))
+		h.Write([]byte(envVars[k]))
+		h.Write([]byte("\n"))
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))[:16]
 }
