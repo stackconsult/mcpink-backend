@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"go.temporal.io/sdk/activity"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
@@ -14,8 +13,6 @@ func (a *Activities) DeleteService(ctx context.Context, input DeleteServiceInput
 		"serviceID", input.ServiceID,
 		"namespace", input.Namespace,
 		"name", input.Name)
-
-	activity.RecordHeartbeat(ctx, "deleting resources")
 
 	// Delete Ingress
 	err := a.k8s.NetworkingV1().Ingresses(input.Namespace).Delete(ctx, input.Name, metav1.DeleteOptions{})

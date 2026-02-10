@@ -151,6 +151,20 @@
     executable: /bin/bash
   when: gitea_db_password | default('') | length > 0
 
+- name: Create Gitea credentials secret when provided
+  shell: |
+    set -euo pipefail
+    k3s kubectl -n dp-system create secret generic gitea-creds \
+      --from-literal=base-url={{ gitea_base_url | quote }} \
+      --from-literal=admin-token={{ gitea_admin_token | quote }} \
+      --from-literal=webhook-secret={{ gitea_webhook_secret | quote }} \
+      --dry-run=client -o yaml | k3s kubectl apply -f -
+  args:
+    executable: /bin/bash
+  when:
+    - gitea_admin_token | default('') | length > 0
+    - gitea_webhook_secret | default('') | length > 0
+
 - name: Create Cloudflare token secret when provided
   shell: |
     set -euo pipefail

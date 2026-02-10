@@ -52,6 +52,8 @@ Keep decisions aligned with `/Users/wins/Projects/personal/mcpdeploy/backend/REA
   - Adding run nodes = add IP to Cloudflare origin pool; LB auto-routes and health-checks
 - Docker CE fully purged from `run-1` and `build-1` (packages, `/var/lib/docker`, `docker0` bridge, apt source removed).
 - Internal registry currently contains `dp-system/temporal-worker` repository.
+- Gitea deployment manifest and ingress added (`gitea.yml`, `gitea-ingress.yml`) — pending first apply.
+- Gitea is HTTPS-only (SSH disabled); all traffic via CF LB → Traefik.
 
 ## Completed
 - [x] Scaffolded Ansible roles/playbooks and Kubernetes manifests in:
@@ -238,6 +240,12 @@ Keep decisions aligned with `/Users/wins/Projects/personal/mcpdeploy/backend/REA
   - Cloudflare Load Balancing active on `*.ml.ink`
   - origin pool `run-nodes` with health checks
   - `grafana.ml.ink` and `loki.ml.ink` served via wildcard LB
+- [ ] Deploy Gitea on ops-1:
+  - apply `gitea.yml` + `gitea-ingress.yml` via `site.yml` or `--limit k3s-1`
+  - `git.ml.ink` already covered by `*.ml.ink` Cloudflare LB (HTTPS-only, no SSH)
+  - create admin user, generate API token, add `gitea_admin_token` + `gitea_webhook_secret` to vault
+  - update Railway env: `GITEA_BASEURL=https://git.ml.ink`
+  - verify: pod running, HTTPS API responds, ingress active
 - [ ] Run full verification checklist from architecture plan section 16
 - [ ] Run security patch playbook on all nodes in maintenance window
 - [ ] Pin mutable infra image tags to immutable versions/digests after runtime validation:

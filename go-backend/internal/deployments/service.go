@@ -369,12 +369,14 @@ func (s *Service) DeleteApp(ctx context.Context, params DeleteAppParams) (*Delet
 		return nil, fmt.Errorf("project not found: %w", err)
 	}
 
-	githubUsername := ""
-	if user.GithubUsername != nil {
-		githubUsername = *user.GithubUsername
+	username := ""
+	if user.GiteaUsername != nil && *user.GiteaUsername != "" {
+		username = *user.GiteaUsername
+	} else if user.GithubUsername != nil && *user.GithubUsername != "" {
+		username = *user.GithubUsername
 	}
 
-	namespace := k8sdeployments.NamespaceName(githubUsername, proj.Ref)
+	namespace := k8sdeployments.NamespaceName(username, proj.Ref)
 	serviceName := k8sdeployments.ServiceName(name)
 
 	workflowID := fmt.Sprintf("delete-app-%s", app.ID)

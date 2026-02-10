@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"go.temporal.io/sdk/activity"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -30,9 +29,6 @@ func (a *Activities) WaitForRollout(ctx context.Context, input WaitForRolloutInp
 		}
 		updated := dep.Status.UpdatedReplicas
 		available := dep.Status.AvailableReplicas
-
-		heartbeat := fmt.Sprintf("ready=%d/%d updated=%d", available, desired, updated)
-		activity.RecordHeartbeat(ctx, heartbeat)
 
 		if updated == desired && available == desired {
 			a.logger.Info("WaitForRollout completed",

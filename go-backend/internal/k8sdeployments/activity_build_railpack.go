@@ -4,45 +4,63 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/railwayapp/railpack/buildkit"
 	"github.com/railwayapp/railpack/core"
 	"github.com/railwayapp/railpack/core/app"
-	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/temporal"
 )
 
 func (a *Activities) RailpackBuild(ctx context.Context, input BuildImageInput) (*BuildImageResult, error) {
 	a.logger.Info("RailpackBuild activity started",
 		"imageRef", input.ImageRef,
 		"sourcePath", input.SourcePath)
-	defer os.RemoveAll(input.SourcePath)
 
-	activity.RecordHeartbeat(ctx, "starting railpack build")
+	if _, err := os.Stat(input.SourcePath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, temporal.NewNonRetryableApplicationError(
+				fmt.Sprintf("source path missing: %s", input.SourcePath),
+				"source_path_missing",
+				err,
+			)
+		}
+		return nil, fmt.Errorf("stat source path: %w", err)
+	}
 
 	lokiLogger := a.newBuildLokiLogger(input.Name, input.Namespace)
 	lokiLogger.Log("Generating build plan with railpack...")
 
 	// 1. Generate build plan
-	activity.RecordHeartbeat(ctx, "generating railpack plan")
-
 	userApp, err := app.NewApp(input.SourcePath)
 	if err != nil {
 		lokiLogger.Log(fmt.Sprintf("RAILPACK ERROR: failed to create app: %v", err))
 		_ = lokiLogger.Flush(ctx)
-		return nil, fmt.Errorf("railpack new app: %w", err)
+		return nil, temporal.NewNonRetryableApplicationError(
+			fmt.Sprintf("railpack failed to analyze source: %v", err),
+			"railpack_app_error",
+			err,
+		)
 	}
 
 	env := app.NewEnvironment(&input.EnvVars)
 	result := core.GenerateBuildPlan(userApp, env, &core.GenerateBuildPlanOptions{})
 
 	if !result.Success {
-		errMsg := "railpack plan generation failed"
+		var errorLines []string
 		for _, l := range result.Logs {
 			lokiLogger.Log(fmt.Sprintf("[railpack] %s", l.Msg))
+			if l.Level == "error" {
+				errorLines = append(errorLines, l.Msg)
+			}
+		}
+		errMsg := "railpack plan generation failed"
+		if len(errorLines) > 0 {
+			errMsg = fmt.Sprintf("railpack plan generation failed: %s", strings.Join(errorLines, "; "))
 		}
 		lokiLogger.Log(fmt.Sprintf("BUILD FAILED: %s", errMsg))
 		_ = lokiLogger.Flush(ctx)
-		return nil, fmt.Errorf(errMsg)
+		return nil, temporal.NewNonRetryableApplicationError(errMsg, "railpack_plan_failed", nil)
 	}
 
 	for _, provider := range result.DetectedProviders {
@@ -53,7 +71,6 @@ func (a *Activities) RailpackBuild(ctx context.Context, input BuildImageInput) (
 	}
 
 	// 2. Build with BuildKit using railpack's own BuildKit integration
-	activity.RecordHeartbeat(ctx, "building image with railpack+buildkit")
 	lokiLogger.Log("Building image with railpack + BuildKit...")
 
 	cacheRef := ""

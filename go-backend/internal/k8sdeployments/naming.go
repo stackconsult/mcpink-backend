@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/users"
 )
 
 var nonAlphanumDash = regexp.MustCompile(`[^a-z0-9-]`)
@@ -26,4 +28,15 @@ func NamespaceName(githubUsername, projectRef string) string {
 
 func ServiceName(appName string) string {
 	return sanitizeDNS(appName)
+}
+
+// resolveUsername returns the user's GiteaUsername, falling back to GithubUsername.
+func resolveUsername(user users.User) string {
+	if user.GiteaUsername != nil && *user.GiteaUsername != "" {
+		return *user.GiteaUsername
+	}
+	if user.GithubUsername != nil && *user.GithubUsername != "" {
+		return *user.GithubUsername
+	}
+	return ""
 }

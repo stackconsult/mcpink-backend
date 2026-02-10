@@ -42,7 +42,6 @@ func main() {
 			authz.NewAPIKeyValidator,
 			bootstrap.NewCoolifyClient,
 			bootstrap.NewTursoClient,
-			bootstrap.NewLogProvider,
 			deployments.NewService,
 			resources.NewService,
 			bootstrap.NewInternalGitService,

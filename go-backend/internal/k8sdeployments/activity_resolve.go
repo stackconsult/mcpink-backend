@@ -7,12 +7,22 @@ import (
 	"os"
 	"path/filepath"
 
-	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/temporal"
 )
 
 func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuildContextInput) (*ResolveBuildContextResult, error) {
 	a.logger.Info("ResolveBuildContext activity started", "serviceID", input.ServiceID)
-	activity.RecordHeartbeat(ctx, "resolving build context")
+
+	if _, err := os.Stat(input.SourcePath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, temporal.NewNonRetryableApplicationError(
+				fmt.Sprintf("source path missing: %s", input.SourcePath),
+				"source_path_missing",
+				err,
+			)
+		}
+		return nil, fmt.Errorf("stat source path: %w", err)
+	}
 
 	app, err := a.appsQ.GetAppByID(ctx, input.ServiceID)
 	if err != nil {
@@ -29,15 +39,12 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
-	githubUsername := ""
-	if user.GithubUsername != nil {
-		githubUsername = *user.GithubUsername
-	}
-	if githubUsername == "" {
-		return nil, fmt.Errorf("user %s has no github username", app.UserID)
+	username := resolveUsername(user)
+	if username == "" {
+		return nil, fmt.Errorf("user %s has no gitea or github username", app.UserID)
 	}
 
-	namespace := NamespaceName(githubUsername, project.Ref)
+	namespace := NamespaceName(username, project.Ref)
 	name := ServiceName(*app.Name)
 
 	imageRef := fmt.Sprintf("%s/%s/%s:%s", a.config.RegistryAddress, namespace, name, input.CommitSHA)

@@ -1,9 +1,13 @@
 package internalgit
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"code.gitea.io/sdk/gitea"
 )
@@ -22,27 +26,6 @@ func NewClient(config Config) (*Client, error) {
 	}
 	if config.WebhookSecret == "" {
 		return nil, fmt.Errorf("internalgit: GITEA_WEBHOOKSECRET is required")
-	}
-	if config.SSHURL == "" {
-		return nil, fmt.Errorf("internalgit: GITEA_SSHURL is required")
-	}
-	if strings.HasPrefix(config.SSHURL, "ssh://") {
-		return nil, fmt.Errorf("internalgit: GITEA_SSHURL must not start with ssh:// (Coolify rejects ssh:// for git_repository); set GITEA_SSHURL=git@host and GITEA_SSHPORT")
-	}
-	if config.SSHPort == 0 {
-		return nil, fmt.Errorf("internalgit: GITEA_SSHPORT is required")
-	}
-	if config.SSHPort < 1 || config.SSHPort > 65535 {
-		return nil, fmt.Errorf("internalgit: GITEA_SSHPORT must be between 1 and 65535")
-	}
-	if config.CoolifyPrivateKeyUUID == "" {
-		return nil, fmt.Errorf("internalgit: GITEA_COOLIFYPRIVATEKEYUUID is required")
-	}
-	if config.DeployPublicKey == "" {
-		return nil, fmt.Errorf("internalgit: GITEA_DEPLOYPUBLICKEY is required")
-	}
-	if config.DeployBotUsername == "" {
-		return nil, fmt.Errorf("internalgit: GITEA_DEPLOYBOTUSERNAME is required")
 	}
 
 	api, err := gitea.NewClient(config.BaseURL, gitea.SetToken(config.AdminToken))
@@ -64,7 +47,6 @@ func (c *Client) API() *gitea.Client {
 	return c.api
 }
 
-// GetHTTPSCloneURL returns the HTTPS clone URL with embedded token
 func (c *Client) GetHTTPSCloneURL(username, repoName, token string) string {
 	u, _ := url.Parse(c.config.BaseURL)
 	u.User = url.UserPassword(username, token)
@@ -72,46 +54,35 @@ func (c *Client) GetHTTPSCloneURL(username, repoName, token string) string {
 	return u.String()
 }
 
-// GetSSHCloneURL returns the SSH clone URL
-// Format returned is compatible with Coolify "Private Repository (with Deploy Key)":
-// - Standard: git@host:user/repo.git (port 22)
-// - Non-standard port: git@host:PORT/user/repo.git (Coolify extracts PORT and uses it for SSH)
-func (c *Client) GetSSHCloneURL(username, repoName string) string {
-	sshBase := strings.TrimSpace(c.config.SSHURL)
-	sshPort := c.config.SSHPort
-
-	// Coolify deploy-key clones support a non-standard SSH port only via a special format:
-	// `git@host:PORT/owner/repo.git` (Coolify parses `:PORT/` and uses that as the SSH port).
-	//
-	// We intentionally do NOT return `ssh://git@host:PORT/owner/repo.git` because Coolify's
-	// create-app validation rejects `ssh://` for `git_repository`.
-	if sshPort != 22 {
-		return fmt.Sprintf("%s:%d/%s/%s.git", sshBase, sshPort, username, repoName)
-	}
-
-	// Standard scp-style format on port 22.
-	return fmt.Sprintf("%s:%s/%s.git", sshBase, username, repoName)
+// userPassword derives a deterministic password from HMAC-SHA256(username, adminToken).
+// The "Gp!" prefix satisfies Gitea's password-complexity requirements.
+func (c *Client) userPassword(username string) string {
+	mac := hmac.New(sha256.New, []byte(c.config.AdminToken))
+	mac.Write([]byte(username))
+	return "Gp!" + hex.EncodeToString(mac.Sum(nil))[:24]
 }
 
-// GetRepoPath returns the repo path in format "ml.ink/{username}/{repo}"
+// CreateUserToken creates a temporary Gitea access token via BasicAuth SDK client.
+func (c *Client) CreateUserToken(username string) (string, error) {
+	userClient, err := gitea.NewClient(c.config.BaseURL, gitea.SetBasicAuth(username, c.userPassword(username)))
+	if err != nil {
+		return "", fmt.Errorf("create user client: %w", err)
+	}
+
+	token, _, err := userClient.CreateAccessToken(gitea.CreateAccessTokenOption{
+		Name:   fmt.Sprintf("push-%d", time.Now().UnixMilli()),
+		Scopes: []gitea.AccessTokenScope{"write:repository"},
+	})
+	if err != nil {
+		return "", fmt.Errorf("create token: %w", err)
+	}
+	return token.Token, nil
+}
+
+// GetRepoPath returns "ml.ink/{username}/{repo}" (strips "git." prefix and port).
 func (c *Client) GetRepoPath(username, repoName string) string {
 	u, _ := url.Parse(c.config.BaseURL)
-	host := u.Host
-	// Remove port if present
-	for i := len(host) - 1; i >= 0; i-- {
-		if host[i] == ':' {
-			host = host[:i]
-			break
-		}
-	}
-	// Remove "git." prefix if present for cleaner paths
-	if len(host) > 4 && host[:4] == "git." {
-		host = host[4:]
-	}
+	host := u.Hostname()
+	host = strings.TrimPrefix(host, "git.")
 	return fmt.Sprintf("%s/%s/%s", host, username, repoName)
-}
-
-// NewClientWithBasicAuth creates a client authenticated as a specific user
-func NewClientWithBasicAuth(baseURL, username, password string) (*gitea.Client, error) {
-	return gitea.NewClient(baseURL, gitea.SetBasicAuth(username, password))
 }

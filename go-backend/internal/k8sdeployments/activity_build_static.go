@@ -6,16 +6,24 @@ import (
 	"os"
 	"path/filepath"
 
-	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/temporal"
 )
 
 func (a *Activities) StaticBuild(ctx context.Context, input BuildImageInput) (*BuildImageResult, error) {
 	a.logger.Info("StaticBuild activity started",
 		"imageRef", input.ImageRef,
 		"sourcePath", input.SourcePath)
-	defer os.RemoveAll(input.SourcePath)
 
-	activity.RecordHeartbeat(ctx, "starting static build")
+	if _, err := os.Stat(input.SourcePath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, temporal.NewNonRetryableApplicationError(
+				fmt.Sprintf("source path missing: %s", input.SourcePath),
+				"source_path_missing",
+				err,
+			)
+		}
+		return nil, fmt.Errorf("stat source path: %w", err)
+	}
 
 	lokiLogger := a.newBuildLokiLogger(input.Name, input.Namespace)
 
@@ -33,7 +41,6 @@ COPY . /srv
 	}
 
 	lokiLogger.Log("Building static site image with Caddy...")
-	activity.RecordHeartbeat(ctx, "building image")
 
 	err := buildWithDockerfile(ctx, buildkitSolveOpts{
 		BuildkitHost: a.config.BuildkitHost,

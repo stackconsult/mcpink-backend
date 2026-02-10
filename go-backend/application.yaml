@@ -79,11 +79,6 @@ gitea:
   admintoken: ""
   userprefix: "u"
   webhooksecret: ""
-  sshurl: "git@git.ml.ink"
-  sshport: 2222
-  coolifyprivatekeyuuid: ""
-  deploypublickey: ""
-  deploybotusername: ""
 
 mcpoauth:
   issuer: "http://localhost:8081"

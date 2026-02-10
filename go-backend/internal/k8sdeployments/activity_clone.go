@@ -6,9 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
-
-	"go.temporal.io/sdk/activity"
 )
 
 func (a *Activities) CloneRepo(ctx context.Context, input CloneRepoInput) (*CloneRepoResult, error) {
@@ -18,8 +15,8 @@ func (a *Activities) CloneRepo(ctx context.Context, input CloneRepoInput) (*Clon
 		"branch", input.Branch,
 		"gitProvider", input.GitProvider)
 
-	dir := fmt.Sprintf("/tmp/build-%s-%d", input.ServiceID, time.Now().UnixMilli())
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	dir, err := os.MkdirTemp("/tmp", fmt.Sprintf("build-%s-", input.ServiceID))
+	if err != nil {
 		return nil, fmt.Errorf("create temp dir: %w", err)
 	}
 
@@ -28,8 +25,6 @@ func (a *Activities) CloneRepo(ctx context.Context, input CloneRepoInput) (*Clon
 		os.RemoveAll(dir)
 		return nil, fmt.Errorf("resolve clone URL: %w", err)
 	}
-
-	activity.RecordHeartbeat(ctx, "cloning repository")
 
 	args := []string{"clone", "--depth", "1"}
 	if input.Branch != "" {

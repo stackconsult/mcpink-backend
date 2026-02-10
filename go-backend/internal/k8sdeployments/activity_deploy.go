@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"go.temporal.io/sdk/activity"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -15,8 +14,6 @@ func (a *Activities) Deploy(ctx context.Context, input DeployInput) (*DeployResu
 		"serviceID", input.ServiceID,
 		"imageRef", input.ImageRef,
 		"commitSHA", input.CommitSHA)
-
-	activity.RecordHeartbeat(ctx, "resolving app metadata")
 
 	app, err := a.appsQ.GetAppByID(ctx, input.ServiceID)
 	if err != nil {
@@ -33,15 +30,12 @@ func (a *Activities) Deploy(ctx context.Context, input DeployInput) (*DeployResu
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
-	githubUsername := ""
-	if user.GithubUsername != nil {
-		githubUsername = *user.GithubUsername
-	}
-	if githubUsername == "" {
-		return nil, fmt.Errorf("user %s has no github username", app.UserID)
+	username := resolveUsername(user)
+	if username == "" {
+		return nil, fmt.Errorf("user %s has no gitea or github username", app.UserID)
 	}
 
-	namespace := NamespaceName(githubUsername, project.Ref)
+	namespace := NamespaceName(username, project.Ref)
 	name := ServiceName(*app.Name)
 	port := app.Port
 	if port == "" {
@@ -66,32 +60,27 @@ func (a *Activities) Deploy(ctx context.Context, input DeployInput) (*DeployResu
 	envVars["PORT"] = port
 
 	// Ensure namespace
-	activity.RecordHeartbeat(ctx, "ensuring namespace")
-	if err := a.ensureNamespace(ctx, namespace, githubUsername, project.Ref); err != nil {
+	if err := a.ensureNamespace(ctx, namespace, username, project.Ref); err != nil {
 		return nil, fmt.Errorf("ensure namespace: %w", err)
 	}
 
 	// Apply Secret
-	activity.RecordHeartbeat(ctx, "applying secret")
 	if err := a.applySecret(ctx, namespace, name, envVars); err != nil {
 		return nil, fmt.Errorf("apply secret: %w", err)
 	}
 
 	// Apply Deployment
-	activity.RecordHeartbeat(ctx, "applying deployment")
 	if err := a.applyDeployment(ctx, namespace, name, input.ImageRef, port); err != nil {
 		return nil, fmt.Errorf("apply deployment: %w", err)
 	}
 
 	// Apply Service
-	activity.RecordHeartbeat(ctx, "applying service")
 	if err := a.applyService(ctx, namespace, name, port); err != nil {
 		return nil, fmt.Errorf("apply service: %w", err)
 	}
 
 	// Apply Ingress
 	host := fmt.Sprintf("%s.%s", name, input.AppsDomain)
-	activity.RecordHeartbeat(ctx, "applying ingress")
 	if err := a.applyIngress(ctx, namespace, name, host, port); err != nil {
 		return nil, fmt.Errorf("apply ingress: %w", err)
 	}

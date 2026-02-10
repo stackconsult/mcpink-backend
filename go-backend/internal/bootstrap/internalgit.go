@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/augustdev/autoclip/internal/internalgit"
@@ -8,15 +9,9 @@ import (
 )
 
 func NewInternalGitService(config internalgit.Config, db *pg.DB, logger *slog.Logger) (*internalgit.Service, error) {
-	if config.BaseURL == "" {
-		logger.Info("Internal git (Gitea) not configured, skipping")
-		return nil, nil
-	}
-
 	client, err := internalgit.NewClient(config)
 	if err != nil {
-		logger.Warn("Internal git (Gitea) unavailable, skipping", "error", err)
-		return nil, nil
+		return nil, fmt.Errorf("internal git client: %w", err)
 	}
 
 	webhookURL := "https://api.ml.ink/webhooks/internal-git"

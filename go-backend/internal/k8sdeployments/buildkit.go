@@ -30,7 +30,8 @@ func buildWithDockerfile(ctx context.Context, opts buildkitSolveOpts) error {
 	}
 
 	solveOpt := client.SolveOpt{
-		Frontend: "dockerfile.v0",
+		Frontend:      "dockerfile.v0",
+		FrontendAttrs: map[string]string{},
 		LocalMounts: map[string]fsutil.FS{
 			"context":    srcFS,
 			"dockerfile": srcFS,

@@ -11,3 +11,4 @@ infra/ansible/.vault_pass
 
 # Product pitches (private)
 PRODUCT_PITCH*
+.vault_pass

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 RUN apk add --no-cache git ca-certificates tzdata
 
@@ -10,11 +10,11 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o k8s-worker cmd/k8s-worker/main.go
+RUN GOMAXPROCS=2 CGO_ENABLED=0 GOOS=linux GOFLAGS="-p=1" go build -ldflags="-s -w" -o k8s-worker cmd/k8s-worker/main.go
 
-FROM alpine:latest
+FROM debian:bookworm-slim
 
-RUN apk --no-cache add ca-certificates tzdata git
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata git && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -22,4 +22,3 @@ COPY --from=builder /app/k8s-worker .
 COPY --from=builder /app/application.yaml .
 
 CMD ["./k8s-worker"]
-

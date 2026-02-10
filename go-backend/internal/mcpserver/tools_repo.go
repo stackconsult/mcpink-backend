@@ -40,10 +40,6 @@ func (s *Server) handleCreateRepo(ctx context.Context, req *mcp.CallToolRequest,
 }
 
 func (s *Server) createPrivateRepo(ctx context.Context, userID string, input CreateRepoInput) (*mcp.CallToolResult, CreateRepoOutput, error) {
-	if s.internalGitSvc == nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "internal git not configured"}}}, CreateRepoOutput{}, nil
-	}
-
 	result, err := s.internalGitSvc.CreateRepo(ctx, userID, input.Name, input.Description, true)
 	if err != nil {
 		s.logger.Error("failed to create internal repo", "error", err, "name", input.Name)
@@ -172,16 +168,11 @@ func (s *Server) handleGetGitToken(ctx context.Context, req *mcp.CallToolRequest
 }
 
 func (s *Server) getPrivateGitToken(ctx context.Context, user *users.User, repoName string) (*mcp.CallToolResult, GetGitTokenOutput, error) {
-	if s.internalGitSvc == nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "internal git not configured"}}}, GetGitTokenOutput{}, nil
+	fullName, err := s.internalGitSvc.ResolveRepoFullName(ctx, user.ID, repoName)
+	if err != nil {
+		s.logger.Error("failed to resolve repo name", "error", err, "repo", repoName)
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to resolve repo name: %v", err)}}}, GetGitTokenOutput{}, nil
 	}
-
-	// Build full name: username/repoName
-	ghUsername := ""
-	if user.GithubUsername != nil {
-		ghUsername = *user.GithubUsername
-	}
-	fullName := fmt.Sprintf("%s/%s", ghUsername, repoName)
 
 	result, err := s.internalGitSvc.GetPushToken(ctx, user.ID, fullName)
 	if err != nil {

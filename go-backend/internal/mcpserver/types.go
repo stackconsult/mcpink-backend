@@ -14,7 +14,7 @@ type EnvVar struct {
 	Value string `json:"value" jsonschema:"description=Environment variable value"`
 }
 
-type CreateAppInput struct {
+type CreateServiceInput struct {
 	Repo   string `json:"repo" jsonschema:"description=Repository name (e.g. 'myapp')"`
 	Host   string `json:"host,omitempty" jsonschema:"description=Git host,enum=ml.ink,enum=github.com,default=ml.ink"`
 	Branch string `json:"branch,omitempty" jsonschema:"description=Branch to deploy,default=main"`
@@ -33,8 +33,8 @@ type CreateAppInput struct {
 	StartCommand   string `json:"start_command,omitempty" jsonschema:"description=Custom start command (overrides auto-detected)"`
 }
 
-type CreateAppOutput struct {
-	AppID      string `json:"app_id"`
+type CreateServiceOutput struct {
+	ServiceID  string `json:"service_id"`
 	Name       string `json:"name"`
 	Status     string `json:"status"`
 	Repo       string `json:"repo"`
@@ -42,23 +42,23 @@ type CreateAppOutput struct {
 	Message    string `json:"message"`
 }
 
-type RedeployInput struct {
-	Name    string `json:"name" jsonschema:"description=Name of the app to redeploy (required)"`
+type RedeployServiceInput struct {
+	Name    string `json:"name" jsonschema:"description=Name of the service to redeploy (required)"`
 	Project string `json:"project,omitempty" jsonschema:"description=Project name,default=default"`
 }
 
-type RedeployOutput struct {
-	AppID      string `json:"app_id"`
+type RedeployServiceOutput struct {
+	ServiceID  string `json:"service_id"`
 	Name       string `json:"name"`
 	Status     string `json:"status"`
 	CommitHash string `json:"commit_hash,omitempty"`
 	Message    string `json:"message"`
 }
 
-type ListAppsInput struct{}
+type ListServicesInput struct{}
 
-type ListAppsOutput struct {
-	Apps []AppInfo `json:"apps"`
+type ListServicesOutput struct {
+	Services []ServiceInfo `json:"services"`
 }
 
 type BuildProgress struct {
@@ -67,8 +67,8 @@ type BuildProgress struct {
 	Message     string `json:"message,omitempty"`
 }
 
-type AppInfo struct {
-	AppID         string         `json:"app_id"`
+type ServiceInfo struct {
+	ServiceID     string         `json:"service_id"`
 	Name          string         `json:"name"`
 	Status        string         `json:"status"`
 	Repo          string         `json:"repo"`
@@ -136,16 +136,16 @@ const (
 	DefaultDBSize = "100mb"
 )
 
-type GetAppDetailsInput struct {
-	Name            string `json:"name" jsonschema:"description=App name (required)"`
+type GetServiceInput struct {
+	Name            string `json:"name" jsonschema:"description=Service name (required)"`
 	Project         string `json:"project,omitempty" jsonschema:"description=Project name,default=default"`
 	IncludeEnv      bool   `json:"include_env,omitempty" jsonschema:"description=Include environment variables,default=false"`
 	DeployLogLines  int    `json:"deploy_log_lines,omitempty" jsonschema:"description=Number of deployment log lines to fetch (max: 500),default=0"`
 	RuntimeLogLines int    `json:"runtime_log_lines,omitempty" jsonschema:"description=Number of runtime log lines to fetch (max: 500),default=0"`
 }
 
-type GetAppDetailsOutput struct {
-	AppID          string         `json:"app_id"`
+type GetServiceOutput struct {
+	ServiceID      string         `json:"service_id"`
 	Name           string         `json:"name"`
 	Project        string         `json:"project"`
 	Repo           string         `json:"repo"`
@@ -170,15 +170,15 @@ type EnvVarInfo struct {
 
 const MaxLogLines = 500
 
-type DeleteAppInput struct {
-	Name    string `json:"name" jsonschema:"description=Name of the app to delete (required)"`
+type DeleteServiceInput struct {
+	Name    string `json:"name" jsonschema:"description=Name of the service to delete (required)"`
 	Project string `json:"project,omitempty" jsonschema:"description=Project name,default=default"`
 }
 
-type DeleteAppOutput struct {
-	AppID   string `json:"app_id"`
-	Name    string `json:"name"`
-	Message string `json:"message"`
+type DeleteServiceOutput struct {
+	ServiceID string `json:"service_id"`
+	Name      string `json:"name"`
+	Message   string `json:"message"`
 }
 
 type DeleteResourceInput struct {

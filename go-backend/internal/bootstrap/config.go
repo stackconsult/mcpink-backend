@@ -26,46 +26,41 @@ func NewConfig() (Config, error) {
 	}
 
 	var cfg struct {
-		GraphQLAPI  GraphQLAPIConfig
-		Db          pg.DbConfig
-		GitHub      github_oauth.Config
-		GitHubApp   githubapp.Config
-		Auth        auth.Config
-		Temporal    TemporalClientConfig
-		NATS        NATSConfig
-		Coolify     coolify.Config
-		Turso       turso.Config
-		Gitea       internalgit.Config
-		Cloudflare  cloudflare.Config
-		MCPOAuth    mcp_oauth.Config
-		Firebase    FirebaseConfig
-		K8sWorker   k8sdeployments.Config
+		GraphQLAPI GraphQLAPIConfig
+		Db         pg.DbConfig
+		GitHub     github_oauth.Config
+		GitHubApp  githubapp.Config
+		Auth       auth.Config
+		Temporal   TemporalClientConfig
+		NATS       NATSConfig
+		Coolify    coolify.Config
+		Turso      turso.Config
+		Gitea      internalgit.Config
+		Cloudflare cloudflare.Config
+		MCPOAuth   mcp_oauth.Config
+		Firebase   FirebaseConfig
+		K8sWorker  k8sdeployments.Config
 	}
 
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return Config{}, fmt.Errorf("unable to decode config: %w", err)
 	}
 
-	// Parse COOLIFY_SERVERS env var override: "uuid1:ip1,uuid2:ip2"
-	if serversEnv := os.Getenv("COOLIFY_SERVERS"); serversEnv != "" {
-		cfg.Coolify.Servers = parseServersEnv(serversEnv)
-	}
-
 	return Config{
-		GraphQLAPI:  cfg.GraphQLAPI,
-		Db:          cfg.Db,
-		GitHub:      cfg.GitHub,
-		GitHubApp:   cfg.GitHubApp,
-		Auth:        cfg.Auth,
-		Temporal:    cfg.Temporal,
-		NATS:        cfg.NATS,
-		Coolify:     cfg.Coolify,
-		Turso:       cfg.Turso,
-		Gitea:       cfg.Gitea,
-		Cloudflare:  cfg.Cloudflare,
-		MCPOAuth:    cfg.MCPOAuth,
-		Firebase:    cfg.Firebase,
-		K8sWorker:   cfg.K8sWorker,
+		GraphQLAPI: cfg.GraphQLAPI,
+		Db:         cfg.Db,
+		GitHub:     cfg.GitHub,
+		GitHubApp:  cfg.GitHubApp,
+		Auth:       cfg.Auth,
+		Temporal:   cfg.Temporal,
+		NATS:       cfg.NATS,
+		Coolify:    cfg.Coolify,
+		Turso:      cfg.Turso,
+		Gitea:      cfg.Gitea,
+		Cloudflare: cfg.Cloudflare,
+		MCPOAuth:   cfg.MCPOAuth,
+		Firebase:   cfg.Firebase,
+		K8sWorker:  cfg.K8sWorker,
 	}, nil
 }
 
@@ -76,20 +71,20 @@ type FirebaseConfig struct {
 type Config struct {
 	fx.Out
 
-	GraphQLAPI  GraphQLAPIConfig
-	Db          pg.DbConfig
-	GitHub      github_oauth.Config
-	GitHubApp   githubapp.Config
-	Auth        auth.Config
-	Temporal    TemporalClientConfig
-	NATS        NATSConfig
-	Coolify     coolify.Config
-	Turso       turso.Config
-	Gitea       internalgit.Config
-	Cloudflare  cloudflare.Config
-	MCPOAuth    mcp_oauth.Config
-	Firebase    FirebaseConfig
-	K8sWorker   k8sdeployments.Config
+	GraphQLAPI GraphQLAPIConfig
+	Db         pg.DbConfig
+	GitHub     github_oauth.Config
+	GitHubApp  githubapp.Config
+	Auth       auth.Config
+	Temporal   TemporalClientConfig
+	NATS       NATSConfig
+	Coolify    coolify.Config
+	Turso      turso.Config
+	Gitea      internalgit.Config
+	Cloudflare cloudflare.Config
+	MCPOAuth   mcp_oauth.Config
+	Firebase   FirebaseConfig
+	K8sWorker  k8sdeployments.Config
 }
 
 func InitConfig() error {

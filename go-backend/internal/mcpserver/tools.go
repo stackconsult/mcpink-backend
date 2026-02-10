@@ -37,25 +37,25 @@ func (s *Server) handleWhoami(ctx context.Context, req *mcp.CallToolRequest, inp
 	return nil, output, nil
 }
 
-func (s *Server) handleCreateApp(ctx context.Context, req *mcp.CallToolRequest, input CreateAppInput) (*mcp.CallToolResult, CreateAppOutput, error) {
+func (s *Server) handleCreateService(ctx context.Context, req *mcp.CallToolRequest, input CreateServiceInput) (*mcp.CallToolResult, CreateServiceOutput, error) {
 	user := UserFromContext(ctx)
 	if user == nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, CreateAppOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, CreateServiceOutput{}, nil
 	}
 
 	if input.Repo == "" {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "repo is required"}}}, CreateAppOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "repo is required"}}}, CreateServiceOutput{}, nil
 	}
 	if input.Branch == "" {
 		input.Branch = "main"
 	}
 	if input.Name == "" {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, CreateAppOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, CreateServiceOutput{}, nil
 	}
 
-	host, repo, err := normalizeCreateAppRepo(user, input)
+	host, repo, err := s.normalizeServiceRepo(ctx, user, input)
 	if err != nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, CreateAppOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, CreateServiceOutput{}, nil
 	}
 	input.Repo = repo
 
@@ -65,7 +65,7 @@ func (s *Server) handleCreateApp(ctx context.Context, req *mcp.CallToolRequest, 
 		case "nixpacks", "dockerfile", "static", "dockercompose":
 			buildPack = input.BuildPack
 		default:
-			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("invalid build_pack: %s. Valid options: nixpacks, dockerfile, static, dockercompose", input.BuildPack)}}}, CreateAppOutput{}, nil
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("invalid build_pack: %s. Valid options: nixpacks, dockerfile, static, dockercompose", input.BuildPack)}}}, CreateServiceOutput{}, nil
 		}
 	}
 
@@ -100,28 +100,28 @@ func (s *Server) handleCreateApp(ctx context.Context, req *mcp.CallToolRequest, 
 	var result *deployments.CreateAppResult
 
 	if host == "ml.ink" {
-		result, err = s.createAppFromInternalGit(ctx, user.ID, input, buildPack, port, envVars)
+		result, err = s.createServiceFromInternalGit(ctx, user.ID, input, buildPack, port, envVars)
 	} else {
-		result, err = s.createAppFromGitHub(ctx, user, input, buildPack, port, envVars)
+		result, err = s.createServiceFromGitHub(ctx, user, input, buildPack, port, envVars)
 	}
 
 	if err != nil {
 		s.logger.Error("failed to start deployment", "error", err)
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to start deployment: %v", err)}}}, CreateAppOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to start deployment: %v", err)}}}, CreateServiceOutput{}, nil
 	}
 
-	output := CreateAppOutput{
-		AppID:   result.AppID,
-		Name:    result.Name,
-		Status:  result.Status,
-		Repo:    result.Repo,
-		Message: fmt.Sprintf("Deployment started (workflow_id: %s)", result.WorkflowID),
+	output := CreateServiceOutput{
+		ServiceID: result.AppID,
+		Name:      result.Name,
+		Status:    result.Status,
+		Repo:      result.Repo,
+		Message:   fmt.Sprintf("Deployment started (workflow_id: %s)", result.WorkflowID),
 	}
 
 	return nil, output, nil
 }
 
-func normalizeCreateAppRepo(user *users.User, input CreateAppInput) (host string, normalizedRepo string, err error) {
+func (s *Server) normalizeServiceRepo(ctx context.Context, user *users.User, input CreateServiceInput) (host string, normalizedRepo string, err error) {
 	repo := strings.TrimSpace(input.Repo)
 	if repo == "" {
 		return "", "", fmt.Errorf("repo is required")
@@ -146,21 +146,26 @@ func normalizeCreateAppRepo(user *users.User, input CreateAppInput) (host string
 		return "", "", fmt.Errorf("invalid repo format: pass repo name only (e.g. 'myapp'), not owner/repo")
 	}
 
+	if host == "ml.ink" {
+		fullName, resolveErr := s.internalGitSvc.ResolveRepoFullName(ctx, user.ID, repo)
+		if resolveErr != nil {
+			return "", "", fmt.Errorf("resolve repo name: %w", resolveErr)
+		}
+		return host, fmt.Sprintf("ml.ink/%s", fullName), nil
+	}
+
+	// github.com path — requires GithubUsername
 	username := ""
 	if user != nil && user.GithubUsername != nil {
 		username = strings.TrimSpace(*user.GithubUsername)
 	}
 	if username == "" {
-		return "", "", fmt.Errorf("cannot resolve repo: user has no username configured")
-	}
-
-	if host == "ml.ink" {
-		return host, fmt.Sprintf("ml.ink/%s/%s", username, repo), nil
+		return "", "", fmt.Errorf("cannot resolve repo: user has no GitHub username configured")
 	}
 	return host, fmt.Sprintf("%s/%s", username, repo), nil
 }
 
-func (s *Server) createAppFromGitHub(ctx context.Context, user *users.User, input CreateAppInput, buildPack, port string, envVars []deployments.EnvVar) (*deployments.CreateAppResult, error) {
+func (s *Server) createServiceFromGitHub(ctx context.Context, user *users.User, input CreateServiceInput, buildPack, port string, envVars []deployments.EnvVar) (*deployments.CreateAppResult, error) {
 	creds, err := s.authService.GetGitHubCredsByUserID(ctx, user.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get GitHub credentials")
@@ -170,18 +175,11 @@ func (s *Server) createAppFromGitHub(ctx context.Context, user *users.User, inpu
 		return nil, fmt.Errorf("GitHub App not installed. Please install the GitHub App first")
 	}
 
-	if user.CoolifyGithubAppUuid == nil {
-		return nil, fmt.Errorf("GitHub App not installed. Please install the GitHub App first")
-	}
-
-	githubAppUUID := *user.CoolifyGithubAppUuid
-
 	repo := strings.TrimPrefix(input.Repo, "github.com/")
 
 	return s.deployService.CreateApp(ctx, deployments.CreateAppInput{
 		UserID:         user.ID,
 		ProjectRef:     input.Project,
-		GitHubAppUUID:  githubAppUUID,
 		Repo:           repo,
 		Branch:         input.Branch,
 		Name:           input.Name,
@@ -198,12 +196,7 @@ func (s *Server) createAppFromGitHub(ctx context.Context, user *users.User, inpu
 	})
 }
 
-func (s *Server) createAppFromInternalGit(ctx context.Context, userID string, input CreateAppInput, buildPack, port string, envVars []deployments.EnvVar) (*deployments.CreateAppResult, error) {
-	if s.internalGitSvc == nil {
-		return nil, fmt.Errorf("internal git not configured")
-	}
-
-	// normalizeCreateAppRepo guarantees internal git repos are in format: ml.ink/owner/repo
+func (s *Server) createServiceFromInternalGit(ctx context.Context, userID string, input CreateServiceInput, buildPack, port string, envVars []deployments.EnvVar) (*deployments.CreateAppResult, error) {
 	fullName := strings.TrimPrefix(strings.TrimSpace(input.Repo), "ml.ink/")
 	parts := strings.Split(fullName, "/")
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
@@ -219,10 +212,6 @@ func (s *Server) createAppFromInternalGit(ctx context.Context, userID string, in
 		return nil, fmt.Errorf("repo belongs to another user")
 	}
 
-	username, repoName := parts[0], parts[1]
-	sshCloneURL := s.internalGitSvc.GetSSHCloneURL(username, repoName)
-	privateKeyUUID := s.internalGitSvc.Client().Config().CoolifyPrivateKeyUUID
-
 	return s.deployService.CreateApp(ctx, deployments.CreateAppInput{
 		UserID:         userID,
 		ProjectRef:     input.Project,
@@ -233,8 +222,6 @@ func (s *Server) createAppFromInternalGit(ctx context.Context, userID string, in
 		Port:           port,
 		EnvVars:        envVars,
 		GitProvider:    "gitea",
-		PrivateKeyUUID: privateKeyUUID,
-		SSHCloneURL:    sshCloneURL,
 		Memory:         input.Memory,
 		CPU:            input.CPU,
 		InstallCommand: input.InstallCommand,
@@ -243,26 +230,26 @@ func (s *Server) createAppFromInternalGit(ctx context.Context, userID string, in
 	})
 }
 
-func (s *Server) handleListApps(ctx context.Context, req *mcp.CallToolRequest, input ListAppsInput) (*mcp.CallToolResult, ListAppsOutput, error) {
+func (s *Server) handleListServices(ctx context.Context, req *mcp.CallToolRequest, input ListServicesInput) (*mcp.CallToolResult, ListServicesOutput, error) {
 	user := UserFromContext(ctx)
 	if user == nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, ListAppsOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, ListServicesOutput{}, nil
 	}
 
 	apps, err := s.deployService.ListApps(ctx, user.ID, 100, 0)
 	if err != nil {
-		s.logger.Error("failed to list apps", "error", err)
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to list apps: %v", err)}}}, ListAppsOutput{}, nil
+		s.logger.Error("failed to list services", "error", err)
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to list services: %v", err)}}}, ListServicesOutput{}, nil
 	}
 
-	appInfos := make([]AppInfo, len(apps))
+	services := make([]ServiceInfo, len(apps))
 	for i, app := range apps {
 		name := ""
 		if app.Name != nil {
 			name = *app.Name
 		}
-		appInfos[i] = AppInfo{
-			AppID:      app.ID,
+		services[i] = ServiceInfo{
+			ServiceID:  app.ID,
 			Name:       name,
 			Status:     app.BuildStatus,
 			Repo:       app.Repo,
@@ -271,17 +258,17 @@ func (s *Server) handleListApps(ctx context.Context, req *mcp.CallToolRequest, i
 		}
 	}
 
-	return nil, ListAppsOutput{Apps: appInfos}, nil
+	return nil, ListServicesOutput{Services: services}, nil
 }
 
-func (s *Server) handleRedeploy(ctx context.Context, req *mcp.CallToolRequest, input RedeployInput) (*mcp.CallToolResult, RedeployOutput, error) {
+func (s *Server) handleRedeployService(ctx context.Context, req *mcp.CallToolRequest, input RedeployServiceInput) (*mcp.CallToolResult, RedeployServiceOutput, error) {
 	user := UserFromContext(ctx)
 	if user == nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, RedeployOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, RedeployServiceOutput{}, nil
 	}
 
 	if input.Name == "" {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, RedeployOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, RedeployServiceOutput{}, nil
 	}
 
 	projectRef := input.Project
@@ -291,12 +278,12 @@ func (s *Server) handleRedeploy(ctx context.Context, req *mcp.CallToolRequest, i
 
 	project, err := s.deployService.GetProjectByRef(ctx, user.ID, projectRef)
 	if err != nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("project not found: %s", projectRef)}}}, RedeployOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("project not found: %s", projectRef)}}}, RedeployServiceOutput{}, nil
 	}
 
 	app, err := s.deployService.GetAppByNameAndProject(ctx, input.Name, project.ID)
 	if err != nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("app not found: %s", input.Name)}}}, RedeployOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("service not found: %s", input.Name)}}}, RedeployServiceOutput{}, nil
 	}
 
 	s.logger.Info("starting redeploy",
@@ -308,7 +295,7 @@ func (s *Server) handleRedeploy(ctx context.Context, req *mcp.CallToolRequest, i
 	workflowID, err := s.deployService.RedeployApp(ctx, app.ID)
 	if err != nil {
 		s.logger.Error("failed to start redeploy", "error", err)
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to start redeploy: %v", err)}}}, RedeployOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to start redeploy: %v", err)}}}, RedeployServiceOutput{}, nil
 	}
 
 	name := ""
@@ -321,8 +308,8 @@ func (s *Server) handleRedeploy(ctx context.Context, req *mcp.CallToolRequest, i
 		commitHash = *app.CommitHash
 	}
 
-	output := RedeployOutput{
-		AppID:      app.ID,
+	output := RedeployServiceOutput{
+		ServiceID:  app.ID,
 		Name:       name,
 		Status:     "building",
 		CommitHash: commitHash,
@@ -457,14 +444,14 @@ func (s *Server) handleGetResourceDetails(ctx context.Context, req *mcp.CallTool
 	return nil, output, nil
 }
 
-func (s *Server) handleGetAppDetails(ctx context.Context, req *mcp.CallToolRequest, input GetAppDetailsInput) (*mcp.CallToolResult, GetAppDetailsOutput, error) {
+func (s *Server) handleGetService(ctx context.Context, req *mcp.CallToolRequest, input GetServiceInput) (*mcp.CallToolResult, GetServiceOutput, error) {
 	user := UserFromContext(ctx)
 	if user == nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, GetAppDetailsOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, GetServiceOutput{}, nil
 	}
 
 	if input.Name == "" {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, GetAppDetailsOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, GetServiceOutput{}, nil
 	}
 
 	project := "default"
@@ -472,16 +459,13 @@ func (s *Server) handleGetAppDetails(ctx context.Context, req *mcp.CallToolReque
 		project = input.Project
 	}
 
-	runtimeLogLines := min(input.RuntimeLogLines, MaxLogLines)
-	deployLogLines := min(input.DeployLogLines, MaxLogLines)
-
 	app, err := s.deployService.GetAppByName(ctx, deployments.GetAppByNameParams{
 		Name:    input.Name,
 		Project: project,
 		UserID:  user.ID,
 	})
 	if err != nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, GetAppDetailsOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, GetServiceOutput{}, nil
 	}
 
 	runtimeStatus := "pending"
@@ -489,8 +473,8 @@ func (s *Server) handleGetAppDetails(ctx context.Context, req *mcp.CallToolReque
 		runtimeStatus = *app.RuntimeStatus
 	}
 
-	output := GetAppDetailsOutput{
-		AppID:         app.ID,
+	output := GetServiceOutput{
+		ServiceID:     app.ID,
 		Name:          helpers.Deref(app.Name),
 		Project:       project,
 		Repo:          app.Repo,
@@ -517,38 +501,6 @@ func (s *Server) handleGetAppDetails(ctx context.Context, req *mcp.CallToolReque
 			output.EnvVars = make([]EnvVarInfo, len(envVars))
 			for i, ev := range envVars {
 				output.EnvVars[i] = EnvVarInfo{Key: ev.Key, Value: ev.Value}
-			}
-		}
-	}
-
-	if s.logProvider != nil && app.CoolifyAppUuid != nil {
-		if runtimeLogLines > 0 {
-			logs, err := s.logProvider.GetRuntimeLogs(ctx, *app.CoolifyAppUuid, runtimeLogLines)
-			if err != nil {
-				s.logger.Warn("failed to fetch runtime logs", "error", err)
-			} else {
-				lines := make([]string, len(logs))
-				for i, l := range logs {
-					lines[i] = l.Message
-				}
-				output.RuntimeLogs = strings.Join(lines, "\n")
-			}
-		}
-
-		if deployLogLines > 0 {
-			logs, err := s.logProvider.GetDeploymentLogs(ctx, *app.CoolifyAppUuid)
-			if err != nil {
-				s.logger.Warn("failed to fetch deployment logs", "error", err)
-			} else {
-				// Limit to requested number of lines (from the end)
-				if len(logs) > deployLogLines {
-					logs = logs[len(logs)-deployLogLines:]
-				}
-				lines := make([]string, len(logs))
-				for i, l := range logs {
-					lines[i] = l.Message
-				}
-				output.DeploymentLogs = strings.Join(lines, "\n")
 			}
 		}
 	}
@@ -587,14 +539,14 @@ func (s *Server) handleDeleteResource(ctx context.Context, req *mcp.CallToolRequ
 	}, nil
 }
 
-func (s *Server) handleDeleteApp(ctx context.Context, req *mcp.CallToolRequest, input DeleteAppInput) (*mcp.CallToolResult, DeleteAppOutput, error) {
+func (s *Server) handleDeleteService(ctx context.Context, req *mcp.CallToolRequest, input DeleteServiceInput) (*mcp.CallToolResult, DeleteServiceOutput, error) {
 	user := UserFromContext(ctx)
 	if user == nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, DeleteAppOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, DeleteServiceOutput{}, nil
 	}
 
 	if input.Name == "" {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, DeleteAppOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, DeleteServiceOutput{}, nil
 	}
 
 	project := "default"
@@ -608,13 +560,13 @@ func (s *Server) handleDeleteApp(ctx context.Context, req *mcp.CallToolRequest, 
 		UserID:  user.ID,
 	})
 	if err != nil {
-		s.logger.Error("failed to delete app", "error", err)
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, DeleteAppOutput{}, nil
+		s.logger.Error("failed to delete service", "error", err)
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, DeleteServiceOutput{}, nil
 	}
 
-	return nil, DeleteAppOutput{
-		AppID:   result.AppID,
-		Name:    result.Name,
-		Message: "App deleted successfully",
+	return nil, DeleteServiceOutput{
+		ServiceID: result.AppID,
+		Name:      result.Name,
+		Message:   "Service deleted successfully",
 	}, nil
 }

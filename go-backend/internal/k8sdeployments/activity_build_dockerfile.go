@@ -5,16 +5,24 @@ import (
 	"fmt"
 	"os"
 
-	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/temporal"
 )
 
 func (a *Activities) DockerfileBuild(ctx context.Context, input BuildImageInput) (*BuildImageResult, error) {
 	a.logger.Info("DockerfileBuild activity started",
 		"imageRef", input.ImageRef,
 		"sourcePath", input.SourcePath)
-	defer os.RemoveAll(input.SourcePath)
 
-	activity.RecordHeartbeat(ctx, "starting dockerfile build")
+	if _, err := os.Stat(input.SourcePath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, temporal.NewNonRetryableApplicationError(
+				fmt.Sprintf("source path missing: %s", input.SourcePath),
+				"source_path_missing",
+				err,
+			)
+		}
+		return nil, fmt.Errorf("stat source path: %w", err)
+	}
 
 	lokiLogger := a.newBuildLokiLogger(input.Name, input.Namespace)
 
@@ -24,7 +32,6 @@ func (a *Activities) DockerfileBuild(ctx context.Context, input BuildImageInput)
 	}
 
 	lokiLogger.Log("Building image from Dockerfile with BuildKit...")
-	activity.RecordHeartbeat(ctx, "building image")
 
 	err := buildWithDockerfile(ctx, buildkitSolveOpts{
 		BuildkitHost: a.config.BuildkitHost,

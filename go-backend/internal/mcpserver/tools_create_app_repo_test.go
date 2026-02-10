@@ -1,69 +1,82 @@
 package mcpserver
 
 import (
+	"context"
 	"testing"
 
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/users"
 )
 
-func TestNormalizeCreateAppRepo(t *testing.T) {
+func TestNormalizeServiceRepo(t *testing.T) {
 	ghUsername := "gluonfield"
-	u := &users.User{GithubUsername: &ghUsername}
+	u := &users.User{ID: "test-user", GithubUsername: &ghUsername}
+
+	// Server with nil internalGitSvc — only github.com and validation tests work
+	s := &Server{}
 
 	cases := []struct {
 		name     string
-		input    CreateAppInput
+		input    CreateServiceInput
 		wantHost string
 		wantRepo string
 		wantErr  bool
 	}{
 		{
-			name:     "defaults to ml.ink",
-			input:    CreateAppInput{Repo: "exp20"},
-			wantHost: "ml.ink",
-			wantRepo: "ml.ink/gluonfield/exp20",
-		},
-		{
 			name:     "github.com host expands repo name",
-			input:    CreateAppInput{Repo: "exp20", Host: "github.com"},
+			input:    CreateServiceInput{Repo: "exp20", Host: "github.com"},
 			wantHost: "github.com",
 			wantRepo: "gluonfield/exp20",
 		},
 		{
 			name:    "rejects owner/repo format",
-			input:   CreateAppInput{Repo: "gluonfield/exp20", Host: "ml.ink"},
+			input:   CreateServiceInput{Repo: "gluonfield/exp20", Host: "ml.ink"},
 			wantErr: true,
 		},
 		{
 			name:    "rejects url",
-			input:   CreateAppInput{Repo: "https://git.ml.ink/gluonfield/exp20.git"},
+			input:   CreateServiceInput{Repo: "https://git.ml.ink/gluonfield/exp20.git"},
 			wantErr: true,
 		},
 		{
 			name:    "rejects prefixed repo",
-			input:   CreateAppInput{Repo: "ml.ink/gluonfield/exp20", Host: "ml.ink"},
+			input:   CreateServiceInput{Repo: "ml.ink/gluonfield/exp20", Host: "ml.ink"},
 			wantErr: true,
 		},
 		{
 			name:    "rejects embedded creds",
-			input:   CreateAppInput{Repo: "gluonfield:token@git.ml.ink/gluonfield/exp20"},
+			input:   CreateServiceInput{Repo: "gluonfield:token@git.ml.ink/gluonfield/exp20"},
 			wantErr: true,
 		},
 		{
 			name:    "rejects paths with slashes",
-			input:   CreateAppInput{Repo: "a/b/c"},
+			input:   CreateServiceInput{Repo: "a/b/c"},
 			wantErr: true,
 		},
 		{
 			name:    "invalid host",
-			input:   CreateAppInput{Repo: "exp20", Host: "gitlab"},
+			input:   CreateServiceInput{Repo: "exp20", Host: "gitlab"},
+			wantErr: true,
+		},
+		{
+			name:    "ml.ink without internalGitSvc returns error",
+			input:   CreateServiceInput{Repo: "exp20", Host: "ml.ink"},
+			wantErr: true,
+		},
+		{
+			name:    "github.com without github username returns error",
+			input:   CreateServiceInput{Repo: "exp20", Host: "github.com"},
 			wantErr: true,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			gotHost, gotRepo, err := normalizeCreateAppRepo(u, tc.input)
+			testUser := u
+			if tc.name == "github.com without github username returns error" {
+				testUser = &users.User{ID: "no-gh-user"}
+			}
+
+			gotHost, gotRepo, err := s.normalizeServiceRepo(context.Background(), testUser, tc.input)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expected error, got nil (host=%q repo=%q)", gotHost, gotRepo)

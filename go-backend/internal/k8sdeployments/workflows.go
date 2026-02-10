@@ -1,6 +1,7 @@
 package k8sdeployments
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -171,7 +172,6 @@ func BuildServiceWorkflow(ctx workflow.Context, input BuildServiceWorkflowInput)
 
 	actCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Minute,
-		HeartbeatTimeout:    30 * time.Second,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second,
 			BackoffCoefficient: 2.0,
@@ -181,61 +181,92 @@ func BuildServiceWorkflow(ctx workflow.Context, input BuildServiceWorkflowInput)
 	})
 	var activities *Activities
 
-	// 1. Clone
-	cloneInput := CloneRepoInput{
-		ServiceID:      input.ServiceID,
-		Repo:           input.Repo,
-		Branch:         input.Branch,
-		GitProvider:    input.GitProvider,
-		InstallationID: input.InstallationID,
-		CommitSHA:      input.CommitSHA,
-	}
-	var cloneResult CloneRepoResult
-	err := workflow.ExecuteActivity(actCtx, activities.CloneRepo, cloneInput).Get(ctx, &cloneResult)
-	if err != nil {
-		return BuildServiceWorkflowResult{}, fmt.Errorf("clone failed: %w", err)
+	cleanupSource := func(path string) {
+		if path == "" {
+			return
+		}
+		if cleanupErr := workflow.ExecuteActivity(actCtx, activities.CleanupSource, path).Get(ctx, nil); cleanupErr != nil {
+			logger.Warn("CleanupSource failed", "sourcePath", path, "error", cleanupErr)
+		}
 	}
 
-	// 2. Resolve build context
-	resolveInput := ResolveBuildContextInput{
-		ServiceID:  input.ServiceID,
-		SourcePath: cloneResult.SourcePath,
-		CommitSHA:  cloneResult.CommitSHA,
-	}
-	var resolveResult ResolveBuildContextResult
-	err = workflow.ExecuteActivity(actCtx, activities.ResolveBuildContext, resolveInput).Get(ctx, &resolveResult)
-	if err != nil {
-		return BuildServiceWorkflowResult{}, fmt.Errorf("resolve failed: %w", err)
+	for attempt := 1; attempt <= 2; attempt++ {
+		if attempt > 1 {
+			logger.Warn("Retrying build after missing source path", "serviceID", input.ServiceID, "attempt", attempt)
+		}
+
+		// 1. Clone
+		cloneInput := CloneRepoInput{
+			ServiceID:      input.ServiceID,
+			Repo:           input.Repo,
+			Branch:         input.Branch,
+			GitProvider:    input.GitProvider,
+			InstallationID: input.InstallationID,
+			CommitSHA:      input.CommitSHA,
+		}
+		var cloneResult CloneRepoResult
+		err := workflow.ExecuteActivity(actCtx, activities.CloneRepo, cloneInput).Get(ctx, &cloneResult)
+		if err != nil {
+			return BuildServiceWorkflowResult{}, fmt.Errorf("clone failed: %w", err)
+		}
+
+		// 2. Resolve build context
+		resolveInput := ResolveBuildContextInput{
+			ServiceID:  input.ServiceID,
+			SourcePath: cloneResult.SourcePath,
+			CommitSHA:  cloneResult.CommitSHA,
+		}
+		var resolveResult ResolveBuildContextResult
+		err = workflow.ExecuteActivity(actCtx, activities.ResolveBuildContext, resolveInput).Get(ctx, &resolveResult)
+		if err != nil {
+			cleanupSource(cloneResult.SourcePath)
+			if isSourcePathMissing(err) && attempt < 2 {
+				continue
+			}
+			return BuildServiceWorkflowResult{}, fmt.Errorf("resolve failed: %w", err)
+		}
+
+		// 3. Build based on build pack
+		buildInput := BuildImageInput{
+			SourcePath: cloneResult.SourcePath,
+			ImageRef:   resolveResult.ImageRef,
+			BuildPack:  resolveResult.BuildPack,
+			Name:       resolveResult.Name,
+			Namespace:  resolveResult.Namespace,
+			EnvVars:    resolveResult.EnvVars,
+		}
+		var buildResult BuildImageResult
+		switch resolveResult.BuildPack {
+		case "railpack":
+			err = workflow.ExecuteActivity(actCtx, activities.RailpackBuild, buildInput).Get(ctx, &buildResult)
+		case "dockerfile":
+			err = workflow.ExecuteActivity(actCtx, activities.DockerfileBuild, buildInput).Get(ctx, &buildResult)
+		case "static":
+			err = workflow.ExecuteActivity(actCtx, activities.StaticBuild, buildInput).Get(ctx, &buildResult)
+		default:
+			cleanupSource(cloneResult.SourcePath)
+			return BuildServiceWorkflowResult{}, fmt.Errorf("unsupported build pack: %s", resolveResult.BuildPack)
+		}
+		cleanupSource(cloneResult.SourcePath)
+		if err != nil {
+			if isSourcePathMissing(err) && attempt < 2 {
+				continue
+			}
+			return BuildServiceWorkflowResult{}, fmt.Errorf("build failed (%s): %w", resolveResult.BuildPack, err)
+		}
+
+		return BuildServiceWorkflowResult{
+			ImageRef:  buildResult.ImageRef,
+			CommitSHA: cloneResult.CommitSHA,
+		}, nil
 	}
 
-	// 3. Build based on build pack
-	buildInput := BuildImageInput{
-		SourcePath: cloneResult.SourcePath,
-		ImageRef:   resolveResult.ImageRef,
-		BuildPack:  resolveResult.BuildPack,
-		Name:       resolveResult.Name,
-		Namespace:  resolveResult.Namespace,
-		EnvVars:    resolveResult.EnvVars,
-	}
-	var buildResult BuildImageResult
-	switch resolveResult.BuildPack {
-	case "railpack":
-		err = workflow.ExecuteActivity(actCtx, activities.RailpackBuild, buildInput).Get(ctx, &buildResult)
-	case "dockerfile":
-		err = workflow.ExecuteActivity(actCtx, activities.DockerfileBuild, buildInput).Get(ctx, &buildResult)
-	case "static":
-		err = workflow.ExecuteActivity(actCtx, activities.StaticBuild, buildInput).Get(ctx, &buildResult)
-	default:
-		return BuildServiceWorkflowResult{}, fmt.Errorf("unsupported build pack: %s", resolveResult.BuildPack)
-	}
-	if err != nil {
-		return BuildServiceWorkflowResult{}, fmt.Errorf("build failed (%s): %w", resolveResult.BuildPack, err)
-	}
+	return BuildServiceWorkflowResult{}, fmt.Errorf("build failed: source path missing after re-clone")
+}
 
-	return BuildServiceWorkflowResult{
-		ImageRef:  buildResult.ImageRef,
-		CommitSHA: cloneResult.CommitSHA,
-	}, nil
+func isSourcePathMissing(err error) bool {
+	var appErr *temporal.ApplicationError
+	return errors.As(err, &appErr) && appErr.Type() == "source_path_missing"
 }
 
 func DeleteServiceWorkflow(ctx workflow.Context, input DeleteServiceWorkflowInput) (DeleteServiceWorkflowResult, error) {

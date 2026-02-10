@@ -48,7 +48,12 @@ spec:
         app: temporal-worker
     spec:
       nodeSelector:
-        pool: ctrl
+        pool: build
+      tolerations:
+        - key: pool
+          operator: Equal
+          value: build
+          effect: NoSchedule
       serviceAccountName: temporal-worker
       containers:
         - name: worker
@@ -88,6 +93,22 @@ spec:
                 secretKeyRef:
                   name: github-app
                   key: app-id
+            # Gitea / internal git (viper: gitea.*)
+            - name: GITEA_BASEURL
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-creds
+                  key: base-url
+            - name: GITEA_ADMINTOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-creds
+                  key: admin-token
+            - name: GITEA_WEBHOOKSECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-creds
+                  key: webhook-secret
             # k8s worker config (viper: k8sworker.*)
             - name: K8SWORKER_BUILDKITHOST
               value: tcp://buildkitd.dp-system:1234
