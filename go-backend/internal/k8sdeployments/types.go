@@ -53,6 +53,7 @@ type BuildServiceWorkflowInput struct {
 type BuildServiceWorkflowResult struct {
 	ImageRef  string
 	CommitSHA string
+	Port      string
 }
 
 type CloneRepoInput struct {
@@ -120,6 +121,7 @@ type DeployInput struct {
 	ImageRef   string
 	CommitSHA  string
 	AppsDomain string
+	Port       string // resolved port from build phase; empty = re-read from DB
 }
 
 type DeployResult struct {

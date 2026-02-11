@@ -93,6 +93,7 @@ func deployService(ctx workflow.Context, input DeployServiceInput) (DeployServic
 		ImageRef:   buildResult.ImageRef,
 		CommitSHA:  buildResult.CommitSHA,
 		AppsDomain: input.AppsDomain,
+		Port:       buildResult.Port,
 	}).Get(ctx, &deployResult); err != nil {
 		return fail(err)
 	}
@@ -188,6 +189,7 @@ func BuildServiceWorkflow(ctx workflow.Context, input BuildServiceWorkflowInput)
 		return &BuildServiceWorkflowResult{
 			ImageRef:  resolveResult.ImageRef,
 			CommitSHA: commitSHA,
+			// Port unknown in skip path — Deploy will re-read from DB
 		}, true
 	}
 
@@ -232,6 +234,7 @@ func BuildServiceWorkflow(ctx workflow.Context, input BuildServiceWorkflowInput)
 			return BuildServiceWorkflowResult{
 				ImageRef:  resolveResult.ImageRef,
 				CommitSHA: cloneResult.CommitSHA,
+				Port:      resolveResult.Port,
 			}, nil
 		}
 
@@ -274,6 +277,7 @@ func BuildServiceWorkflow(ctx workflow.Context, input BuildServiceWorkflowInput)
 		return BuildServiceWorkflowResult{
 			ImageRef:  buildResult.ImageRef,
 			CommitSHA: cloneResult.CommitSHA,
+			Port:      resolveResult.Port,
 		}, nil
 	}
 

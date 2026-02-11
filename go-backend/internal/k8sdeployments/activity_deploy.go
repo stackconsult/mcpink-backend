@@ -21,7 +21,13 @@ func (a *Activities) Deploy(ctx context.Context, input DeployInput) (*DeployResu
 	}
 
 	bc := parseBuildConfig(id.App.BuildConfig)
-	port := effectiveAppPort(id.App.BuildPack, id.App.Port, bc.PublishDirectory)
+	// Prefer port resolved during build phase (carries EXPOSE detection).
+	// Fall back to DB value for in-flight workflows that predate the Port field.
+	appPort := input.Port
+	if appPort == "" {
+		appPort = id.App.Port
+	}
+	port := effectiveAppPort(id.App.BuildPack, appPort, bc.PublishDirectory)
 	portInt := parsePort(port)
 
 	envVars := parseEnvVars(id.App.EnvVars)

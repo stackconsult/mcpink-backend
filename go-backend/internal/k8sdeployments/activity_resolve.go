@@ -109,8 +109,14 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 		if bc.DockerfilePath != "" {
 			dockerfileName = bc.DockerfilePath
 		}
-		if _, err := os.Stat(filepath.Join(effectiveSourcePath, dockerfileName)); err == nil {
+		dockerfileFull := filepath.Join(effectiveSourcePath, dockerfileName)
+		if _, err := os.Stat(dockerfileFull); err == nil {
 			buildPack = "dockerfile"
+			if id.App.Port == "" {
+				if detected := extractPortFromDockerfile(dockerfileFull); detected != "" {
+					id.App.Port = detected
+				}
+			}
 		} else {
 			buildPack = "railpack"
 		}
