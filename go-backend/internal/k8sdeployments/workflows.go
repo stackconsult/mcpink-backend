@@ -233,17 +233,22 @@ func BuildServiceWorkflow(ctx workflow.Context, input BuildServiceWorkflowInput)
 		}
 
 		buildInput := BuildImageInput{
-			SourcePath: cloneResult.SourcePath,
-			ImageRef:   resolveResult.ImageRef,
-			BuildPack:  resolveResult.BuildPack,
-			Name:       resolveResult.Name,
-			Namespace:  resolveResult.Namespace,
-			EnvVars:    resolveResult.EnvVars,
+			SourcePath:       cloneResult.SourcePath,
+			ImageRef:         resolveResult.ImageRef,
+			BuildPack:        resolveResult.BuildPack,
+			Name:             resolveResult.Name,
+			Namespace:        resolveResult.Namespace,
+			EnvVars:          resolveResult.EnvVars,
+			PublishDirectory: resolveResult.PublishDirectory,
 		}
 		var buildResult BuildImageResult
 		switch resolveResult.BuildPack {
 		case "railpack":
-			err = workflow.ExecuteActivity(actCtx, activities.RailpackBuild, buildInput).Get(ctx, &buildResult)
+			if resolveResult.PublishDirectory != "" {
+				err = workflow.ExecuteActivity(actCtx, activities.RailpackStaticBuild, buildInput).Get(ctx, &buildResult)
+			} else {
+				err = workflow.ExecuteActivity(actCtx, activities.RailpackBuild, buildInput).Get(ctx, &buildResult)
+			}
 		case "dockerfile":
 			err = workflow.ExecuteActivity(actCtx, activities.DockerfileBuild, buildInput).Get(ctx, &buildResult)
 		case "static":

@@ -85,21 +85,23 @@ type ResolveImageRefResult struct {
 }
 
 type ResolveBuildContextResult struct {
-	BuildPack string
-	ImageRef  string
-	Namespace string
-	Name      string
-	Port      string
-	EnvVars   map[string]string
+	BuildPack        string
+	ImageRef         string
+	Namespace        string
+	Name             string
+	Port             string
+	EnvVars          map[string]string
+	PublishDirectory string
 }
 
 type BuildImageInput struct {
-	SourcePath string
-	ImageRef   string
-	BuildPack  string
-	Name       string
-	Namespace  string
-	EnvVars    map[string]string
+	SourcePath       string
+	ImageRef         string
+	BuildPack        string
+	Name             string
+	Namespace        string
+	EnvVars          map[string]string
+	PublishDirectory string
 }
 
 type BuildImageResult struct {

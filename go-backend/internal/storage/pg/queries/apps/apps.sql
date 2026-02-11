@@ -1,8 +1,8 @@
 -- name: CreateApp :one
 INSERT INTO apps (
-    id, user_id, project_id, repo, branch, server_uuid, name, build_pack, port, env_vars, workflow_id, workflow_run_id, build_status, git_provider
+    id, user_id, project_id, repo, branch, server_uuid, name, build_pack, port, env_vars, workflow_id, workflow_run_id, build_status, git_provider, publish_directory
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'queued', $13
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'queued', $13, $14
 )
 RETURNING *;
 

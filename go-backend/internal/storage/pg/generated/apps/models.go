@@ -20,29 +20,30 @@ type ApiKey struct {
 }
 
 type App struct {
-	ID            string             `json:"id"`
-	UserID        string             `json:"user_id"`
-	BuildStatus   string             `json:"build_status"`
-	RuntimeStatus *string            `json:"runtime_status"`
-	ErrorMessage  *string            `json:"error_message"`
-	Repo          string             `json:"repo"`
-	Branch        string             `json:"branch"`
-	ServerUuid    string             `json:"server_uuid"`
-	Name          *string            `json:"name"`
-	BuildPack     string             `json:"build_pack"`
-	Port          string             `json:"port"`
-	EnvVars       []byte             `json:"env_vars"`
-	Fqdn          *string            `json:"fqdn"`
-	WorkflowID    string             `json:"workflow_id"`
-	WorkflowRunID *string            `json:"workflow_run_id"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
-	ProjectID     string             `json:"project_id"`
-	CommitHash    *string            `json:"commit_hash"`
-	IsDeleted     bool               `json:"is_deleted"`
-	GitProvider   string             `json:"git_provider"`
-	CustomDomain  *string            `json:"custom_domain"`
-	BuildProgress []byte             `json:"build_progress"`
+	ID               string             `json:"id"`
+	UserID           string             `json:"user_id"`
+	BuildStatus      string             `json:"build_status"`
+	RuntimeStatus    *string            `json:"runtime_status"`
+	ErrorMessage     *string            `json:"error_message"`
+	Repo             string             `json:"repo"`
+	Branch           string             `json:"branch"`
+	ServerUuid       string             `json:"server_uuid"`
+	Name             *string            `json:"name"`
+	BuildPack        string             `json:"build_pack"`
+	Port             string             `json:"port"`
+	EnvVars          []byte             `json:"env_vars"`
+	Fqdn             *string            `json:"fqdn"`
+	WorkflowID       string             `json:"workflow_id"`
+	WorkflowRunID    *string            `json:"workflow_run_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	ProjectID        string             `json:"project_id"`
+	CommitHash       *string            `json:"commit_hash"`
+	IsDeleted        bool               `json:"is_deleted"`
+	GitProvider      string             `json:"git_provider"`
+	CustomDomain     *string            `json:"custom_domain"`
+	BuildProgress    []byte             `json:"build_progress"`
+	PublishDirectory *string            `json:"publish_directory"`
 }
 
 type DnsRecord struct {

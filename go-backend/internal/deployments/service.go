@@ -72,10 +72,11 @@ type CreateAppInput struct {
 	SSHCloneURL    string // for internal git
 	Memory         string
 	CPU            string
-	InstallCommand string
-	BuildCommand   string
-	StartCommand   string
-	InstallationID int64
+	InstallCommand   string
+	BuildCommand     string
+	StartCommand     string
+	InstallationID   int64
+	PublishDirectory string
 }
 
 type CreateAppResult struct {
@@ -123,19 +124,25 @@ func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateA
 
 	envVarsJSON, _ := json.Marshal(input.EnvVars)
 
+	var publishDir *string
+	if input.PublishDirectory != "" {
+		publishDir = &input.PublishDirectory
+	}
+
 	_, err := s.appsQ.CreateApp(ctx, apps.CreateAppParams{
-		ID:          appID,
-		UserID:      input.UserID,
-		ProjectID:   projectID,
-		Repo:        input.Repo,
-		Branch:      input.Branch,
-		ServerUuid:  "k8s",
-		Name:        &input.Name,
-		BuildPack:   input.BuildPack,
-		Port:        input.Port,
-		EnvVars:     envVarsJSON,
-		WorkflowID:  workflowID,
-		GitProvider: gitProvider,
+		ID:               appID,
+		UserID:           input.UserID,
+		ProjectID:        projectID,
+		Repo:             input.Repo,
+		Branch:           input.Branch,
+		ServerUuid:       "k8s",
+		Name:             &input.Name,
+		BuildPack:        input.BuildPack,
+		Port:             input.Port,
+		EnvVars:          envVarsJSON,
+		WorkflowID:       workflowID,
+		GitProvider:      gitProvider,
+		PublishDirectory: publishDir,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create app record: %w", err)

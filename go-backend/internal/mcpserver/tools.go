@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -70,9 +71,25 @@ func (s *Server) handleCreateService(ctx context.Context, req *mcp.CallToolReque
 		}
 	}
 
+	// Validate and sanitize publish_directory
+	publishDir := strings.TrimSpace(input.PublishDirectory)
+	if publishDir != "" {
+		if buildPack != "railpack" {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "publish_directory is only supported with build_pack=railpack"}}}, CreateServiceOutput{}, nil
+		}
+		publishDir = strings.Trim(publishDir, "/")
+		if publishDir == "" || strings.Contains(publishDir, "..") || filepath.IsAbs(input.PublishDirectory) {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "invalid publish_directory: must be a relative path without '..'"}}}, CreateServiceOutput{}, nil
+		}
+		input.PublishDirectory = publishDir
+	}
+
 	port := strconv.Itoa(DefaultPort)
 	if buildPack == "static" {
 		port = "80"
+	}
+	if publishDir != "" {
+		port = "8080"
 	}
 	if input.Port > 0 {
 		port = strconv.Itoa(input.Port)
@@ -179,21 +196,22 @@ func (s *Server) createServiceFromGitHub(ctx context.Context, user *users.User, 
 	repo := strings.TrimPrefix(input.Repo, "github.com/")
 
 	return s.deployService.CreateApp(ctx, deployments.CreateAppInput{
-		UserID:         user.ID,
-		ProjectRef:     input.Project,
-		Repo:           repo,
-		Branch:         input.Branch,
-		Name:           input.Name,
-		BuildPack:      buildPack,
-		Port:           port,
-		EnvVars:        envVars,
-		GitProvider:    "github",
-		Memory:         input.Memory,
-		CPU:            input.CPU,
-		InstallCommand: input.InstallCommand,
-		BuildCommand:   input.BuildCommand,
-		StartCommand:   input.StartCommand,
-		InstallationID: *creds.GithubAppInstallationID,
+		UserID:           user.ID,
+		ProjectRef:       input.Project,
+		Repo:             repo,
+		Branch:           input.Branch,
+		Name:             input.Name,
+		BuildPack:        buildPack,
+		Port:             port,
+		EnvVars:          envVars,
+		GitProvider:      "github",
+		Memory:           input.Memory,
+		CPU:              input.CPU,
+		InstallCommand:   input.InstallCommand,
+		BuildCommand:     input.BuildCommand,
+		StartCommand:     input.StartCommand,
+		InstallationID:   *creds.GithubAppInstallationID,
+		PublishDirectory: input.PublishDirectory,
 	})
 }
 
@@ -214,20 +232,21 @@ func (s *Server) createServiceFromInternalGit(ctx context.Context, userID string
 	}
 
 	return s.deployService.CreateApp(ctx, deployments.CreateAppInput{
-		UserID:         userID,
-		ProjectRef:     input.Project,
-		Repo:           fullName,
-		Branch:         input.Branch,
-		Name:           input.Name,
-		BuildPack:      buildPack,
-		Port:           port,
-		EnvVars:        envVars,
-		GitProvider:    "gitea",
-		Memory:         input.Memory,
-		CPU:            input.CPU,
-		InstallCommand: input.InstallCommand,
-		BuildCommand:   input.BuildCommand,
-		StartCommand:   input.StartCommand,
+		UserID:           userID,
+		ProjectRef:       input.Project,
+		Repo:             fullName,
+		Branch:           input.Branch,
+		Name:             input.Name,
+		BuildPack:        buildPack,
+		Port:             port,
+		EnvVars:          envVars,
+		GitProvider:      "gitea",
+		Memory:           input.Memory,
+		CPU:              input.CPU,
+		InstallCommand:   input.InstallCommand,
+		BuildCommand:     input.BuildCommand,
+		StartCommand:     input.StartCommand,
+		PublishDirectory: input.PublishDirectory,
 	})
 }
 

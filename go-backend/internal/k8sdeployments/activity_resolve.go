@@ -75,6 +75,14 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 		}
 	}
 
+	publishDir := ""
+	if id.App.PublishDirectory != nil {
+		publishDir = *id.App.PublishDirectory
+	}
+	if publishDir != "" && buildPack == "railpack" {
+		id.App.Port = "8080"
+	}
+
 	a.logger.Info("ResolveBuildContext completed",
 		"serviceID", input.ServiceID,
 		"namespace", id.Namespace,
@@ -83,12 +91,13 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 		"imageRef", imageRef)
 
 	return &ResolveBuildContextResult{
-		BuildPack: buildPack,
-		ImageRef:  imageRef,
-		Namespace: id.Namespace,
-		Name:      id.Name,
-		Port:      id.App.Port,
-		EnvVars:   envVars,
+		BuildPack:        buildPack,
+		ImageRef:         imageRef,
+		Namespace:        id.Namespace,
+		Name:             id.Name,
+		Port:             id.App.Port,
+		EnvVars:          envVars,
+		PublishDirectory: publishDir,
 	}, nil
 }
 

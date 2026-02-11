@@ -31,6 +31,8 @@ type CreateServiceInput struct {
 	InstallCommand string `json:"install_command,omitempty" jsonschema:"description=Custom install command (overrides auto-detected)"`
 	BuildCommand   string `json:"build_command,omitempty" jsonschema:"description=Custom build command (overrides auto-detected)"`
 	StartCommand   string `json:"start_command,omitempty" jsonschema:"description=Custom start command (overrides auto-detected)"`
+
+	PublishDirectory string `json:"publish_directory,omitempty" jsonschema:"description=Directory containing built static files (e.g. 'dist'). When set with build_pack=railpack the app is built then served as static files via nginx."`
 }
 
 type CreateServiceOutput struct {
