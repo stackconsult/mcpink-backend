@@ -1,4 +1,11 @@
 ---
+- name: Ensure gVisor role runs only on run nodes
+  assert:
+    that:
+      - "'run' in group_names"
+    fail_msg: "gvisor role is restricted to run nodes only. Target host groups: {{ group_names | join(',') }}"
+  when: not (gvisor_allow_non_run | bool)
+
 - name: Ensure gVisor binaries are present
   get_url:
     url: "{{ gvisor_base_url }}/{{ item.src }}"
@@ -14,6 +21,30 @@
       dest: "{{ gvisor_shim_binary }}"
   notify: Restart k3s agent
 
+- name: Ensure containerd template directory exists for k3s agent
+  file:
+    path: /var/lib/rancher/k3s/agent/etc/containerd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render containerd runtime template with runsc handler
+  template:
+    src: config.toml.tmpl.j2
+    dest: /var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart k3s agent
+
 - name: Verify runsc installed
   command: runsc --version
+  changed_when: false
+
+- name: Apply pending k3s-agent restart before runtime validation
+  meta: flush_handlers
+
+- name: Verify runsc runtime is registered in generated containerd config
+  command: grep -q 'runtimes.runsc' /var/lib/rancher/k3s/agent/etc/containerd/config.toml
   changed_when: false

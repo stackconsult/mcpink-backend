@@ -3,3 +3,4 @@ gvisor_runsc_binary: /usr/local/bin/runsc
 gvisor_shim_binary: /usr/local/bin/containerd-shim-runsc-v1
 gvisor_release_path: release/latest
 gvisor_base_url: "https://storage.googleapis.com/gvisor/releases/{{ gvisor_release_path }}/{{ gvisor_install_arch }}"
+gvisor_allow_non_run: false
