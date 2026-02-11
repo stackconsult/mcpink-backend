@@ -25,7 +25,7 @@ type CreateServiceInput struct {
 	Port      int      `json:"port,omitempty" jsonschema:"description=Port the application listens on,default=3000"`
 	EnvVars   []EnvVar `json:"env_vars,omitempty" jsonschema:"description=Environment variables"`
 
-	Memory string `json:"memory,omitempty" jsonschema:"description=Memory limit,enum=128m,enum=256m,enum=512m,enum=1024m,enum=2048m,enum=4096m,default=256m"`
+	Memory string `json:"memory,omitempty" jsonschema:"description=Memory limit,enum=128Mi,enum=256Mi,enum=512Mi,enum=1024Mi,enum=2048Mi,enum=4096Mi,default=256Mi"`
 	CPU    string `json:"cpu,omitempty" jsonschema:"description=CPU cores,enum=0.5,enum=1,enum=2,enum=4,default=0.5"`
 
 	InstallCommand string `json:"install_command,omitempty" jsonschema:"description=Custom install command (overrides auto-detected)"`

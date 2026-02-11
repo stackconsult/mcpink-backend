@@ -38,6 +38,20 @@ func (a *Activities) DeleteService(ctx context.Context, input DeleteServiceInput
 		return nil, fmt.Errorf("delete secret: %w", err)
 	}
 
+	// Clean up namespace if no deployments remain
+	deployments, err := a.k8s.AppsV1().Deployments(input.Namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		a.logger.Warn("Failed to list deployments for namespace cleanup",
+			"namespace", input.Namespace, "error", err)
+	} else if len(deployments.Items) == 0 {
+		if err := a.k8s.CoreV1().Namespaces().Delete(ctx, input.Namespace, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			a.logger.Warn("Failed to delete empty namespace",
+				"namespace", input.Namespace, "error", err)
+		} else {
+			a.logger.Info("Deleted empty namespace", "namespace", input.Namespace)
+		}
+	}
+
 	a.logger.Info("DeleteService completed",
 		"serviceID", input.ServiceID,
 		"namespace", input.Namespace,

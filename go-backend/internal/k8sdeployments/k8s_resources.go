@@ -1,6 +1,7 @@
 package k8sdeployments
 
 import (
+	"fmt"
 	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -11,6 +12,33 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 )
+
+func parsePort(port string) int32 {
+	p, _ := strconv.ParseInt(port, 10, 32)
+	if p == 0 {
+		p = 3000
+	}
+	return int32(p)
+}
+
+var allowedMemory = map[string]bool{
+	"128Mi": true, "256Mi": true, "512Mi": true,
+	"1024Mi": true, "2048Mi": true, "4096Mi": true,
+}
+
+var allowedCPU = map[string]bool{
+	"0.5": true, "1": true, "2": true, "4": true,
+}
+
+func validateResourceLimits(memory, cpu string) error {
+	if !allowedMemory[memory] {
+		return fmt.Errorf("invalid memory limit %q: must be one of 128Mi, 256Mi, 512Mi, 1024Mi, 2048Mi, 4096Mi", memory)
+	}
+	if !allowedCPU[cpu] {
+		return fmt.Errorf("invalid cpu limit %q: must be one of 0.5, 1, 2, 4", cpu)
+	}
+	return nil
+}
 
 func buildNamespace(namespace, tenant, project string) *corev1.Namespace {
 	return &corev1.Namespace{
@@ -118,11 +146,9 @@ func buildSecret(namespace, name string, envVars map[string]string) *corev1.Secr
 	}
 }
 
-func buildDeployment(namespace, name, imageRef, port string) *appsv1.Deployment {
-	portInt, _ := strconv.ParseInt(port, 10, 32)
-	if portInt == 0 {
-		portInt = 3000
-	}
+func buildDeployment(namespace, name, imageRef string, port int32, memory, cpu string) *appsv1.Deployment {
+	memLimit := resource.MustParse(memory)
+	cpuLimit := resource.MustParse(cpu)
 
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{Kind: "Deployment", APIVersion: "apps/v1"},
@@ -149,7 +175,7 @@ func buildDeployment(namespace, name, imageRef, port string) *appsv1.Deployment 
 							Name:  name,
 							Image: imageRef,
 							Ports: []corev1.ContainerPort{
-								{ContainerPort: int32(portInt)},
+								{ContainerPort: port},
 							},
 							EnvFrom: []corev1.EnvFromSource{
 								{SecretRef: &corev1.SecretEnvSource{
@@ -158,12 +184,12 @@ func buildDeployment(namespace, name, imageRef, port string) *appsv1.Deployment 
 							},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("128Mi"),
+									corev1.ResourceCPU:    cpuLimit.DeepCopy(),
+									corev1.ResourceMemory: memLimit.DeepCopy(),
 								},
 								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("500m"),
-									corev1.ResourceMemory: resource.MustParse("512Mi"),
+									corev1.ResourceCPU:    cpuLimit,
+									corev1.ResourceMemory: memLimit,
 								},
 							},
 							SecurityContext: &corev1.SecurityContext{
@@ -173,6 +199,17 @@ func buildDeployment(namespace, name, imageRef, port string) *appsv1.Deployment 
 									Drop: []corev1.Capability{"ALL"},
 								},
 							},
+							ReadinessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									TCPSocket: &corev1.TCPSocketAction{
+										Port: intstr.FromInt32(port),
+									},
+								},
+								InitialDelaySeconds: 5,
+								PeriodSeconds:       10,
+								TimeoutSeconds:      3,
+								FailureThreshold:    3,
+							},
 						},
 					},
 				},
@@ -181,12 +218,7 @@ func buildDeployment(namespace, name, imageRef, port string) *appsv1.Deployment 
 	}
 }
 
-func buildService(namespace, name, port string) *corev1.Service {
-	portInt, _ := strconv.ParseInt(port, 10, 32)
-	if portInt == 0 {
-		portInt = 3000
-	}
-
+func buildService(namespace, name string, port int32) *corev1.Service {
 	return &corev1.Service{
 		TypeMeta: metav1.TypeMeta{Kind: "Service", APIVersion: "v1"},
 		ObjectMeta: metav1.ObjectMeta{
@@ -197,19 +229,15 @@ func buildService(namespace, name, port string) *corev1.Service {
 			Selector: map[string]string{"app": name},
 			Ports: []corev1.ServicePort{
 				{
-					Port:       int32(portInt),
-					TargetPort: intstr.FromInt32(int32(portInt)),
+					Port:       port,
+					TargetPort: intstr.FromInt32(port),
 				},
 			},
 		},
 	}
 }
 
-func buildIngress(namespace, name, host, port string) *networkingv1.Ingress {
-	portInt, _ := strconv.ParseInt(port, 10, 32)
-	if portInt == 0 {
-		portInt = 3000
-	}
+func buildIngress(namespace, name, host string, port int32) *networkingv1.Ingress {
 	pathType := networkingv1.PathTypePrefix
 	ingressClassName := "traefik"
 
@@ -234,7 +262,7 @@ func buildIngress(namespace, name, host, port string) *networkingv1.Ingress {
 										Service: &networkingv1.IngressServiceBackend{
 											Name: name,
 											Port: networkingv1.ServiceBackendPort{
-												Number: int32(portInt),
+												Number: port,
 											},
 										},
 									},

@@ -26,10 +26,7 @@ spec:
     spec:
       runtimeClassName: gvisor
       automountServiceAccountToken: false
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
+      securityContext: {} # Pod-level UID/GID is not enforced by platform; image default user applies.
       containers:
         - name: app
           image: "registry.internal:5000/dp-{{ tenant }}-{{ project }}/{{ service }}:{{ sha }}"

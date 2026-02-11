@@ -21,6 +21,7 @@ func (a *Activities) Deploy(ctx context.Context, input DeployInput) (*DeployResu
 	}
 
 	port := effectiveAppPort(id.App.BuildPack, id.App.Port, id.App.PublishDirectory)
+	portInt := parsePort(port)
 
 	envVars := parseEnvVars(id.App.EnvVars)
 	envVars["PORT"] = port
@@ -36,18 +37,18 @@ func (a *Activities) Deploy(ctx context.Context, input DeployInput) (*DeployResu
 	}
 
 	// Apply Deployment
-	if err := a.applyDeployment(ctx, id.Namespace, id.Name, input.ImageRef, port); err != nil {
+	if err := a.applyDeployment(ctx, id.Namespace, id.Name, input.ImageRef, portInt, id.App.Memory, id.App.Cpu); err != nil {
 		return nil, fmt.Errorf("apply deployment: %w", err)
 	}
 
 	// Apply Service
-	if err := a.applyService(ctx, id.Namespace, id.Name, port); err != nil {
+	if err := a.applyService(ctx, id.Namespace, id.Name, portInt); err != nil {
 		return nil, fmt.Errorf("apply service: %w", err)
 	}
 
 	// Apply Ingress
 	host := fmt.Sprintf("%s.%s", id.Name, input.AppsDomain)
-	if err := a.applyIngress(ctx, id.Namespace, id.Name, host, port); err != nil {
+	if err := a.applyIngress(ctx, id.Namespace, id.Name, host, portInt); err != nil {
 		return nil, fmt.Errorf("apply ingress: %w", err)
 	}
 
@@ -67,8 +68,11 @@ func (a *Activities) Deploy(ctx context.Context, input DeployInput) (*DeployResu
 
 func (a *Activities) ensureNamespace(ctx context.Context, namespace, tenant, project string) error {
 	ns := buildNamespace(namespace, tenant, project)
-	nsData, _ := json.Marshal(ns)
-	_, err := a.k8s.CoreV1().Namespaces().Patch(ctx, namespace,
+	nsData, err := json.Marshal(ns)
+	if err != nil {
+		return fmt.Errorf("marshal namespace: %w", err)
+	}
+	_, err = a.k8s.CoreV1().Namespaces().Patch(ctx, namespace,
 		types.ApplyPatchType, nsData,
 		metav1.PatchOptions{FieldManager: "temporal-worker"})
 	if err != nil {
@@ -77,7 +81,10 @@ func (a *Activities) ensureNamespace(ctx context.Context, namespace, tenant, pro
 
 	// Ingress network policy
 	ingressNP := buildIngressNetworkPolicy(namespace)
-	ingressData, _ := json.Marshal(ingressNP)
+	ingressData, err := json.Marshal(ingressNP)
+	if err != nil {
+		return fmt.Errorf("marshal ingress network policy: %w", err)
+	}
 	_, err = a.k8s.NetworkingV1().NetworkPolicies(namespace).Patch(ctx, "ingress-isolation",
 		types.ApplyPatchType, ingressData,
 		metav1.PatchOptions{FieldManager: "temporal-worker"})
@@ -87,7 +94,10 @@ func (a *Activities) ensureNamespace(ctx context.Context, namespace, tenant, pro
 
 	// Egress network policy
 	egressNP := buildEgressNetworkPolicy(namespace)
-	egressData, _ := json.Marshal(egressNP)
+	egressData, err := json.Marshal(egressNP)
+	if err != nil {
+		return fmt.Errorf("marshal egress network policy: %w", err)
+	}
 	_, err = a.k8s.NetworkingV1().NetworkPolicies(namespace).Patch(ctx, "egress-isolation",
 		types.ApplyPatchType, egressData,
 		metav1.PatchOptions{FieldManager: "temporal-worker"})
@@ -100,35 +110,50 @@ func (a *Activities) ensureNamespace(ctx context.Context, namespace, tenant, pro
 
 func (a *Activities) applySecret(ctx context.Context, namespace, name string, envVars map[string]string) error {
 	secret := buildSecret(namespace, name, envVars)
-	data, _ := json.Marshal(secret)
-	_, err := a.k8s.CoreV1().Secrets(namespace).Patch(ctx, name+"-env",
+	data, err := json.Marshal(secret)
+	if err != nil {
+		return fmt.Errorf("marshal secret: %w", err)
+	}
+	_, err = a.k8s.CoreV1().Secrets(namespace).Patch(ctx, name+"-env",
 		types.ApplyPatchType, data,
 		metav1.PatchOptions{FieldManager: "temporal-worker"})
 	return err
 }
 
-func (a *Activities) applyDeployment(ctx context.Context, namespace, name, imageRef, port string) error {
-	deployment := buildDeployment(namespace, name, imageRef, port)
-	data, _ := json.Marshal(deployment)
-	_, err := a.k8s.AppsV1().Deployments(namespace).Patch(ctx, name,
+func (a *Activities) applyDeployment(ctx context.Context, namespace, name, imageRef string, port int32, memory, cpu string) error {
+	if err := validateResourceLimits(memory, cpu); err != nil {
+		return err
+	}
+	deployment := buildDeployment(namespace, name, imageRef, port, memory, cpu)
+	data, err := json.Marshal(deployment)
+	if err != nil {
+		return fmt.Errorf("marshal deployment: %w", err)
+	}
+	_, err = a.k8s.AppsV1().Deployments(namespace).Patch(ctx, name,
 		types.ApplyPatchType, data,
 		metav1.PatchOptions{FieldManager: "temporal-worker"})
 	return err
 }
 
-func (a *Activities) applyService(ctx context.Context, namespace, name, port string) error {
+func (a *Activities) applyService(ctx context.Context, namespace, name string, port int32) error {
 	svc := buildService(namespace, name, port)
-	data, _ := json.Marshal(svc)
-	_, err := a.k8s.CoreV1().Services(namespace).Patch(ctx, name,
+	data, err := json.Marshal(svc)
+	if err != nil {
+		return fmt.Errorf("marshal service: %w", err)
+	}
+	_, err = a.k8s.CoreV1().Services(namespace).Patch(ctx, name,
 		types.ApplyPatchType, data,
 		metav1.PatchOptions{FieldManager: "temporal-worker"})
 	return err
 }
 
-func (a *Activities) applyIngress(ctx context.Context, namespace, name, host, port string) error {
+func (a *Activities) applyIngress(ctx context.Context, namespace, name, host string, port int32) error {
 	ingress := buildIngress(namespace, name, host, port)
-	data, _ := json.Marshal(ingress)
-	_, err := a.k8s.NetworkingV1().Ingresses(namespace).Patch(ctx, name,
+	data, err := json.Marshal(ingress)
+	if err != nil {
+		return fmt.Errorf("marshal ingress: %w", err)
+	}
+	_, err = a.k8s.NetworkingV1().Ingresses(namespace).Patch(ctx, name,
 		types.ApplyPatchType, data,
 		metav1.PatchOptions{FieldManager: "temporal-worker"})
 	return err

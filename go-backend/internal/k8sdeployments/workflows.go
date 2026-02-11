@@ -305,6 +305,11 @@ func DeleteServiceWorkflow(ctx workflow.Context, input DeleteServiceWorkflowInpu
 
 	if err := workflow.ExecuteActivity(ctx, activities.SoftDeleteApp, input.ServiceID).Get(ctx, nil); err != nil {
 		logger.Error("Failed to soft-delete app record", "serviceID", input.ServiceID, "error", err)
+		return DeleteServiceWorkflowResult{
+			ServiceID:    input.ServiceID,
+			Status:       StatusFailed,
+			ErrorMessage: fmt.Sprintf("k8s resources deleted but failed to soft-delete app record: %v", err),
+		}, fmt.Errorf("soft-delete app record: %w", err)
 	}
 
 	return DeleteServiceWorkflowResult{

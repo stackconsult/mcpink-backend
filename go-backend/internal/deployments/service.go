@@ -127,6 +127,15 @@ func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateA
 		publishDir = &input.PublishDirectory
 	}
 
+	memory := input.Memory
+	if memory == "" {
+		memory = "256Mi"
+	}
+	cpu := input.CPU
+	if cpu == "" {
+		cpu = "0.5"
+	}
+
 	_, err := s.appsQ.CreateApp(ctx, apps.CreateAppParams{
 		ID:               appID,
 		UserID:           input.UserID,
@@ -141,6 +150,8 @@ func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateA
 		WorkflowID:       workflowID,
 		GitProvider:      gitProvider,
 		PublishDirectory: publishDir,
+		Memory:           memory,
+		Cpu:              cpu,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create app record: %w", err)

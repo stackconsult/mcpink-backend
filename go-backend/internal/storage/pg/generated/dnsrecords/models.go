@@ -44,6 +44,8 @@ type App struct {
 	CustomDomain     *string            `json:"custom_domain"`
 	BuildProgress    []byte             `json:"build_progress"`
 	PublishDirectory *string            `json:"publish_directory"`
+	Memory           string             `json:"memory"`
+	Cpu              string             `json:"cpu"`
 }
 
 type DnsRecord struct {
