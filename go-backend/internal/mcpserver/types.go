@@ -28,8 +28,8 @@ type CreateServiceInput struct {
 	Memory string `json:"memory,omitempty" jsonschema:"description=Memory limit,enum=128Mi,enum=256Mi,enum=512Mi,enum=1024Mi,enum=2048Mi,enum=4096Mi,default=256Mi"`
 	CPU    string `json:"cpu,omitempty" jsonschema:"description=CPU cores,enum=0.5,enum=1,enum=2,enum=4,default=0.5"`
 
-	BuildCommand string `json:"build_command,omitempty" jsonschema:"description=Custom build command (overrides auto-detected)"`
-	StartCommand string `json:"start_command,omitempty" jsonschema:"description=Custom start command (overrides auto-detected)"`
+	BuildCommand string `json:"build_command,omitempty" jsonschema:"description=Custom build command (overrides auto-detected). Only used with build_pack=railpack."`
+	StartCommand string `json:"start_command,omitempty" jsonschema:"description=Custom start command (overrides auto-detected). Only used with build_pack=railpack."`
 
 	PublishDirectory string `json:"publish_directory,omitempty" jsonschema:"description=Directory containing built static files (e.g. 'dist'). When set with build_pack=railpack the app is built then served as static files via nginx."`
 
