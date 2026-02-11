@@ -68,8 +68,6 @@ type CreateAppInput struct {
 	Port             string
 	EnvVars          []EnvVar
 	GitProvider      string // "github" or "gitea"
-	PrivateKeyUUID   string // for internal git
-	SSHCloneURL      string // for internal git
 	Memory           string
 	CPU              string
 	InstallCommand   string
