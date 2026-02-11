@@ -1,8 +1,14 @@
 ---
+- name: Check whether UFW is installed
+  command: command -v ufw
+  register: ufw_check
+  changed_when: false
+  failed_when: false
+
 - name: Disable UFW if active (we manage iptables directly)
   community.general.ufw:
     state: disabled
-  ignore_errors: true
+  when: ufw_check.rc == 0
 
 - name: Ensure firewall persistence directory exists
   file:
