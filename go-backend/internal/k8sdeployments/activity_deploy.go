@@ -20,13 +20,7 @@ func (a *Activities) Deploy(ctx context.Context, input DeployInput) (*DeployResu
 		return nil, err
 	}
 
-	port := id.App.Port
-	if port == "" {
-		port = "3000"
-	}
-	if id.App.BuildPack == "static" {
-		port = "8080"
-	}
+	port := effectiveAppPort(id.App.BuildPack, id.App.Port, id.App.PublishDirectory)
 
 	envVars := parseEnvVars(id.App.EnvVars)
 	envVars["PORT"] = port
@@ -99,16 +93,6 @@ func (a *Activities) ensureNamespace(ctx context.Context, namespace, tenant, pro
 		metav1.PatchOptions{FieldManager: "temporal-worker"})
 	if err != nil {
 		return fmt.Errorf("apply egress network policy: %w", err)
-	}
-
-	// Resource quota
-	quota := buildResourceQuota(namespace)
-	quotaData, _ := json.Marshal(quota)
-	_, err = a.k8s.CoreV1().ResourceQuotas(namespace).Patch(ctx, "quota",
-		types.ApplyPatchType, quotaData,
-		metav1.PatchOptions{FieldManager: "temporal-worker"})
-	if err != nil {
-		return fmt.Errorf("apply resource quota: %w", err)
 	}
 
 	return nil

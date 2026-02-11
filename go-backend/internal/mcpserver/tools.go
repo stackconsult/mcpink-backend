@@ -17,6 +17,21 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+func resolveServicePort(buildPack, publishDir string, requestedPort int) string {
+	port := strconv.Itoa(DefaultPort)
+	if buildPack == "static" {
+		port = "80"
+	}
+	if requestedPort > 0 {
+		port = strconv.Itoa(requestedPort)
+	}
+	if buildPack == "railpack" && publishDir != "" {
+		// Railpack static serving always binds nginx on 8080.
+		port = "8080"
+	}
+	return port
+}
+
 func (s *Server) handleWhoami(ctx context.Context, req *mcp.CallToolRequest, input WhoamiInput) (*mcp.CallToolResult, WhoamiOutput, error) {
 	user := UserFromContext(ctx)
 	if user == nil {
@@ -84,16 +99,7 @@ func (s *Server) handleCreateService(ctx context.Context, req *mcp.CallToolReque
 		input.PublishDirectory = publishDir
 	}
 
-	port := strconv.Itoa(DefaultPort)
-	if buildPack == "static" {
-		port = "80"
-	}
-	if publishDir != "" {
-		port = "8080"
-	}
-	if input.Port > 0 {
-		port = strconv.Itoa(input.Port)
-	}
+	port := resolveServicePort(buildPack, publishDir, input.Port)
 
 	envVars := make([]deployments.EnvVar, len(input.EnvVars))
 	for i, ev := range input.EnvVars {

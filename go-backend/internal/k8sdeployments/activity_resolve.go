@@ -64,9 +64,6 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 	tag := buildImageTag(input.CommitSHA, id.App)
 	imageRef := fmt.Sprintf("%s/%s/%s:%s", a.config.RegistryAddress, id.Namespace, id.Name, tag)
 
-	envVars := parseEnvVars(id.App.EnvVars)
-	envVars["PORT"] = id.App.Port
-
 	// Determine build pack
 	buildPack := id.App.BuildPack
 	switch buildPack {
@@ -94,9 +91,10 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 	if id.App.PublishDirectory != nil {
 		publishDir = *id.App.PublishDirectory
 	}
-	if publishDir != "" && buildPack == "railpack" {
-		id.App.Port = "8080"
-	}
+	id.App.Port = effectiveAppPort(buildPack, id.App.Port, id.App.PublishDirectory)
+
+	envVars := parseEnvVars(id.App.EnvVars)
+	envVars["PORT"] = id.App.Port
 
 	a.logger.Info("ResolveBuildContext completed",
 		"serviceID", input.ServiceID,

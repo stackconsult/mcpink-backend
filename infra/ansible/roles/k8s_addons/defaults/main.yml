@@ -28,3 +28,12 @@ k8s_manifest_apply_order:
   - grafana-ingress.yml
   - gitea.yml
   - gitea-ingress.yml
+
+# Customer namespace quota enforcement (cluster-side, not app deploy code)
+customer_quota_namespace_selector: "dp.ml.ink/tenant"
+customer_quota_pods: "200"
+customer_quota_requests_cpu: "40"
+customer_quota_requests_memory: "40Gi"
+customer_quota_limits_cpu: "40"
+customer_quota_limits_memory: "40Gi"
+customer_quota_timer_interval: "1min"

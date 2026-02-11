@@ -322,6 +322,77 @@
     ' configured' in apply_manifest_cmd.stdout
   loop: "{{ k8s_manifest_apply_order }}"
 
+- name: Install customer quota reconciler script
+  copy:
+    dest: /usr/local/bin/customer-quota-reconciler.sh
+    owner: root
+    group: root
+    mode: "0755"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      selector='{{ customer_quota_namespace_selector }}'
+      namespaces="$(k3s kubectl get namespaces -l "${selector}" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')"
+
+      if [[ -z "${namespaces}" ]]; then
+        exit 0
+      fi
+
+      for ns in ${namespaces}; do
+        k3s kubectl -n "${ns}" create quota quota \
+          --hard=pods={{ customer_quota_pods }},requests.cpu={{ customer_quota_requests_cpu }},requests.memory={{ customer_quota_requests_memory }},limits.cpu={{ customer_quota_limits_cpu }},limits.memory={{ customer_quota_limits_memory }} \
+          --dry-run=client -o yaml | k3s kubectl apply -f -
+      done
+
+- name: Install customer quota reconciler systemd service
+  copy:
+    dest: /etc/systemd/system/customer-quota-reconciler.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Reconcile ResourceQuota for customer namespaces
+      Wants=k3s.service
+      After=k3s.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/customer-quota-reconciler.sh
+
+- name: Install customer quota reconciler systemd timer
+  copy:
+    dest: /etc/systemd/system/customer-quota-reconciler.timer
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Periodic ResourceQuota reconciliation for customer namespaces
+
+      [Timer]
+      OnBootSec=30s
+      OnUnitActiveSec={{ customer_quota_timer_interval }}
+      Unit=customer-quota-reconciler.service
+
+      [Install]
+      WantedBy=timers.target
+
+- name: Reload systemd daemon after quota reconciler units
+  command: systemctl daemon-reload
+  changed_when: false
+
+- name: Enable and start customer quota reconciler timer
+  systemd:
+    name: customer-quota-reconciler.timer
+    enabled: true
+    state: started
+
+- name: Run customer quota reconciliation once now
+  command: /usr/local/bin/customer-quota-reconciler.sh
+  changed_when: false
+
 # --- CI/CD deploy user (GitHub Actions → SSH → kubectl set image) ---
 
 - name: Create deploy user for CI/CD

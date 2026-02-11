@@ -58,20 +58,20 @@ func NewService(
 }
 
 type CreateAppInput struct {
-	UserID         string
-	ProjectRef     string
-	GitHubAppUUID  string
-	Repo           string
-	Branch         string
-	Name           string
-	BuildPack      string
-	Port           string
-	EnvVars        []EnvVar
-	GitProvider    string // "github" or "gitea"
-	PrivateKeyUUID string // for internal git
-	SSHCloneURL    string // for internal git
-	Memory         string
-	CPU            string
+	UserID           string
+	ProjectRef       string
+	GitHubAppUUID    string
+	Repo             string
+	Branch           string
+	Name             string
+	BuildPack        string
+	Port             string
+	EnvVars          []EnvVar
+	GitProvider      string // "github" or "gitea"
+	PrivateKeyUUID   string // for internal git
+	SSHCloneURL      string // for internal git
+	Memory           string
+	CPU              string
 	InstallCommand   string
 	BuildCommand     string
 	StartCommand     string
@@ -115,7 +115,7 @@ func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateA
 	}
 
 	appID := shortuuid.New()
-	workflowID := fmt.Sprintf("deploy-%s-%s-%s", input.UserID, input.Repo, input.Branch)
+	workflowID := fmt.Sprintf("deploy-%s", appID)
 
 	gitProvider := input.GitProvider
 	if gitProvider == "" {
@@ -158,8 +158,11 @@ func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateA
 	}
 
 	workflowOptions := client.StartWorkflowOptions{
-		ID:        workflowID,
-		TaskQueue: k8sdeployments.TaskQueue,
+		ID:                                       workflowID,
+		TaskQueue:                                k8sdeployments.TaskQueue,
+		WorkflowIDConflictPolicy:                 enumspb.WORKFLOW_ID_CONFLICT_POLICY_FAIL,
+		WorkflowIDReusePolicy:                    enumspb.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
+		WorkflowExecutionErrorWhenAlreadyStarted: true,
 	}
 
 	run, err := s.temporalClient.ExecuteWorkflow(ctx, workflowOptions, k8sdeployments.CreateServiceWorkflow, workflowInput)
@@ -168,6 +171,18 @@ func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateA
 			"workflowID", workflowID,
 			"error", err)
 		return nil, fmt.Errorf("failed to start deploy workflow: %w", err)
+	}
+
+	runID := run.GetRunID()
+	if err := s.appsQ.UpdateWorkflowRunID(ctx, apps.UpdateWorkflowRunIDParams{
+		ID:            appID,
+		WorkflowRunID: &runID,
+	}); err != nil {
+		s.logger.Warn("failed to persist workflow run id",
+			"appID", appID,
+			"workflowID", workflowID,
+			"runID", runID,
+			"error", err)
 	}
 
 	s.logger.Info("started deploy workflow",

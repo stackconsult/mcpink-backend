@@ -2,10 +2,12 @@ package k8sdeployments
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -50,5 +52,54 @@ func TestWaitForRollout_RetriesUntilDeploymentExists(t *testing.T) {
 	}
 	if res.Status != StatusRunning {
 		t.Fatalf("WaitForRollout() status = %q, want %q", res.Status, StatusRunning)
+	}
+}
+
+func TestWaitForRollout_FailsFastOnReplicaFailure(t *testing.T) {
+	prev := waitForRolloutPollInterval
+	waitForRolloutPollInterval = 5 * time.Millisecond
+	t.Cleanup(func() { waitForRolloutPollInterval = prev })
+
+	client := fake.NewClientset()
+	a := &Activities{k8s: client}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	const namespace = "ns"
+	const name = "test-react-vite"
+	replicas := int32(1)
+	_, err := client.AppsV1().Deployments(namespace).Create(ctx, &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+		},
+		Status: appsv1.DeploymentStatus{
+			Conditions: []appsv1.DeploymentCondition{
+				{
+					Type:    appsv1.DeploymentReplicaFailure,
+					Status:  corev1.ConditionTrue,
+					Reason:  "FailedCreate",
+					Message: `Error creating: pods "test-react-vite-xyz" is forbidden: exceeded quota`,
+				},
+			},
+		},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("create deployment: %v", err)
+	}
+
+	_, err = a.WaitForRollout(ctx, WaitForRolloutInput{
+		Namespace:      namespace,
+		DeploymentName: name,
+	})
+	if err == nil {
+		t.Fatalf("WaitForRollout() expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "replica failure") {
+		t.Fatalf("WaitForRollout() error = %v, want replica failure details", err)
 	}
 }

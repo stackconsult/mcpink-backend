@@ -106,25 +106,6 @@ func buildEgressNetworkPolicy(namespace string) *networkingv1.NetworkPolicy {
 	}
 }
 
-func buildResourceQuota(namespace string) *corev1.ResourceQuota {
-	return &corev1.ResourceQuota{
-		TypeMeta: metav1.TypeMeta{Kind: "ResourceQuota", APIVersion: "v1"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "quota",
-			Namespace: namespace,
-		},
-		Spec: corev1.ResourceQuotaSpec{
-			Hard: corev1.ResourceList{
-				corev1.ResourcePods:           resource.MustParse("40"),
-				corev1.ResourceRequestsCPU:    resource.MustParse("8"),
-				corev1.ResourceRequestsMemory: resource.MustParse("8Gi"),
-				corev1.ResourceLimitsCPU:      resource.MustParse("16"),
-				corev1.ResourceLimitsMemory:   resource.MustParse("16Gi"),
-			},
-		},
-	}
-}
-
 func buildSecret(namespace, name string, envVars map[string]string) *corev1.Secret {
 	return &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},

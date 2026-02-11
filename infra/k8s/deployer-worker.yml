@@ -10,7 +10,7 @@ metadata:
   name: deployer-worker
 rules:
   - apiGroups: [""]
-    resources: ["namespaces", "services", "secrets", "resourcequotas"]
+    resources: ["namespaces", "services", "secrets"]
     verbs: ["get", "list", "create", "update", "patch", "delete"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
