@@ -22,7 +22,7 @@ type CreateServiceInput struct {
 
 	Project   string   `json:"project,omitempty" jsonschema:"description=Project name,default=default"`
 	BuildPack string   `json:"build_pack,omitempty" jsonschema:"description=Build pack to use,enum=railpack,enum=dockerfile,enum=static,enum=dockercompose,default=railpack"`
-	Port      int      `json:"port,omitempty" jsonschema:"description=Port the application listens on,default=3000"`
+	Port      *int     `json:"port,omitempty" jsonschema:"description=Port the application listens on"`
 	EnvVars   []EnvVar `json:"env_vars,omitempty" jsonschema:"description=Environment variables"`
 
 	Memory string `json:"memory,omitempty" jsonschema:"description=Memory limit,enum=128Mi,enum=256Mi,enum=512Mi,enum=1024Mi,enum=2048Mi,enum=4096Mi,default=256Mi"`

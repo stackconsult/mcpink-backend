@@ -95,7 +95,7 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 		}
 		// Auto-detect port from EXPOSE if user didn't explicitly provide one.
 		// Check for "" (new product server) or "3000" (old product server default).
-		if id.App.Port == "" || id.App.Port == "3000" {
+		if id.App.Port == "" {
 			if detected := extractPortFromDockerfile(dockerfileFull); detected != "" {
 				id.App.Port = detected
 			}
@@ -113,7 +113,7 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 		dockerfileFull := filepath.Join(effectiveSourcePath, dockerfileName)
 		if _, err := os.Stat(dockerfileFull); err == nil {
 			buildPack = "dockerfile"
-			if id.App.Port == "" || id.App.Port == "3000" {
+			if id.App.Port == "" {
 				if detected := extractPortFromDockerfile(dockerfileFull); detected != "" {
 					id.App.Port = detected
 				}

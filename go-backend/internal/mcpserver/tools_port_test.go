@@ -2,12 +2,14 @@ package mcpserver
 
 import "testing"
 
+func intPtr(v int) *int { return &v }
+
 func TestResolveServicePort(t *testing.T) {
 	tests := []struct {
 		name          string
 		buildPack     string
 		publishDir    string
-		requestedPort int
+		requestedPort *int
 		want          string
 	}{
 		{
@@ -18,7 +20,7 @@ func TestResolveServicePort(t *testing.T) {
 		{
 			name:          "railpack custom requested port",
 			buildPack:     "railpack",
-			requestedPort: 4000,
+			requestedPort: intPtr(4000),
 			want:          "4000",
 		},
 		{
@@ -31,7 +33,7 @@ func TestResolveServicePort(t *testing.T) {
 			name:          "railpack publish directory overrides explicit port",
 			buildPack:     "railpack",
 			publishDir:    "dist",
-			requestedPort: 3000,
+			requestedPort: intPtr(3000),
 			want:          "8080",
 		},
 		{
@@ -42,19 +44,25 @@ func TestResolveServicePort(t *testing.T) {
 		{
 			name:          "static explicit port",
 			buildPack:     "static",
-			requestedPort: 9000,
+			requestedPort: intPtr(9000),
 			want:          "9000",
 		},
 		{
-			name:      "dockerfile no port defers to EXPOSE detection",
+			name:      "dockerfile nil port defers to EXPOSE detection",
 			buildPack: "dockerfile",
 			want:      "",
 		},
 		{
 			name:          "dockerfile explicit port kept",
 			buildPack:     "dockerfile",
-			requestedPort: 5000,
+			requestedPort: intPtr(5000),
 			want:          "5000",
+		},
+		{
+			name:          "dockerfile explicit 3000 kept",
+			buildPack:     "dockerfile",
+			requestedPort: intPtr(3000),
+			want:          "3000",
 		},
 	}
 
@@ -62,7 +70,7 @@ func TestResolveServicePort(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := resolveServicePort(tt.buildPack, tt.publishDir, tt.requestedPort)
 			if got != tt.want {
-				t.Fatalf("resolveServicePort(%q, %q, %d) = %q, want %q",
+				t.Fatalf("resolveServicePort(%q, %q, %v) = %q, want %q",
 					tt.buildPack, tt.publishDir, tt.requestedPort, got, tt.want)
 			}
 		})

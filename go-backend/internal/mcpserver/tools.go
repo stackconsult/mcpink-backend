@@ -17,13 +17,13 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func resolveServicePort(buildPack, publishDir string, requestedPort int) string {
+func resolveServicePort(buildPack, publishDir string, requestedPort *int) string {
 	// Railpack static serving always binds nginx on 8080.
 	if buildPack == "railpack" && publishDir != "" {
 		return "8080"
 	}
-	if requestedPort > 0 {
-		return strconv.Itoa(requestedPort)
+	if requestedPort != nil && *requestedPort > 0 {
+		return strconv.Itoa(*requestedPort)
 	}
 	switch buildPack {
 	case "static":
