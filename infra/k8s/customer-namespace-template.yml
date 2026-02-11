@@ -5,6 +5,8 @@ metadata:
   labels:
     dp.ml.ink/tenant: "{{ tenant }}"
     dp.ml.ink/project: "{{ project }}"
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

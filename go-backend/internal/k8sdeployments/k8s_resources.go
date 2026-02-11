@@ -46,8 +46,10 @@ func buildNamespace(namespace, tenant, project string) *corev1.Namespace {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namespace,
 			Labels: map[string]string{
-				"dp.ml.ink/tenant":  tenant,
-				"dp.ml.ink/project": project,
+				"dp.ml.ink/tenant":                    tenant,
+				"dp.ml.ink/project":                   project,
+				"pod-security.kubernetes.io/enforce":   "baseline",
+				"pod-security.kubernetes.io/warn":      "baseline",
 			},
 		},
 	}
@@ -192,12 +194,12 @@ func buildDeployment(namespace, name, imageRef string, port int32, memory, cpu s
 									corev1.ResourceMemory: memLimit,
 								},
 							},
+							// gVisor (runtimeClassName) is the security boundary — it intercepts
+							// all syscalls. Dropping capabilities or blocking privilege escalation
+							// only affects gVisor's emulated kernel, not the host, and breaks
+							// standard images (nginx, postgres, redis) that need root/SETUID.
 							SecurityContext: &corev1.SecurityContext{
-								AllowPrivilegeEscalation: ptr.To(false),
-								ReadOnlyRootFilesystem:   ptr.To(false),
-								Capabilities: &corev1.Capabilities{
-									Drop: []corev1.Capability{"ALL"},
-								},
+								ReadOnlyRootFilesystem: ptr.To(false),
 							},
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{

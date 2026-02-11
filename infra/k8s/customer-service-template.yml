@@ -42,11 +42,10 @@ spec:
             limits:
               cpu: "{{ cpu }}"
               memory: "{{ memory }}"
+          # gVisor is the security boundary — caps/privilege-escalation only affect
+          # its emulated kernel, not the host. Relaxed to support standard images.
           securityContext:
-            allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
-            capabilities:
-              drop: ["ALL"]
 ---
 apiVersion: v1
 kind: Service
