@@ -38,7 +38,7 @@ func (a *Activities) Deploy(ctx context.Context, input DeployInput) (*DeployResu
 	}
 
 	// Apply Deployment
-	if err := a.applyDeployment(ctx, id.Namespace, id.Name, input.ImageRef, portInt, id.App.Memory, id.App.Cpu); err != nil {
+	if err := a.applyDeployment(ctx, id.Namespace, id.Name, input.ImageRef, portInt, id.App.Memory, id.App.Cpu, id.App.BuildPack); err != nil {
 		return nil, fmt.Errorf("apply deployment: %w", err)
 	}
 
@@ -121,11 +121,11 @@ func (a *Activities) applySecret(ctx context.Context, namespace, name string, en
 	return err
 }
 
-func (a *Activities) applyDeployment(ctx context.Context, namespace, name, imageRef string, port int32, memory, cpu string) error {
+func (a *Activities) applyDeployment(ctx context.Context, namespace, name, imageRef string, port int32, memory, cpu, buildPack string) error {
 	if err := validateResourceLimits(memory, cpu); err != nil {
 		return err
 	}
-	deployment := buildDeployment(namespace, name, imageRef, port, memory, cpu)
+	deployment := buildDeployment(namespace, name, imageRef, port, memory, cpu, buildPack)
 	data, err := json.Marshal(deployment)
 	if err != nil {
 		return fmt.Errorf("marshal deployment: %w", err)

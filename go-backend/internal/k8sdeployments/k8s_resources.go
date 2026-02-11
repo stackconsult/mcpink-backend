@@ -148,7 +148,35 @@ func buildSecret(namespace, name string, envVars map[string]string) *corev1.Secr
 	}
 }
 
-func buildDeployment(namespace, name, imageRef string, port int32, memory, cpu string) *appsv1.Deployment {
+// containerSecurityContext returns the appropriate SecurityContext based on build pack.
+//
+// Two profiles, both running inside gVisor (the real security boundary):
+//   - restricted (railpack, static): we control the images, so enforce non-root + drop all caps.
+//   - compat (dockerfile, dockercompose): user brings images that may need root/SETUID/SETGID
+//     (e.g. nginx, postgres, redis), so don't drop capabilities.
+//
+// allowPrivilegeEscalation=false is safe for both — it sets no_new_privs which doesn't
+// break images that start as root, only prevents gaining *additional* privileges via setuid binaries.
+func containerSecurityContext(buildPack string) *corev1.SecurityContext {
+	switch buildPack {
+	case "dockerfile", "dockercompose":
+		return &corev1.SecurityContext{
+			AllowPrivilegeEscalation: ptr.To(false),
+			ReadOnlyRootFilesystem:   ptr.To(false),
+		}
+	default: // railpack, static
+		return &corev1.SecurityContext{
+			RunAsNonRoot:             ptr.To(true),
+			AllowPrivilegeEscalation: ptr.To(false),
+			ReadOnlyRootFilesystem:   ptr.To(false),
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{"ALL"},
+			},
+		}
+	}
+}
+
+func buildDeployment(namespace, name, imageRef string, port int32, memory, cpu, buildPack string) *appsv1.Deployment {
 	memLimit := resource.MustParse(memory)
 	cpuLimit := resource.MustParse(cpu)
 
@@ -194,13 +222,7 @@ func buildDeployment(namespace, name, imageRef string, port int32, memory, cpu s
 									corev1.ResourceMemory: memLimit,
 								},
 							},
-							// gVisor (runtimeClassName) is the security boundary — it intercepts
-							// all syscalls. Dropping capabilities or blocking privilege escalation
-							// only affects gVisor's emulated kernel, not the host, and breaks
-							// standard images (nginx, postgres, redis) that need root/SETUID.
-							SecurityContext: &corev1.SecurityContext{
-								ReadOnlyRootFilesystem: ptr.To(false),
-							},
+							SecurityContext: containerSecurityContext(buildPack),
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
 									TCPSocket: &corev1.TCPSocketAction{

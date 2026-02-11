@@ -15,14 +15,21 @@ Cloudflare LB is the source of truth for public ingress host/origin routing.
 
 ## Security Decisions
 
-### Container SecurityContext: No capability dropping (gVisor boundary)
+### Two security profiles: restricted vs compat
 
-Customer pods run under gVisor (`runtimeClassName: gvisor`), which intercepts all syscalls in a userspace kernel. Capabilities, seccomp, AppArmor, and `allowPrivilegeEscalation` only affect gVisor's emulated kernel — they provide zero additional host-escape protection. GKE Sandbox (Google's production gVisor product) confirms seccomp/AppArmor are incompatible with gVisor.
+Customer pods run inside gVisor (`runtimeClassName: gvisor`), which is the real isolation boundary — it intercepts all syscalls in a userspace kernel. Capabilities and `allowPrivilegeEscalation` only affect gVisor's emulated kernel, not the host.
 
-We intentionally do **not** drop capabilities or set `allowPrivilegeEscalation: false` because:
-- It breaks standard Docker images (nginx, postgres, redis) that need root or SETUID/SETGID inside the container.
-- The restrictions only affect processes inside gVisor's sandbox, not the host kernel.
-- gVisor itself is the isolation boundary.
+However, we still apply least-privilege **where we control the images** (defense in depth):
+
+| Build pack | Profile | SecurityContext |
+|---|---|---|
+| `railpack`, `static` | **restricted** | `runAsNonRoot: true`, `drop: ALL` caps, `allowPrivilegeEscalation: false` |
+| `dockerfile`, `dockercompose` | **compat** | `allowPrivilegeEscalation: false` only |
+
+**Why two profiles:**
+- `railpack`/`static` images are built by the platform — we can enforce non-root and dropped caps for free.
+- `dockerfile` images are user-supplied. Dropping `ALL` capabilities removes `CAP_SETUID`/`CAP_SETGID`, which breaks standard images (nginx, postgres, redis) that start as root then drop privileges.
+- `allowPrivilegeEscalation: false` (sets `no_new_privs`) is safe for both — it doesn't break images that start as root, only prevents gaining *additional* privileges via setuid binaries.
 
 ### Pod Security Standards: Baseline enforcement on customer namespaces
 

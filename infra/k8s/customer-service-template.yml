@@ -42,10 +42,24 @@ spec:
             limits:
               cpu: "{{ cpu }}"
               memory: "{{ memory }}"
-          # gVisor is the security boundary — caps/privilege-escalation only affect
-          # its emulated kernel, not the host. Relaxed to support standard images.
-          securityContext:
-            readOnlyRootFilesystem: false
+          # Security profile depends on build pack:
+          #   railpack/static (restricted): runAsNonRoot + drop ALL caps + no priv escalation
+          #   dockerfile/dockercompose (compat): no priv escalation only (user images need root/caps)
+          # gVisor is the real isolation boundary in both cases.
+          #
+          # --- restricted (railpack, static) ---
+          # securityContext:
+          #   runAsNonRoot: true
+          #   allowPrivilegeEscalation: false
+          #   readOnlyRootFilesystem: false
+          #   capabilities:
+          #     drop: ["ALL"]
+          #
+          # --- compat (dockerfile, dockercompose) ---
+          # securityContext:
+          #   allowPrivilegeEscalation: false
+          #   readOnlyRootFilesystem: false
+          securityContext: "{{ securityContext }}"
 ---
 apiVersion: v1
 kind: Service
