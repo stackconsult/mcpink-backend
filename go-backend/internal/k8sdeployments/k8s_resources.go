@@ -115,11 +115,11 @@ func buildResourceQuota(namespace string) *corev1.ResourceQuota {
 		},
 		Spec: corev1.ResourceQuotaSpec{
 			Hard: corev1.ResourceList{
-				corev1.ResourcePods:           resource.MustParse("20"),
-				corev1.ResourceRequestsCPU:    resource.MustParse("4"),
-				corev1.ResourceRequestsMemory: resource.MustParse("4Gi"),
-				corev1.ResourceLimitsCPU:      resource.MustParse("8"),
-				corev1.ResourceLimitsMemory:   resource.MustParse("8Gi"),
+				corev1.ResourcePods:           resource.MustParse("40"),
+				corev1.ResourceRequestsCPU:    resource.MustParse("8"),
+				corev1.ResourceRequestsMemory: resource.MustParse("8Gi"),
+				corev1.ResourceLimitsCPU:      resource.MustParse("16"),
+				corev1.ResourceLimitsMemory:   resource.MustParse("16Gi"),
 			},
 		},
 	}
@@ -162,7 +162,7 @@ func buildDeployment(namespace, name, imageRef, port string) *appsv1.Deployment 
 				Spec: corev1.PodSpec{
 					RuntimeClassName:             ptr.To("gvisor"),
 					AutomountServiceAccountToken: ptr.To(false),
-					SecurityContext: &corev1.PodSecurityContext{},
+					SecurityContext:              &corev1.PodSecurityContext{},
 					Containers: []corev1.Container{
 						{
 							Name:  name,
