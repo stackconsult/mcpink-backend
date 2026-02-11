@@ -34,12 +34,12 @@ Projects live in `/Users/wins/Projects/personal/mcpdeploy/temp/automatic/<N>/`
 | 26 | `26/` | Gradio | `railpack` | ✅ | ✅ | https://test-gradio.ml.ink | |
 | 27 | `27/` | WebSocket (Node) | `railpack` | ✅ | ✅ | https://test-websocket.ml.ink | |
 | 28 | `28/` | T3 Stack | `railpack` | ✅ | ✅ | https://test-t3-stack.ml.ink | |
-| 29 | `29/` | Flask (Dockerfile) | `dockerfile` | ✅ | ⚠️ | | Build succeeded but workflow stuck — never transitions to deploy |
+| 29 | `29/` | Flask (Dockerfile) | `dockerfile` | ✅ | ✅ | https://test-flask-dock.ml.ink | Port auto-detected from EXPOSE 5000 |
 | 30 | `30/` | Plain HTML + assets | `static` | ✅ | ✅ | https://test-plain-html.ml.ink | |
-| 31 | `31/` | 1 repo → 2 services (React + Express) | `dockerfile` | ✅ | ⚠️ | be: https://test-mono-31-be.ml.ink | be ✅/✅, fe ✅/stuck: same workflow transition bug |
+| 31 | `31/` | 1 repo → 2 services (React + Express) | `dockerfile` | ✅ | ✅ | be: https://test-mono-31-be.ml.ink / fe: https://test-mono-31-fe.ml.ink | Port auto-detected (be 3000, fe 8080) |
 | 32 | `32/` | 1 repo → 2 services (Vue + FastAPI) | `railpack` | ✅ | ✅ | fe: https://test-mono-32-fe.ml.ink / be: https://test-mono-32-be.ml.ink | |
 | 33 | `33/` | 1 repo → 2 services (API + Worker) | `dockerfile` | ✅ | ✅ | api: https://test-mono-33-api.ml.ink / wrk: https://test-mono-33-wrk.ml.ink | Retry: used wrong dockerfile_path on first attempt (`api.Dockerfile` vs `Dockerfile.api`) |
-| 34 | `34/` | 1 repo → 2 services (React + Go) | `dockerfile` | ✅ | ⚠️ | api: https://test-mono-34-api.ml.ink | api ✅/✅, web ✅/stuck: same workflow transition bug |
+| 34 | `34/` | 1 repo → 2 services (React + Go) | `dockerfile` | ✅ | ✅ | api: https://test-mono-34-api.ml.ink / web: https://test-mono-34-web.ml.ink | Port auto-detected (api 3000, web 8080) |
 | 35 | `35/` | 1 repo → 1 service (docs subdirectory) | `railpack` | ✅ | ✅ | https://test-mono-35-docs.ml.ink | |
 
 ---
