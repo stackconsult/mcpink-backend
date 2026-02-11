@@ -41,6 +41,29 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/deployer-worker ./cmd/deployer-worker
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/deployer-server ./cmd/deployer-server
 
+      - name: Prepare image contexts
+        run: |
+          mkdir -p .tmp-deployer-worker-image .tmp-deployer-server-image
+
+          cat > .tmp-deployer-worker-image/Dockerfile <<'EOF'
+          FROM debian:bookworm-slim
+          RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata git && rm -rf /var/lib/apt/lists/*
+          WORKDIR /app
+          COPY deployer-worker .
+          COPY application.yaml .
+          CMD ["./deployer-worker"]
+          EOF
+
+          cat > .tmp-deployer-server-image/Dockerfile <<'EOF'
+          FROM debian:bookworm-slim
+          RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata git && rm -rf /var/lib/apt/lists/*
+          WORKDIR /app
+          COPY deployer-server .
+          COPY application.yaml .
+          EXPOSE 8081
+          CMD ["./deployer-server"]
+          EOF
+
       - name: Build & push deployer-worker
         run: |
           cp /tmp/deployer-worker .tmp-deployer-worker-image/deployer-worker
