@@ -249,6 +249,8 @@ make run-deployer-server  # Run the deployer server (webhooks only)
 make run-deployer-worker  # Run the deployer Temporal worker
 make sqlc                 # Generate sqlc code
 make gqlgen               # Generate GraphQL code
+make test                 # Run all tests
+make lint                 # Run golangci-lint (requires: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
 ```
 
 ## Application Binaries

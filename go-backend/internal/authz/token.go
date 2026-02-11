@@ -108,16 +108,3 @@ func MiddlewareWithConfig(next http.Handler, validateToken func(string) (string,
 	})
 }
 
-func maskAuthHeader(header string) string {
-	parts := strings.Split(header, " ")
-	if len(parts) != 2 {
-		return "[invalid format]"
-	}
-
-	token := parts[1]
-	if len(token) <= 10 {
-		return parts[0] + " [masked]"
-	}
-
-	return parts[0] + " " + token[:5] + "..." + token[len(token)-5:]
-}

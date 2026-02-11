@@ -191,14 +191,7 @@ func BuildServiceWorkflow(ctx workflow.Context, input BuildServiceWorkflowInput)
 		}
 
 		var cloneResult CloneRepoResult
-		err := workflow.ExecuteActivity(actCtx, activities.CloneRepo, CloneRepoInput{
-			ServiceID:      input.ServiceID,
-			Repo:           input.Repo,
-			Branch:         input.Branch,
-			GitProvider:    input.GitProvider,
-			InstallationID: input.InstallationID,
-			CommitSHA:      input.CommitSHA,
-		}).Get(ctx, &cloneResult)
+		err := workflow.ExecuteActivity(actCtx, activities.CloneRepo, CloneRepoInput(input)).Get(ctx, &cloneResult)
 		if err != nil {
 			return BuildServiceWorkflowResult{}, fmt.Errorf("clone failed: %w", err)
 		}
@@ -290,11 +283,7 @@ func DeleteServiceWorkflow(ctx workflow.Context, input DeleteServiceWorkflowInpu
 
 	var activities *Activities
 	var deleteResult DeleteServiceResult
-	if err := workflow.ExecuteActivity(ctx, activities.DeleteService, DeleteServiceInput{
-		ServiceID: input.ServiceID,
-		Namespace: input.Namespace,
-		Name:      input.Name,
-	}).Get(ctx, &deleteResult); err != nil {
+	if err := workflow.ExecuteActivity(ctx, activities.DeleteService, DeleteServiceInput(input)).Get(ctx, &deleteResult); err != nil {
 		return DeleteServiceWorkflowResult{
 			ServiceID:    input.ServiceID,
 			Status:       StatusFailed,

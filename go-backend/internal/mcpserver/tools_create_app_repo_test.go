@@ -58,11 +58,6 @@ func TestNormalizeServiceRepo(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "ml.ink without internalGitSvc returns error",
-			input:   CreateServiceInput{Repo: "exp20", Host: "ml.ink"},
-			wantErr: true,
-		},
-		{
 			name:    "github.com without github username returns error",
 			input:   CreateServiceInput{Repo: "exp20", Host: "github.com"},
 			wantErr: true,

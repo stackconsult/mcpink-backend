@@ -110,11 +110,12 @@ func (h *Handlers) handleInstallationWebhook(w http.ResponseWriter, r *http.Requ
 	}
 
 	var installationID int64
-	if payload.Action == "created" {
+	switch payload.Action {
+	case "created":
 		installationID = payload.Installation.ID
-	} else if payload.Action == "deleted" {
+	case "deleted":
 		installationID = 0
-	} else {
+	default:
 		h.logger.Info("ignoring installation action", "action", payload.Action)
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(WebhookResponse{Message: "ignored action: " + payload.Action})

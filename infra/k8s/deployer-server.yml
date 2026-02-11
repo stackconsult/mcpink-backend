@@ -25,11 +25,10 @@ spec:
           operator: Equal
           value: ops
           effect: NoSchedule
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: deployer-server
-          image: ghcr.io/augustdev/deployer-server:initial
+          image: registry.internal:5000/dp-system/deployer-server:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8081
           env:

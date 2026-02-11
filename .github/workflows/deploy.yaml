@@ -42,20 +42,18 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/deployer-server ./cmd/deployer-server
 
       - name: Build & push deployer-worker
-        working-directory: go-backend
         run: |
           cp /tmp/deployer-worker .tmp-deployer-worker-image/deployer-worker
-          cp application.yaml .tmp-deployer-worker-image/application.yaml
+          cp go-backend/application.yaml .tmp-deployer-worker-image/application.yaml
           docker build --platform linux/amd64 \
             -t ${{ env.WORKER_IMAGE }}:${{ env.SHORT_SHA }} \
             .tmp-deployer-worker-image/
           docker push ${{ env.WORKER_IMAGE }}:${{ env.SHORT_SHA }}
 
       - name: Build & push deployer-server
-        working-directory: go-backend
         run: |
           cp /tmp/deployer-server .tmp-deployer-server-image/deployer-server
-          cp application.yaml .tmp-deployer-server-image/application.yaml
+          cp go-backend/application.yaml .tmp-deployer-server-image/application.yaml
           docker build --platform linux/amd64 \
             -t ${{ env.SERVER_IMAGE }}:${{ env.SHORT_SHA }} \
             .tmp-deployer-server-image/

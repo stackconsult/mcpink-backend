@@ -57,11 +57,10 @@ spec:
           value: build
           effect: NoSchedule
       serviceAccountName: deployer-worker
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: worker
-          image: ghcr.io/augustdev/deployer-worker:initial
+          image: registry.internal:5000/dp-system/deployer-worker:latest
+          imagePullPolicy: Always
           volumeMounts:
             - name: worker-tmp
               mountPath: /tmp

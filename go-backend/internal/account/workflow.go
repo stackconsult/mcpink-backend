@@ -27,9 +27,7 @@ func SetupAccountWorkflow(ctx workflow.Context, input SetupAccountInput) (SetupA
 
 	var activities *Activities
 
-	createProjectInput := CreateDefaultProjectInput{
-		UserID: input.UserID,
-	}
+	createProjectInput := CreateDefaultProjectInput(input)
 
 	var createProjectResult CreateDefaultProjectResult
 	err := workflow.ExecuteActivity(ctx, activities.CreateDefaultProject, createProjectInput).Get(ctx, &createProjectResult)

@@ -505,7 +505,7 @@ func (s *Server) handleGetService(ctx context.Context, req *mcp.CallToolRequest,
 		if err := json.Unmarshal(app.EnvVars, &envVars); err == nil {
 			output.EnvVars = make([]EnvVarInfo, len(envVars))
 			for i, ev := range envVars {
-				output.EnvVars[i] = EnvVarInfo{Key: ev.Key, Value: ev.Value}
+				output.EnvVars[i] = EnvVarInfo(ev)
 			}
 		}
 	}

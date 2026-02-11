@@ -18,3 +18,6 @@ gqlgen:
 
 test:
 	@go test ./...
+
+lint:
+	@golangci-lint run --timeout=10m ./...
