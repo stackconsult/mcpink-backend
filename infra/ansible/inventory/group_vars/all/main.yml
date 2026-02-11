@@ -15,6 +15,15 @@ registry_host_fqdn: "{{ registry_host_alias }}:{{ registry_port }}"
 firewall_block_smtp: true
 firewall_block_metadata: true
 
+# Helm CLI pin (reproducible controller bootstrap)
+helm_cli_version: "3.16.4"
+helm_cli_arch_map:
+  x86_64: amd64
+  aarch64: arm64
+helm_cli_sha256:
+  amd64: fc307327959aa38ed8f9f7e66d45492bb022a66c3e5da6063958254b9767d179
+  arm64: d3f8f15b3d9ec8c8678fbf3280c3e5902efabe5912e2f9fcf29107efbc8ead69
+
 # Helm chart versions (pin where practical)
 traefik_chart_ref: traefik/traefik
 cert_manager_chart_ref: jetstack/cert-manager
@@ -22,6 +31,12 @@ loki_chart_ref: grafana/loki
 promtail_chart_ref: grafana/promtail
 prometheus_chart_ref: prometheus-community/kube-prometheus-stack
 grafana_chart_ref: grafana/grafana
+traefik_chart_version: "39.0.0"
+cert_manager_chart_version: "v1.19.3"
+loki_chart_version: "6.53.0"
+promtail_chart_version: "6.17.1"
+prometheus_chart_version: "81.6.1"
+grafana_chart_version: "10.5.15"
 
 # Helm release names
 traefik_release_name: traefik
@@ -31,7 +46,7 @@ promtail_release_name: promtail
 prometheus_release_name: prometheus
 grafana_release_name: grafana
 
-# Cloudflare load balancer defaults (playbooks/cloudflare-lb.yml)
+# Cloudflare load balancer defaults (Cloudflare dashboard is current control surface)
 cloudflare_lb_hostnames:
   - "*.{{ apps_domain }}"
   - "grafana.{{ apps_domain }}"

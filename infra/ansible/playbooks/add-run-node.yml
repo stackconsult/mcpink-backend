@@ -23,8 +23,8 @@
       until: node_status.stdout == "True"
       delegate_to: "{{ groups['ctrl'][0] }}"
 
-    - name: DNS reminder
+    - name: Cloudflare origin pool reminder
       debug:
         msg: >-
           {{ inventory_hostname }} is Ready.
-          Add public DNS A record for *.{{ apps_domain }} -> {{ ansible_host }}.
+          Update the Cloudflare Load Balancer origin pool to include {{ ansible_host }} (DNS wildcard A record is not required).

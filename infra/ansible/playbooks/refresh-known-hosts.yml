@@ -1,0 +1,46 @@
+---
+- name: Refresh repository SSH known_hosts from inventory
+  hosts: localhost
+  gather_facts: false
+  vars:
+    known_hosts_file: "{{ playbook_dir }}/../inventory/known_hosts"
+
+  tasks:
+    - name: Build SSH keyscan target list from inventory
+      set_fact:
+        known_hosts_targets: "{{ (known_hosts_targets | default([])) + [hostvars[item].ansible_host | default(item)] }}"
+      loop: "{{ groups['all'] | difference(['localhost']) }}"
+
+    - name: Initialize repository known_hosts file
+      copy:
+        dest: "{{ known_hosts_file }}"
+        mode: "0644"
+        content: |
+          # Managed by playbooks/refresh-known-hosts.yml.
+          # Refresh with: ansible-playbook playbooks/refresh-known-hosts.yml
+          # Source of truth: inventory/hosts.yml ansible_host values.
+          #
+
+    - name: Scan SSH host keys from inventory targets
+      command: "ssh-keyscan -T 5 -t rsa,ecdsa,ed25519 {{ item }}"
+      loop: "{{ (known_hosts_targets | default([])) | unique }}"
+      register: ssh_keyscan_results
+      changed_when: false
+
+    - name: Persist scanned SSH host keys
+      lineinfile:
+        path: "{{ known_hosts_file }}"
+        line: "{{ item }}"
+        state: present
+      loop: >-
+        {{
+          ssh_keyscan_results.results
+          | map(attribute='stdout_lines')
+          | flatten
+          | map('trim')
+          | reject('equalto', '')
+          | reject('match', '^#')
+          | unique
+          | list
+        }}
+      when: ssh_keyscan_results.results is defined

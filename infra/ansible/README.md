@@ -15,8 +15,9 @@ It also preserves the original `README.md` platform goals:
 - `playbooks/add-run-node.yml` - Add a new run node.
 - `playbooks/upgrade-k3s.yml` - Upgrade existing cluster nodes.
 - `playbooks/patch-hosts.yml` - Apply OS security updates (apt upgrade + optional reboot).
-- `playbooks/cloudflare-lb.yml` - Reconcile Cloudflare Load Balancer origins + hostnames from inventory.
+- `playbooks/refresh-known-hosts.yml` - Rebuild `inventory/known_hosts` from current inventory host targets.
 - `roles/` - Node/bootstrap responsibilities.
+- `inventory/known_hosts` - Repository-managed SSH host keys used for strict host verification.
 
 ## Prerequisites
 
@@ -28,10 +29,21 @@ It also preserves the original `README.md` platform goals:
    - `grafana.ml.ink`
    - `loki.ml.ink`
 
+## SSH host key workflow
+
+Host key checking is enforced and SSH only trusts keys in `inventory/known_hosts`.
+
+Refresh host keys whenever you add/reimage hosts or rotate SSH host keys:
+
+```bash
+ansible-playbook playbooks/refresh-known-hosts.yml
+```
+
 ## First Run
 
 ```bash
 cd infra/ansible
+ansible-playbook playbooks/refresh-known-hosts.yml
 ansible-playbook playbooks/site.yml
 ```
 
@@ -43,11 +55,8 @@ ansible-playbook playbooks/site.yml \
   -e loki_basic_auth_users="deploy:$LOKI_BCRYPT"
 ```
 
-Apply Cloudflare Load Balancer config (wildcard + Grafana + Loki) from inventory run nodes:
-
-```bash
-ansible-playbook playbooks/cloudflare-lb.yml
-```
+After adding or replacing run nodes, update the Cloudflare Load Balancer origin pool in the dashboard.
+Cloudflare remains the source of truth for public host/origin routing.
 
 ## Security Patching
 

@@ -80,7 +80,7 @@ Deploy MCP supports two git providers, each with its own auth model:
 
 ### MCP Authentication
 
-Agents authenticate to the MCP server (`/mcp`) via API key:
+Agents authenticate to the MCP server (`https://mcp.ml.ink/mcp`) via API key:
 
 ```
 Authorization: Bearer dk_live_abc123...
@@ -171,22 +171,29 @@ Both trigger the same Temporal redeploy workflow with deterministic workflow IDs
 
 ```bash
 # Production
-claude mcp add --transport http mcpdeploy https://api.ml.ink/mcp --header "Authorization: Bearer <your-api-key>"
+claude mcp add --transport http mcpdeploy https://mcp.ml.ink/mcp --header "Authorization: Bearer <your-api-key>"
 
 # Local development
 claude mcp add --transport http mcpdeploy http://localhost:8081/mcp --header "Authorization: Bearer <your-api-key>"
 ```
 
+Webhook ingress remains on `https://api.ml.ink` (`deployer-server` `/healthz` + git webhook receiver).
+
 ## Application Binaries
 
-There are 4 separate binaries:
+There are 4 binaries split across two runtimes:
 
-| Binary            | Path                          | Purpose                                                         | Task Queue   | K8s Manifest                    |
-| ----------------- | ----------------------------- | --------------------------------------------------------------- | ------------ | ------------------------------- |
-| `server`          | `cmd/server/main.go`          | Product API — GraphQL, MCP server, OAuth, Firebase auth         | —            | `infra/k8s/api-server.yml`      |
-| `worker`          | `cmd/worker/main.go`          | Product Temporal worker — account workflows                     | `default`    | —                               |
-| `deployer-server` | `cmd/deployer-server/main.go` | Webhook receiver (GitHub + Gitea), kicks off Temporal workflows | —            | `infra/k8s/deployer-server.yml` |
-| `deployer-worker` | `cmd/deployer-worker/main.go` | K8s deployment worker — build, deploy, delete, status           | `k8s-native` | `infra/k8s/deployer-worker.yml` |
+- Railway: `cmd/server` + `cmd/worker`
+- k3s cluster: `cmd/deployer-server` + `cmd/deployer-worker`
+
+| Binary            | Path                          | Runtime        | Purpose                                                         | Task Queue   | K8s Manifest                    |
+| ----------------- | ----------------------------- | -------------- | --------------------------------------------------------------- | ------------ | ------------------------------- |
+| `server`          | `cmd/server/main.go`          | Railway        | Product API — GraphQL, MCP server, OAuth, Firebase auth        | —            | —                               |
+| `worker`          | `cmd/worker/main.go`          | Railway        | Product Temporal worker — account workflows                     | `default`    | —                               |
+| `deployer-server` | `cmd/deployer-server/main.go` | k3s (`dp-system`) | Webhook receiver (GitHub + Gitea), kicks off Temporal workflows | —            | `infra/k8s/deployer-server.yml` |
+| `deployer-worker` | `cmd/deployer-worker/main.go` | k3s (`dp-system`) | K8s deployment worker — build, deploy, delete, status          | `k8s-native` | `infra/k8s/deployer-worker.yml` |
+
+Mapping note: conceptual `k8s-server` = `deployer-server`; conceptual `k8s-worker` = `deployer-worker`.
 
 The deployer-server is **not** the product server. It only handles webhooks and `/healthz` — no GraphQL, no MCP, no OAuth.
 
@@ -352,7 +359,7 @@ We separate control, ops, build, and run across dedicated node pools so CPU-heav
 ### Networking
 
 - **Private network**: Hetzner vSwitch (`10.0.0.0/16`) bridges cloud and dedicated servers
-- **Public ingress**: Cloudflare LB (`*.ml.ink`) → run node origin pool → Traefik → k8s Service
+- **Public ingress source of truth**: Cloudflare LB (`*.ml.ink`) → run node origin pool → Traefik → k8s Service
 - **TLS**: Wildcard Let's Encrypt cert via cert-manager DNS-01, served by Traefik TLSStore
 
 ---
@@ -452,7 +459,7 @@ The playbook applies: common hardening, vSwitch networking, k3s agent join, regi
 
 ### Cloudflare LB Pool Management
 
-All public traffic flows through Cloudflare LB (`*.ml.ink` → run-node origin pool). To add or remove run nodes, update the `run-nodes` origin pool in the Cloudflare dashboard (Traffic → Load Balancing → Pools). No DNS records to manage.
+Cloudflare LB is the source of truth for public ingress (`*.ml.ink` → run-node origin pool). To add or remove run nodes, update the `run-nodes` origin pool in the Cloudflare dashboard (Traffic → Load Balancing → Pools). No DNS records to manage.
 
 ### Cluster Management
 

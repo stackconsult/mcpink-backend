@@ -255,16 +255,27 @@ make lint                 # Run golangci-lint (requires: go install github.com/g
 
 ## Application Binaries
 
-There are 4 separate binaries — **do not confuse them**:
+There are 4 binaries split across two runtimes:
 
-| Binary | Path | Purpose | K8s Manifest |
-|--------|------|---------|-------------|
-| `server` | `cmd/server/main.go` | Product API (GraphQL, MCP server, OAuth, Firebase) | N/A (not yet deployed to k8s) |
-| `worker` | `cmd/worker/main.go` | Product Temporal worker (task queue: `default`) | N/A |
-| `deployer-server` | `cmd/deployer-server/main.go` | Webhook receiver (GitHub + Gitea), kicks off Temporal workflows | `infra/k8s/deployer-server.yml` |
-| `deployer-worker` | `cmd/deployer-worker/main.go` | K8s deployment worker (build, deploy, delete) (task queue: `k8s-native`) | `infra/k8s/deployer-worker.yml` |
+- Railway: `cmd/server` + `cmd/worker`
+- k3s cluster: `cmd/deployer-server` + `cmd/deployer-worker`
+
+| Binary | Path | Runtime | Purpose | K8s Manifest |
+|--------|------|---------|---------|-------------|
+| `server` | `cmd/server/main.go` | Railway | Product API (GraphQL, MCP server, OAuth, Firebase) | — |
+| `worker` | `cmd/worker/main.go` | Railway | Product Temporal worker (task queue: `default`) | — |
+| `deployer-server` | `cmd/deployer-server/main.go` | k3s (`dp-system`) | Webhook receiver (GitHub + Gitea), kicks off Temporal workflows | `infra/k8s/deployer-server.yml` |
+| `deployer-worker` | `cmd/deployer-worker/main.go` | k3s (`dp-system`) | K8s deployment worker (build, deploy, delete) (task queue: `k8s-native`) | `infra/k8s/deployer-worker.yml` |
+
+Mapping note: conceptual `k8s-server` = `deployer-server`; conceptual `k8s-worker` = `deployer-worker`.
 
 **The deployer-server is NOT the product server.** It only handles webhooks and /healthz — no GraphQL, no MCP, no OAuth flows.
+
+## Public Ingress Contract
+
+- MCP endpoint: `https://mcp.ml.ink/mcp`
+- Webhook ingress (unchanged): `https://api.ml.ink`
+- Cloudflare LB is the source of truth for public ingress host/origin routing.
 
 ### Deploying the deployer-worker to the cluster
 
