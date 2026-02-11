@@ -160,6 +160,7 @@ func buildDeployment(namespace, name, imageRef, port string) *appsv1.Deployment 
 					Labels: map[string]string{"app": name},
 				},
 				Spec: corev1.PodSpec{
+					RuntimeClassName:             ptr.To("gvisor"),
 					AutomountServiceAccountToken: ptr.To(false),
 					SecurityContext: &corev1.PodSecurityContext{},
 					Containers: []corev1.Container{
