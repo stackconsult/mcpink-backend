@@ -15,7 +15,7 @@ func TestWaitForRollout_RetriesUntilDeploymentExists(t *testing.T) {
 	waitForRolloutPollInterval = 5 * time.Millisecond
 	t.Cleanup(func() { waitForRolloutPollInterval = prev })
 
-	client := fake.NewSimpleClientset()
+	client := fake.NewClientset()
 	a := &Activities{k8s: client}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
