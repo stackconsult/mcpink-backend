@@ -25,4 +25,6 @@
 - Track-only: enforce pod-level `runAsNonRoot` + `allowPrivilegeEscalation=false` for tenant template (`infra/k8s/customer-service-template.yml`) after compatibility validation.
 - If user deletes service while it's being deployed the deployment service will stop and likely will not clean itself
 - make sure all ansible manifests match the infrastructure, nothing should be provisioned manually
-- let's not show graphql errors like `errors="input: me failed to get Firebase user: context canceled\n"` it means user refreshed the page before query loaded. 
+- let's not show graphql errors like `errors="input: me failed to get Firebase user: context canceled\n"` it means user refreshed the page before query loaded.
+- Separate binaries for `mcp` and `graphql` API.
+- Should we have sepparate application.yaml for mcp, deplyer, server/worker?
