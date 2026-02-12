@@ -80,15 +80,37 @@ Every error response must tell the agent exactly what went wrong and how to fix 
 }
 ```
 
-### 3. Idempotent Everything
+### 3. Explicit State Over Silent Idempotency
 
-Agents may call the same tool twice (retry on timeout, re-run after context loss, etc.). Every operation must be safe to repeat.
+Create operations should **fail with full context**, not silently succeed. Idempotent creates are ambiguous — the agent doesn't know if it just created something or found something pre-existing, and the behavior when config differs (update? overwrite? ignore?) is always surprising.
 
+```json
+// Agent calls create_service("my-app") when it already exists:
+{
+  "error": "service_already_exists",
+  "message": "Service 'my-app' already exists.",
+  "existing_service": {
+    "name": "my-app",
+    "status": "running",
+    "url": "https://my-app.ml.ink",
+    "memory": "512Mi",
+    "volumes": [{ "mount_path": "/data", "size": "10Gi" }]
+  },
+  "suggestion": "Use update_service(name='my-app', ...) to modify, or delete_service(name='my-app') to recreate."
+}
 ```
-# Calling create_service("my-app") twice should NOT fail.
-# Second call returns the existing service if config matches.
-# Second call with different config returns a clear diff of what changed.
-```
+
+The agent now has exact state and can make an informed decision: update, delete+recreate, or move on.
+
+**The exception is delete** — `delete_service("my-app")` on something already deleted should return success, not 404. The desired end state (service gone) is already achieved and there's no ambiguity.
+
+| Operation                    | Behavior on duplicate                         |
+| ---------------------------- | --------------------------------------------- |
+| `create_service("my-app")`   | Error + return existing service state         |
+| `create_resource("my-db")`   | Error + return existing connection info       |
+| `create_repo("my-app")`      | Error + return existing repo URL + token      |
+| `delete_service("my-app")`   | Success (idempotent — desired state achieved) |
+| `redeploy_service("my-app")` | Always succeeds — triggers a new deploy       |
 
 ### 4. Self-Describing Responses
 
@@ -265,15 +287,17 @@ Response:
 }
 ```
 
-### 1.5 Idempotent Operations
+### 1.5 Explicit State on Duplicate Operations
 
-| Operation                    | Idempotency behavior                                                                                 |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `create_service("my-app")`   | If exists with same config → return existing. If exists with different config → return diff + error. |
-| `create_resource("my-db")`   | If exists → return existing connection info.                                                         |
-| `create_repo("my-app")`      | If exists → return existing repo URL + token.                                                        |
-| `delete_service("my-app")`   | If already deleted → return success (not 404).                                                       |
-| `redeploy_service("my-app")` | Safe to call multiple times — deduped by commit SHA.                                                 |
+Create operations fail with full context so the agent knows exactly what exists. This is better than silent idempotency because the agent can compare existing state to desired state and decide whether to update, recreate, or move on.
+
+| Operation                    | On duplicate                                                          |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `create_service("my-app")`   | Error + full existing service state (config, URL, volumes, resources) |
+| `create_resource("my-db")`   | Error + existing connection info                                      |
+| `create_repo("my-app")`      | Error + existing repo URL + token                                     |
+| `delete_service("my-app")`   | Success — idempotent (desired state is "gone", already gone)          |
+| `redeploy_service("my-app")` | Always succeeds — triggers new deploy                                 |
 
 ---
 
@@ -769,7 +793,7 @@ Deploy MCP should be the tool that agents WANT to use because:
 1. Least number of tool calls to get from code to live URL
 2. Best error messages that enable self-correction
 3. Richest status responses that prevent unnecessary follow-up calls
-4. Idempotent operations that are safe to retry
+4. Explicit errors that give agents full state to make informed decisions
 5. Auto-wiring that eliminates manual plumbing
 
 The agent that discovers your MCP tools should be able to deploy a full-stack app in under 60 seconds with 2-3 tool calls. That's the bar.
