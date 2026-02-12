@@ -1,576 +1,799 @@
-# Future Architecture
+# Agent-First Deployment MCP: Feature Strategy
 
-> Architecture decisions and scaling progression for Deploy MCP infrastructure.
+> Agents deploy 100x more apps than humans. Design every feature for the agent first, human second.
 
 ---
 
 ## Table of Contents
 
-1. [Scaling Progression](#scaling-progression)
-2. [Cluster Abstraction](#cluster-abstraction)
-3. [Storage Strategy](#storage-strategy)
-4. [Provider Abstractions](#provider-abstractions)
-5. [Volume Feature Design](#volume-feature-design)
-6. [Multi-Cluster Architecture](#multi-cluster-architecture)
-7. [Operational Concerns](#operational-concerns)
-8. [What NOT to Abstract](#what-not-to-abstract)
-9. [Railway Learnings](#railway-learnings)
+1. [Agent vs Human: What's Different](#agent-vs-human-whats-different)
+2. [Core Principles](#core-principles)
+3. [Tier 1: Ship Now (Foundation)](#tier-1-ship-now)
+4. [Tier 2: Ship Soon (Competitive Edge)](#tier-2-ship-soon)
+5. [Tier 3: Ship Later (Moat)](#tier-3-ship-later)
+6. [Tool Design Guidelines](#tool-design-guidelines)
+7. [Error Design](#error-design)
+8. [The Full Tool Surface](#the-full-tool-surface)
 
 ---
 
-## Scaling Progression
+## Agent vs Human: What's Different
 
-### Stage 1: Now → ~5K customers
+| Dimension          | Human developer                                     | AI agent                                                         |
+| ------------------ | --------------------------------------------------- | ---------------------------------------------------------------- |
+| **Debugging**      | Opens dashboard, reads logs visually, clicks around | Can ONLY see what tool responses return                          |
+| **Error recovery** | Googles error, reads docs, tries something          | Retries with modified params based on error message              |
+| **Speed**          | One deploy per session                              | 10+ deploys in a single conversation                             |
+| **Context**        | Remembers past sessions, bookmarks URLs             | Stateless — every conversation starts fresh                      |
+| **Accounts**       | Has GitHub, Railway, AWS logins                     | Has ONE API key to your MCP                                      |
+| **Patience**       | Will wait 5 minutes for a build                     | Every second of waiting = tokens burned and context consumed     |
+| **Wiring**         | Manually copies connection strings between services | Needs env vars auto-injected or returned in tool responses       |
+| **Validation**     | Reviews code before deploying                       | May deploy broken code, needs fast feedback to iterate           |
+| **Trust model**    | Reads docs, understands limits                      | Discovers capabilities from tool descriptions and error messages |
+| **Scale**          | One project at a time                               | May manage dozens of services for one user                       |
 
-**Stack:** k3s (single cluster) + Longhorn
-
-- Single k3s cluster, 3-10 run nodes (Hetzner dedicated, 256GB RAM each)
-- Longhorn for volume replication across run nodes
-- CX32 ctrl node is the first bottleneck — upgrade to CX52 or dedicated early
-- ~10 etcd objects per customer (pods + PVCs + services + ingresses + secrets)
-- CX32 (8GB) comfortable at ~1000 objects, tight at ~2000-3000
-
-**Capacity per run node (256GB RAM):**
-
-```
-256GB total
-  - 2GB    OS / kubelet / system
-  - 0.5GB  Traefik (DaemonSet)
-  - 3GB    Longhorn base (manager, driver, CSI)
-  ─────────
-~250GB available for customer workloads + volume replicas
-```
-
-**Action items:**
-
-- Deploy Longhorn scoped to `pool=run` nodes only
-- Enforce volume size limits from day 1
-- Implement volume backups to S3/R2 from day 1
-- Upgrade ctrl node before adding more run nodes
-
-### Stage 2: ~5K → ~20K customers
-
-**Stack:** k3s HA (multi-master) or RKE2, multi-cluster, Longhorn or transition to Ceph
-
-- Shard by region: `eu-west-1`, `us-east-1`
-- 3 master nodes per cluster (HA control plane with embedded etcd)
-- Product API routes customers to clusters
-- Longhorn if <500 volumes per cluster, Ceph if more
-- Temporal + product API stay centralized on Railway
-- One deployer-worker per cluster
-
-**Action items:**
-
-- Implement cluster routing in product API
-- Automate cluster provisioning (Terraform/Ansible)
-- Evaluate Ceph for new clusters (don't migrate old ones)
-
-### Stage 3: ~20K → ~100K customers
-
-**Stack:** Multi-cluster k8s + Ceph + custom scheduling
-
-- Kubernetes still the container runtime
-- Smart placement logic above k8s (which cluster has capacity?)
-- Ceph for storage (scales better than Longhorn at thousands of volumes)
-- Dedicated build clusters per region
-- Possibly dedicated storage nodes separate from compute nodes
-
-### Stage 4: 100K+ customers
-
-**Stack:** Re-evaluate everything
-
-- Most companies never need to leave Kubernetes at this scale (Shopify runs 600K+ pods on k8s)
-- Railway left k8s for sub-second deploys and extreme scheduling control — that's a product decision, not a scale limitation
-- New clusters get whatever storage/orchestration makes sense at that time
-
-### Kubernetes Hard Limits (reference)
-
-| Limit              | Upstream tested |
-| ------------------ | --------------- |
-| Nodes per cluster  | 5,000           |
-| Pods per cluster   | 150,000         |
-| Total etcd objects | 300,000         |
-
-Performance degrades well before these limits. Plan to shard around 500-1000 nodes / 50-100K pods.
+**The key insight:** Agents live in a tool-response-only world. If information isn't in the tool response, it doesn't exist. If an error doesn't explain what to do differently, the agent will repeat the mistake. Every feature must be designed for this constraint.
 
 ---
 
-## Cluster Abstraction
+## Core Principles
 
-### Cluster as a First-Class Entity
+### 1. One Transaction, Full Stack
 
-Clusters are a database entity, not a hardcoded config. Even with one cluster, all code resolves cluster config dynamically.
-
-```sql
-CREATE TABLE clusters (
-    id               TEXT PRIMARY KEY,              -- "eu-west-1"
-    name             TEXT NOT NULL,                  -- "Europe West 1"
-    region           TEXT NOT NULL,                  -- "eu-west"
-    task_queue        TEXT NOT NULL UNIQUE,           -- "deployer-eu-west-1"
-    api_endpoint     TEXT,                           -- k8s API endpoint
-    storage_provider TEXT NOT NULL DEFAULT 'longhorn', -- "longhorn" | "rook-ceph"
-    registry_url     TEXT NOT NULL,                  -- "10.0.1.4:5000"
-    status           TEXT NOT NULL DEFAULT 'active', -- active | draining | maintenance
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
-Services reference their cluster:
-
-```sql
-ALTER TABLE services ADD COLUMN cluster_id TEXT NOT NULL
-    REFERENCES clusters(id) DEFAULT 'eu-west-1';
-```
-
-### Task Queue Routing
-
-Temporal task queues are postfixed with cluster ID. The deployer-worker reads its cluster assignment from environment config and registers against the corresponding queue.
-
-```go
-// Product API: resolve task queue from cluster
-cluster := getClusterForService(service)
-workflow.ExecuteActivity(ctx, activities.Deploy, workflow.ActivityOptions{
-    TaskQueue: cluster.TaskQueue, // "deployer-eu-west-1"
-})
-```
-
-```go
-// cmd/deployer-worker/main.go
-// Same binary, different cluster assignment per instance
-w := worker.New(temporalClient, cfg.ClusterTaskQueue, worker.Options{})
-// env: CLUSTER_TASK_QUEUE=deployer-eu-west-1
-```
-
-### Cluster Placement
-
-Today: single cluster, trivial. Future: placement logic selects cluster based on region preference, capacity, and volume requirements.
-
-```go
-cluster := selectCluster(ctx, SelectClusterInput{
-    Region:    user.PreferredRegion,
-    HasVolume: len(volumes) > 0,
-})
-```
-
----
-
-## Storage Strategy
-
-### Decision: Longhorn Now, Ceph on New Clusters Later
-
-**Longhorn** is the right choice for Stage 1-2:
-
-- Built for k3s, first-class support
-- Simple failure modes (volume degraded → replica missing → rebuild)
-- Handles up to ~500 volumes per cluster comfortably
-- Synchronous replication across run nodes
-- Auto-rebuilds replicas when nodes return
-
-**Rook-Ceph** for Stage 2+ on new clusters:
-
-- Fixed daemon overhead regardless of volume count (scales to 10,000+ volumes)
-- Better IOPS (kernel RBD client vs Longhorn's iSCSI)
-- Dedicated storage node architecture
-- More powerful snapshots, clones, mirroring
-- Complex failure modes (PG states, CRUSH maps, OSD trees)
-
-### Migration Strategy: No Big Bang
-
-When Ceph makes sense, deploy it on **new clusters only**. Old clusters stay on Longhorn until they naturally wind down. Multi-cluster means no forced migration — stop putting new customers on old clusters and let them drain organically.
-
-### Longhorn Configuration
-
-Scoped exclusively to run nodes to protect ctrl, ops, and build pools:
-
-```yaml
-# Helm values for Longhorn
-longhornManager:
-  nodeSelector:
-    pool: run
-  tolerations: [] # Remove default tolerate-all
-
-longhornDriver:
-  nodeSelector:
-    pool: run
-
-defaultSettings:
-  systemManagedComponentsNodeSelector: "pool:run"
-  defaultDataLocality: "best-effort"
-  defaultReplicaCount: 2 # 3 when we have 3+ run nodes
-```
-
-### Storage Comparison Reference
-
-|                         | Longhorn              | Rook-Ceph                       |
-| ----------------------- | --------------------- | ------------------------------- |
-| Min nodes               | 2                     | 3 (MON quorum)                  |
-| Dedicated storage nodes | No                    | Recommended                     |
-| Base overhead           | ~1-2GB RAM            | ~4-6GB RAM                      |
-| Per-volume overhead     | Engine + replicas     | Near zero                       |
-| Practical max volumes   | ~500                  | 10,000+                         |
-| IOPS                    | Good (iSCSI)          | Better (kernel RBD)             |
-| Failure debugging       | Simple, readable logs | Complex (PG states, CRUSH maps) |
-| k3s compatibility       | First-class           | Works with tuning               |
-
-### Other Storage Options (Evaluated)
-
-| Solution                   | Verdict                                                                          |
-| -------------------------- | -------------------------------------------------------------------------------- |
-| **OpenEBS Mayastor**       | Best NVMe I/O performance, but younger project with fewer production war stories |
-| **DRBD/LINSTOR (Piraeus)** | Kernel-native, extremely mature, but commercial licensing for some features      |
-| **Portworx**               | Enterprise best-in-class, but expensive commercial license                       |
-| **Robin.io**               | App-aware snapshots, but commercial with less community support                  |
-
----
-
-## Provider Abstractions
-
-### VolumeProvider
-
-Abstracts storage lifecycle so the deploy workflow never knows if it's Longhorn or Ceph underneath. The provider is resolved from the cluster's `storage_provider` column.
-
-```go
-type VolumeProvider interface {
-    // Lifecycle
-    CreateVolume(ctx context.Context, opts CreateVolumeOpts) (*Volume, error)
-    DeleteVolume(ctx context.Context, name string, namespace string) error
-    ResizeVolume(ctx context.Context, name string, namespace string, newSize string) error
-
-    // Observability
-    GetVolumeStatus(ctx context.Context, name string, namespace string) (*VolumeStatus, error)
-
-    // Backup
-    CreateSnapshot(ctx context.Context, name string, namespace string) (*Snapshot, error)
-    RestoreSnapshot(ctx context.Context, snapshotID string, targetPVC string) error
-}
-
-type CreateVolumeOpts struct {
-    Name       string
-    Namespace  string
-    Size       string // "10Gi"
-    AccessMode string // "ReadWriteOnce"
-    // No storage class — the provider decides
-}
-
-type VolumeStatus struct {
-    Phase    string // Bound, Pending, Lost
-    Size     string
-    Node     string // which node it landed on
-    Healthy  bool   // all replicas healthy?
-    Replicas int    // how many copies exist
-}
-```
-
-Implementations:
-
-```go
-type LonghornProvider struct {
-    kubeClient   kubernetes.Interface
-    storageClass string // "longhorn"
-}
-
-type CephProvider struct {
-    kubeClient   kubernetes.Interface
-    storageClass string // "rook-ceph-block"
-}
-```
-
-### BuildProvider
-
-Abstracts build infrastructure so each cluster can have its own BuildKit setup or shared build cluster.
-
-```go
-type BuildProvider interface {
-    Build(ctx context.Context, opts BuildOpts) (*BuildResult, error)
-    GetBuildStatus(ctx context.Context, buildID string) (*BuildStatus, error)
-}
-
-type BuildOpts struct {
-    RepoURL   string
-    CommitSHA string
-    BuildPack string // "railpack", "dockerfile", "static"
-    ImageTag  string // target image tag
-    Registry  string // which registry to push to
-}
-```
-
-### IngressProvider
-
-Abstracts domain assignment and ingress creation. Multi-cluster means different Cloudflare LB pools per cluster, potentially different base domains per region.
-
-```go
-type IngressProvider interface {
-    CreateIngress(ctx context.Context, opts IngressOpts) (*IngressResult, error)
-    DeleteIngress(ctx context.Context, name string, namespace string) error
-}
-
-type IngressResult struct {
-    URL         string // "https://my-app.ml.ink"
-    InternalURL string // "my-app.ns.svc.cluster.local"
-}
-```
-
-### ResourceProvider
-
-Already partially abstracted with Turso. Same pattern for future database providers.
-
-```go
-type ResourceProvider interface {
-    Create(ctx context.Context, opts CreateResourceOpts) (*Resource, error)
-    Delete(ctx context.Context, name string) error
-    GetConnectionInfo(ctx context.Context, name string) (*ConnectionInfo, error)
-}
-// Turso now, Neon Postgres later, self-hosted Postgres later
-```
-
----
-
-## Volume Feature Design
-
-### How Volumes Work in Containers
-
-Volumes don't replace the container's root filesystem. They mount a persistent disk at a specific path. Only writes to the mount path persist.
+The single most important feature. An agent should go from "I built a Next.js app with a database" to "it's live" in one or two tool calls, not ten.
 
 ```
-/               ← root filesystem (from container image, EPHEMERAL)
-├── app/        ← application code (ephemeral)
-├── tmp/        ← temp files (ephemeral)
-├── data/       ← VOLUME (persistent, survives restarts/reschedules)
-│   ├── uploads/
-│   ├── sqlite.db
-│   └── cache/
-└── ...
-```
+# BAD: Agent has to orchestrate 6 calls and wire everything manually
+create_repo(name="my-app")
+token = get_git_token(name="my-app")
+# ... push code ...
+db = create_resource(name="my-db", type="sqlite")
+create_service(repo="my-app", name="my-app")
+# Now agent has to figure out env var wiring
+set_env_vars(name="my-app", vars={"DATABASE_URL": db.url, "DATABASE_TOKEN": db.auth_token})
+redeploy_service(name="my-app")
 
-### MCP Interface
-
-```
+# GOOD: One call, everything wired
 create_service(
   repo="my-app",
   name="my-app",
+  resources=[{type: "sqlite", name: "my-db"}],  # auto-provisions + auto-injects env vars
   volumes=[{mount_path: "/data", size: "10Gi"}]
+)
+# → Returns URL, database URL already in env, volume mounted, webhook set up
+```
+
+### 2. Errors Are Documentation
+
+Every error response must tell the agent exactly what went wrong and how to fix it. Agents can't Google things.
+
+```json
+// BAD
+{"error": "invalid request"}
+
+// GOOD
+{
+  "error": "port_conflict",
+  "message": "Port 3000 is already used by service 'api-server' in this project.",
+  "suggestion": "Use a different port (e.g., port=3001) or a different service name.",
+  "docs_hint": "Each service in a project must use a unique port."
+}
+```
+
+### 3. Explicit State Over Silent Idempotency
+
+Create operations should **fail with full context**, not silently succeed. Idempotent creates are ambiguous — the agent doesn't know if it just created something or found something pre-existing, and the behavior when config differs (update? overwrite? ignore?) is always surprising.
+
+```json
+// Agent calls create_service("my-app") when it already exists:
+{
+  "error": "service_already_exists",
+  "message": "Service 'my-app' already exists.",
+  "existing_service": {
+    "name": "my-app",
+    "status": "running",
+    "url": "https://my-app.ml.ink",
+    "memory": "512Mi",
+    "volumes": [{ "mount_path": "/data", "size": "10Gi" }]
+  },
+  "suggestion": "Use update_service(name='my-app', ...) to modify, or delete_service(name='my-app') to recreate."
+}
+```
+
+The agent now has exact state and can make an informed decision: update, delete+recreate, or move on.
+
+**The exception is delete** — `delete_service("my-app")` on something already deleted should return success, not 404. The desired end state (service gone) is already achieved and there's no ambiguity.
+
+| Operation                    | Behavior on duplicate                         |
+| ---------------------------- | --------------------------------------------- |
+| `create_service("my-app")`   | Error + return existing service state         |
+| `create_resource("my-db")`   | Error + return existing connection info       |
+| `create_repo("my-app")`      | Error + return existing repo URL + token      |
+| `delete_service("my-app")`   | Success (idempotent — desired state achieved) |
+| `redeploy_service("my-app")` | Always succeeds — triggers a new deploy       |
+
+### 4. Self-Describing Responses
+
+Every tool response should include enough context for the agent to take the next action without calling another tool.
+
+```json
+// BAD: Agent has to call get_service to learn the URL
+{"status": "deployed", "service_id": "svc_123"}
+
+// GOOD: Agent has everything it needs
+{
+  "status": "deployed",
+  "name": "my-app",
+  "url": "https://my-app.ml.ink",
+  "resources": [
+    {"name": "my-db", "type": "sqlite", "env_var": "DATABASE_URL"}
+  ],
+  "volumes": [
+    {"mount_path": "/data", "size": "10Gi"}
+  ],
+  "build": {"status": "success", "duration_seconds": 34},
+  "next_steps": ["Push code to trigger auto-redeploy", "Access logs via get_service(name='my-app', runtime_log_lines=50)"]
+}
+```
+
+### 5. Minimal Tool Count, Maximum Capability
+
+Every tool in the MCP description consumes tokens. MCP clients like Cursor have tool limits (Cursor: 40 tools). Keep the tool surface small and each tool powerful.
+
+---
+
+## Tier 1: Ship Now
+
+These features make agents choose your platform over manually wiring Railway + Neon + Cloudflare.
+
+### 1.1 Single-Command Deploy with Auto-Wiring
+
+**The killer feature.** Agent creates code, pushes to repo, deploys — one call.
+
+```
+create_service(
+  repo="my-saas",
+  name="my-saas",
+  # Auto-detection
+  build_pack="auto",           # Railpack auto-detects language + framework
+  port=0,                       # Auto-detect from framework (Next.js=3000, Go=8080, etc.)
+
+  # Resources (auto-provisioned + auto-injected)
+  resources=[
+    {type: "sqlite", name: "main-db"}
+  ],
+
+  # Volumes (auto-mounted)
+  volumes=[
+    {mount_path: "/data", size: "10Gi"}
+  ],
+
+  # Env vars (merged with auto-injected resource vars)
+  env_vars={
+    "NODE_ENV": "production"
+  }
 )
 ```
 
-Default mount path: `/data` (user can override).
-
-### Kubernetes Implementation
-
-Services with volumes use **StatefulSet** instead of Deployment. StatefulSets give stable pod identity and persistent volume binding — the pod always reconnects to the same PVC across restarts.
-
-```
-create_service with volumes
-  │
-  ├─ Create PersistentVolumeClaim
-  │    name: {service-name}-vol-0
-  │    storageClass: (resolved from VolumeProvider)
-  │    size: 10Gi
-  │
-  ├─ Use StatefulSet instead of Deployment
-  │    - Stable pod identity
-  │    - Pod reconnects to same PVC across restarts
-  │
-  └─ Mount PVC at /data in container spec
-```
-
-### Schema
-
-```sql
-CREATE TABLE volumes (
-    id         TEXT PRIMARY KEY,
-    service_id TEXT NOT NULL REFERENCES services(id),
-    cluster_id TEXT NOT NULL REFERENCES clusters(id),
-    mount_path TEXT NOT NULL,
-    size_bytes BIGINT NOT NULL,
-    node_name  TEXT,              -- which run node it landed on
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
-### Tool Response
-
-Include volume info and durability semantics in the response so agents understand the constraints:
+Response includes everything:
 
 ```json
 {
-  "volume": {
-    "mount_path": "/data",
-    "size": "10Gi",
-    "node": "run-1",
-    "durability": "replicated",
-    "replicas": 2,
-    "backup_schedule": "daily"
+  "name": "my-saas",
+  "url": "https://my-saas.ml.ink",
+  "status": "deploying",
+  "build_pack": "nodejs-nextjs",
+  "port": 3000,
+  "resources": [
+    {
+      "name": "main-db",
+      "type": "sqlite",
+      "env_vars_injected": {
+        "DATABASE_URL": "libsql://main-db-user.turso.io",
+        "DATABASE_AUTH_TOKEN": "eyJhbGciOiJFZERTQSIs..."
+      }
+    }
+  ],
+  "volumes": [{ "mount_path": "/data", "size": "10Gi", "replicas": 2 }],
+  "auto_deploy": true,
+  "webhook_active": true
+}
+```
+
+### 1.2 Create Repo + Push: The Irreducible 2-Step Flow
+
+Agents generate code locally. Getting it deployed requires git — there's no shortcut. MCP is a pure HTTP/OAuth protocol where tool arguments flow through the LLM's context window, so accepting tarballs or file uploads directly is impractical (even a small app would be millions of tokens as base64). Git is the right transport for code.
+
+The minimum flow is 2 steps:
+
+```
+# Step 1: Create service (auto-creates repo if it doesn't exist, returns git credentials)
+create_service(repo="my-app", name="my-app")
+# → Returns: url, clone_url, git_token, status="awaiting_first_push"
+
+# Step 2: Agent pushes code using git (happens outside MCP, in the agent's terminal)
+# git remote add origin <clone_url> && git push
+
+# Webhook auto-triggers build + deploy. No Step 3 needed.
+```
+
+The key optimization: `create_service` should auto-create the Gitea repo when it doesn't exist and return the `git_token` + `clone_url` inline. This saves the agent from calling `create_repo` and `get_git_token` separately. One MCP call + one git push = deployed.
+
+For GitHub repos, the flow is even simpler — the repo already exists, the agent just calls `create_service(repo="my-app", host="github.com")` and the webhook handles everything on push.
+
+### 1.3 Rich Logs in get_service
+
+Agents debug by reading logs. Make logs a first-class tool output, not an afterthought.
+
+```
+get_service(
+  name="my-app",
+  deploy_log_lines=100,     # Last N lines of build/deploy output
+  runtime_log_lines=50,     # Last N lines of application stdout/stderr
+  include_env=true           # Show current env vars (full values, not redacted)
+)
+```
+
+Response:
+
+```json
+{
+  "name": "my-app",
+  "status": "running",
+  "url": "https://my-app.ml.ink",
+  "deploy_log": {
+    "lines": ["Step 1/12: FROM node:20...", "..."],
+    "status": "success",
+    "duration_seconds": 45,
+    "started_at": "2025-02-12T10:00:00Z"
+  },
+  "runtime_log": {
+    "lines": [
+      "Server started on port 3000",
+      "Error: ECONNREFUSED 127.0.0.1:5432"
+    ],
+    "crash_detected": true,
+    "restart_count": 3,
+    "last_exit_code": 1
+  },
+  "env_vars": {
+    "NODE_ENV": "production",
+    "DATABASE_URL": "libsql://main-db-user.turso.io",
+    "DATABASE_AUTH_TOKEN": "eyJhbGciOiJFZERTQSIs..."
   }
 }
 ```
 
-### Quotas and Limits
+**Why full values, not redacted:** Agents are stateless across conversations. A new agent session debugging a crash needs to see the actual `DATABASE_URL` to verify it's correct. If the agent set the secrets, it already knows them. If a different agent session picks up the work, it needs them to wire services or diagnose connection failures. The security boundary is the API key — if someone has a valid key, they own that account's infrastructure. Redacting secrets from the owner is security theater.
 
-Enforce from day 1:
+**Key fields for agents:**
 
-| Limit                    | Default                                         |
-| ------------------------ | ----------------------------------------------- |
-| Max volume size          | 50Gi (configurable per plan)                    |
-| Max volumes per service  | 1                                               |
-| Max volumes per customer | 5                                               |
-| IOPS                     | No artificial limit (Longhorn/Ceph handle this) |
+- `crash_detected` — agent immediately knows the app is broken
+- `restart_count` — agent knows if it's a persistent crash, not a transient error
+- `last_exit_code` — agent can diagnose the class of failure
+- `runtime_log.lines` — agent reads the actual error to fix it
 
----
+### 1.4 Structured Health Status
 
-## Multi-Cluster Architecture
-
-### Topology
-
-```
-┌──────────────────────────────────────────────┐
-│              Product API / MCP               │
-│                                              │
-│  ┌────────────────────────────────────────┐  │
-│  │          Cluster Router                │  │
-│  │  (picks cluster for new service)       │  │
-│  └───────────┬────────────────────────────┘  │
-│              │                               │
-│  ┌───────────▼────────────────────────────┐  │
-│  │       Temporal Workflows               │  │
-│  │  (deploy, delete, redeploy)            │  │
-│  └───────────┬────────────────────────────┘  │
-└──────────────┼───────────────────────────────┘
-               │ task queue per cluster
-      ┌────────┼────────┐
-      ▼        ▼        ▼
-  ┌───────┐┌───────┐┌───────┐
-  │eu-w-1 ││us-e-1 ││ap-s-1 │  Deployer Workers
-  │       ││       ││       │
-  │ ┌───┐ ││ ┌───┐ ││ ┌───┐ │
-  │ │Vol│ ││ │Vol│ ││ │Vol│ │  VolumeProvider (per cluster)
-  │ │LH │ ││ │Cph│ ││ │LH │ │  Can differ per cluster
-  │ └───┘ ││ └───┘ ││ └───┘ │
-  │ ┌───┐ ││ ┌───┐ ││ ┌───┐ │
-  │ │Bld│ ││ │Bld│ ││ │Bld│ │  BuildProvider (per cluster)
-  │ └───┘ ││ └───┘ ││ └───┘ │
-  └───────┘└───────┘└───────┘
+```json
+{
+  "health": {
+    "status": "unhealthy",
+    "reason": "crash_loop",
+    "message": "Container exited 3 times in the last 5 minutes with code 1",
+    "last_error_line": "Error: Cannot find module 'express'",
+    "suggestion": "The app is missing a dependency. Check that 'express' is in package.json dependencies (not devDependencies) and that install_command runs 'npm install'."
+  }
+}
 ```
 
-### Key Properties
+### 1.5 Explicit State on Duplicate Operations
 
-- Product API and Temporal remain centralized (on Railway)
-- Each cluster runs one deployer-worker (same binary, different env config)
-- Each cluster can have different storage providers (Longhorn on some, Ceph on others)
-- Each cluster has its own registry, build infrastructure, and ingress
-- Adding a cluster is: provision servers → run Ansible → add row to `clusters` table → deploy deployer-worker
+Create operations fail with full context so the agent knows exactly what exists. This is better than silent idempotency because the agent can compare existing state to desired state and decide whether to update, recreate, or move on.
 
-### Why This Works Without a Rewrite
-
-The current architecture already supports this naturally:
-
-1. Product API lives on Railway, separate from k8s
-2. Deployer-worker talks to k8s via client-go
-3. Temporal routes work to workers via task queues
-
-To go multi-cluster:
-
-1. Add `cluster_id` column to services table
-2. Give deployer-worker a config for which cluster it manages
-3. Run one deployer-worker per cluster
-4. Route in product API based on region/capacity
+| Operation                    | On duplicate                                                          |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `create_service("my-app")`   | Error + full existing service state (config, URL, volumes, resources) |
+| `create_resource("my-db")`   | Error + existing connection info                                      |
+| `create_repo("my-app")`      | Error + existing repo URL + token                                     |
+| `delete_service("my-app")`   | Success — idempotent (desired state is "gone", already gone)          |
+| `redeploy_service("my-app")` | Always succeeds — triggers new deploy                                 |
 
 ---
 
-## Operational Concerns
+## Tier 2: Ship Soon
 
-### Backup Strategy (Day 1 Requirement)
+Features that make agents significantly more effective and make your platform sticky.
 
-Replication protects against node failure. Backups protect against everything else (accidental deletion, corruption, cluster-wide failure).
+### 2.1 Service Linking and Dependency Graphs
 
-| What                   | Where                        | How                                        |
-| ---------------------- | ---------------------------- | ------------------------------------------ |
-| Volume data            | S3/R2/Hetzner Object Storage | Longhorn S3 backup target, scheduled daily |
-| MCP state (Postgres)   | Supabase                     | Provider-managed backups                   |
-| User databases (Turso) | Turso                        | Provider-native backups                    |
-| Gitea repos            | ops-1 NVMe RAID1             | Built-in redundancy + periodic tar to S3   |
-| Registry images        | Rebuildable                  | Not backed up — rebuild from source        |
+Agents build multi-service architectures. They need to wire services together.
 
-### Monitoring Longhorn
+```
+# Agent deploys an API
+create_service(name="api", repo="my-api", port=8080)
 
-- Longhorn dashboard or Grafana dashboards for volume health
-- Alert on degraded volumes (replica count < desired)
-- Alert on node storage capacity (>80% used)
-- Monitor rebuild times after node recovery
+# Agent deploys a frontend that talks to the API
+create_service(
+  name="frontend",
+  repo="my-frontend",
+  env_vars={
+    "API_URL": "{{service:api:internal_url}}"   # Template reference
+  }
+)
+```
 
-### Adding/Replacing Nodes
+The template `{{service:api:internal_url}}` resolves to the internal cluster URL of the "api" service. This means:
 
-Node death with Longhorn:
+- Agent doesn't need to know the URL upfront
+- If the API service gets redeployed at a different address, the frontend's env var updates automatically
+- Internal traffic stays on the private network (faster, no egress cost)
 
-1. Longhorn auto-serves from surviving replicas, pod reschedules
-2. Buy replacement server from Hetzner
-3. Run `ansible-playbook add-run-node.yml --limit run-N`
-4. Longhorn auto-rebuilds replicas onto new node
-5. Done
+### 2.2 Deploy Preview for Pull Requests
 
-### Storage and Compute Separation
+When an agent makes changes and pushes to a branch, auto-deploy a preview:
 
-Currently run nodes handle both compute (customer containers) and storage (Longhorn replicas). This works at small scale but eventually a disk-heavy customer affects neighbors.
+```json
+{
+  "preview": {
+    "url": "https://my-app-pr-42.ml.ink",
+    "branch": "fix/login-bug",
+    "status": "running",
+    "auto_cleanup": true,
+    "ttl": "72h"
+  }
+}
+```
 
-**Future:** Dedicated storage nodes with NVMe, run nodes focus on compute. This is a natural split when adding Ceph (OSD daemons want dedicated I/O). Don't do it now — do it when you shard to the second cluster.
+This is huge for agent workflows: agent creates fix → pushes to branch → gets preview URL → can verify the fix works → creates PR.
+
+### 2.3 Exec / Run One-Off Commands
+
+Agents need to run database migrations, seed data, or debug:
+
+```
+exec_command(
+  service="my-app",
+  command="npx prisma migrate deploy"
+)
+# → Returns stdout/stderr
+
+exec_command(
+  service="my-app",
+  command="node scripts/seed.js"
+)
+```
+
+This is essential for agents that set up applications end-to-end. Without it, the agent deploys the app but can't run migrations — the app crashes, and the agent can't fix it without manual intervention.
+
+### 2.4 Rollback
+
+Agents make mistakes. They need to undo quickly:
+
+```
+rollback_service(name="my-app")
+# → Rolls back to the previous working deployment
+# → Returns the deployment that was restored
+
+rollback_service(name="my-app", deployment_id="dep_abc")
+# → Roll back to a specific deployment
+```
+
+The response should include:
+
+```json
+{
+  "rolled_back_from": "dep_xyz",
+  "rolled_back_to": "dep_abc",
+  "status": "running",
+  "url": "https://my-app.ml.ink",
+  "reason": "Previous deployment (dep_xyz) was crash-looping"
+}
+```
+
+### 2.5 Resource Templates / Stacks
+
+Common architectures as one-call deploys:
+
+```
+create_stack(
+  template="nextjs-sqlite",
+  name="my-saas",
+  repo="my-saas"
+)
+# → Creates service + SQLite database + correct env var wiring
+#    + healthcheck configured + volume for /data if needed
+```
+
+Templates encode best practices that agents would otherwise have to discover by trial and error (correct port, correct build command, correct env var names for the framework).
+
+### 2.6 Metrics and Resource Usage
+
+Agents need to diagnose performance issues:
+
+```
+get_service(name="my-app", include_metrics=true)
+```
+
+```json
+{
+  "metrics": {
+    "cpu_usage_percent": 85,
+    "memory_usage_mb": 450,
+    "memory_limit_mb": 512,
+    "volume_usage_mb": 2048,
+    "volume_limit_mb": 10240,
+    "request_count_24h": 15420,
+    "avg_response_time_ms": 230,
+    "error_rate_percent": 2.3
+  },
+  "warnings": [
+    "Memory usage is at 88% of limit. Consider increasing memory to 1024MB.",
+    "CPU usage is high. Consider upgrading CPU allocation."
+  ]
+}
+```
+
+### 2.7 Custom Domains
+
+```
+add_domain(service="my-app", domain="app.example.com")
+# → Returns: CNAME target, SSL status, verification instructions
+
+get_domain_status(service="my-app", domain="app.example.com")
+# → Returns: dns_verified, ssl_issued, propagation_status
+```
 
 ---
 
-## What NOT to Abstract
+## Tier 3: Ship Later
 
-Keep these concrete. Abstracting them adds complexity with no realistic swap-out scenario:
+Features that build a moat and make your platform the default choice for every agent.
 
-| Component                   | Why keep concrete                                                                                                     |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **Container runtime (k8s)** | You're on k8s, you're staying on k8s. Don't abstract kubectl/client-go.                                               |
-| **Git provider**            | Already well abstracted with `host=github.com` vs `host=ml.ink`. Sufficient.                                          |
-| **Temporal**                | This is your workflow engine, period. No reason to swap.                                                              |
-| **MCP tool interface**      | This is the agent contract. Keep it stable and simple. Users never see clusters, storage providers, or build systems. |
+### 3.1 ~~Direct Code Deploy (No Git Required)~~ — Not Feasible Over MCP
+
+**Why this doesn't work:** MCP is a pure HTTP/OAuth protocol where tool arguments pass through the LLM's context window. A base64-encoded tarball of even a small app would be megabytes — millions of tokens. There's no mechanism for streaming binary data or file uploads outside the tool call schema.
+
+**The git flow is the right design.** `create_service` auto-creates the repo and returns `clone_url` + `git_token`. The agent pushes via git (which it already has access to in tools like Claude Code, Cursor, Windsurf, etc.). The webhook triggers the build. This is 1 MCP call + 1 git push — fast enough.
+
+**If we ever wanted to skip git**, it would require a downloadable CLI or SDK that can upload files directly to our API outside the MCP protocol. That's a fundamentally different product surface and isn't worth building until there's clear demand.
+
+### 3.2 Scheduled Tasks / Cron
+
+```
+create_cron(
+  name="daily-cleanup",
+  service="my-app",
+  schedule="0 2 * * *",
+  command="node scripts/cleanup.js"
+)
+```
+
+Agents building SaaS apps almost always need scheduled tasks. Without this, they have to tell the human "you need to set up a cron job manually."
+
+### 3.3 Multi-Region Deploy
+
+```
+create_service(
+  name="my-app",
+  repo="my-app",
+  regions=["eu-west", "us-east"],
+  routing="latency"            # Route users to nearest region
+)
+```
+
+**Volume and Replica Constraints:**
+
+Volumes are local block storage tied to a single cluster. They cannot be synced across regions or safely shared between replicas. These constraints must be enforced at the API level:
+
+| Config                                   | Allowed | Why                                                          |
+| ---------------------------------------- | ------- | ------------------------------------------------------------ |
+| Multi-region + stateless (no volume)     | ✅ Yes  | Identical containers, latency-based routing                  |
+| Multi-region + database resource (Turso) | ✅ Yes  | Turso natively handles multi-region replication              |
+| Multi-region + volume                    | ❌ No   | Independent disks with no sync — data diverges immediately   |
+| Multi-replica + stateless (no volume)    | ✅ Yes  | Standard horizontal scaling                                  |
+| Multi-replica + volume                   | ❌ No   | ReadWriteOnce — only one pod can mount a block device safely |
+| Single region + single replica + volume  | ✅ Yes  | The only safe volume config                                  |
+
+**Error responses for invalid combos:**
+
+```json
+// Multi-region + volume
+{
+  "error": "multi_region_volume_conflict",
+  "message": "Services with volumes cannot be deployed to multiple regions. Volumes are local storage tied to a single cluster with no cross-region sync.",
+  "suggestion": "Deploy to one region, or remove the volume and use create_resource(type='sqlite') which supports multi-region natively via Turso."
+}
+
+// Multi-replica + volume
+{
+  "error": "replicas_volume_conflict",
+  "message": "Services with volumes are limited to 1 replica. Multiple replicas cannot safely write to the same block device.",
+  "suggestion": "Use replicas=1 with a volume, or remove the volume and use a database resource for shared state."
+}
+```
+
+**Deployment note:** A service with a volume deployed to a single region causes brief downtime during redeploys (pod must unmount volume, new pod mounts it). This is the same tradeoff Railway makes. The `get_service` response should include `"volume_redeploy_downtime": true` so agents can warn users.
+
+### 3.4 Secrets Management
+
+Secrets are just env vars — there's no separate secrets API. They're set via `create_service(env_vars={...})` or `update_service(env_vars={...})` and returned in full via `get_service(include_env=true)`.
+
+```json
+{
+  "env_vars": {
+    "NODE_ENV": "production",
+    "DATABASE_URL": "libsql://main-db-user.turso.io",
+    "DATABASE_AUTH_TOKEN": "eyJhbGciOiJFZERTQSIs...",
+    "STRIPE_KEY": "sk_live_abc123"
+  }
+}
+```
+
+**Why return full values:** Agents are stateless. A new conversation debugging a "401 Unauthorized" error needs to see the actual API key value to verify it's correct. The agent that set the secret may not be the same agent session that reads it back. The security boundary is the API key itself — anyone with a valid key owns the account.
+
+**Storage:** Env vars are encrypted at rest in the database and injected into the container at runtime. They're never logged in build output or exposed in Kubernetes manifests that other tenants could access.
+
+### 3.5 Collaborative Agent Features
+
+When multiple agents (or multiple conversations) manage the same infrastructure:
+
+```
+list_services()
+# → Returns ALL services for this user, with status, URL, last deploy time
+# → An agent picking up where another left off can immediately understand the state
+```
+
+```json
+{
+  "services": [
+    {
+      "name": "api",
+      "url": "https://api.ml.ink",
+      "status": "running",
+      "last_deployed": "2025-02-12T09:00:00Z",
+      "repo": "my-org/api",
+      "resources": [{ "name": "main-db", "type": "sqlite" }],
+      "health": "healthy"
+    },
+    {
+      "name": "frontend",
+      "url": "https://frontend.ml.ink",
+      "status": "crash_loop",
+      "last_deployed": "2025-02-12T10:30:00Z",
+      "repo": "my-org/frontend",
+      "health": "unhealthy",
+      "health_message": "Cannot connect to API_URL"
+    }
+  ]
+}
+```
+
+A new agent conversation sees this and immediately knows: "frontend is broken because it can't reach the API — let me investigate."
+
+### 3.6 Event Webhooks to the User
+
+Let users receive webhooks when things happen:
+
+```
+create_webhook(
+  url="https://my-slack-bot.com/deploy-notifications",
+  events=["deploy.success", "deploy.failed", "service.unhealthy"]
+)
+```
+
+This enables agent-built monitoring: agent deploys app + sets up webhook to Slack for deploy notifications.
+
+### 3.7 Cost Estimation
+
+Before deploying, agents should know the cost:
+
+```
+estimate_cost(
+  services=[
+    {name: "api", cpu: "1", memory: "512Mi"},
+    {name: "frontend", cpu: "0.5", memory: "256Mi"}
+  ],
+  resources=[{type: "sqlite", size: "5Gi"}],
+  volumes=[{size: "10Gi"}]
+)
+```
+
+```json
+{
+  "estimated_monthly_cost_usd": 18.5,
+  "breakdown": {
+    "compute": 12.0,
+    "storage_volumes": 2.5,
+    "database": 4.0
+  }
+}
+```
 
 ---
 
-## Railway Learnings
+## Tool Design Guidelines
 
-Research into Railway's actual architecture revealed important lessons:
+### Keep Tool Descriptions Lean
 
-### What Railway Actually Built
+Every tool description is sent to the LLM on every request. Token bloat from verbose descriptions degrades agent performance. Write descriptions that are precise and scannable.
 
-- Railway spent all of 2022 trying to build on Kubernetes. It failed, nearly killed the company, and they deleted all the k8s code.
-- They built a **custom container orchestrator** (no Kubernetes) with custom bare-metal scheduling.
-- They use **Temporal** for deployment workflows (same as us).
-- They built **MetalCP**, an internal control plane using Temporal + Redfish BMC APIs for bare metal provisioning.
-- They have a **custom eBPF/Wireguard IPv6 mesh network** with automatic load balancing.
-- Their network uses a **CLOS topology** with redundant switches and routing protocols.
-- They run their **own data centers** in US, Europe, and Southeast Asia.
-- They serve 1.7M+ users with hundreds of thousands of deployed applications.
+```
+// BAD: 200 tokens per tool description
+"Deploy a service from a git repository. This tool will clone the repository,
+ detect the build pack, build the application using BuildKit, push the image
+ to our internal registry, create Kubernetes resources including a Deployment,
+ Service, and Ingress, configure TLS, set up auto-deploy webhooks, and return
+ the public URL. Supports Node.js, Python, Go, Ruby, Rust, and static sites..."
 
-### Key Takeaways
+// GOOD: 40 tokens
+"Deploy a service from a git repo. Auto-detects language, builds, deploys,
+ and returns the public URL. Supports auto-deploy on git push."
+```
 
-1. **Don't prematurely optimize infrastructure.** Railway shipped on GCP for years before building data centers. They tried k8s too early and it nearly killed them.
+### Use Flat Parameter Names
 
-2. **Railway left k8s for product reasons, not scale reasons.** They wanted sub-second deploys and extreme control over scheduling and networking. Most companies (Shopify, Spotify, CERN) run massive deployments on k8s successfully.
+Agents work better with flat parameters than deeply nested objects. Nested objects increase the chance of schema errors.
 
-3. **Volumes on Railway are local NVMe with platform-managed migration and backups.** Not network-attached storage, not Longhorn/Ceph. They built custom volume management because at their scale the engineering cost pays for itself.
+```
+// BAD: Nested
+{
+  "service": {
+    "config": {
+      "resources": {
+        "memory": "512Mi"
+      }
+    }
+  }
+}
 
-4. **Temporal is the right orchestration choice.** Railway uses it for everything — deploys, volume lifecycle, bare metal provisioning. We use it the same way.
+// GOOD: Flat with clear prefixes
+{
+  "name": "my-app",
+  "memory": "512Mi",
+  "cpu": "1"
+}
+```
 
-5. **The multi-cluster path is natural.** Our product API is already separated from k8s deployer infrastructure. Multi-cluster is a config change, not a rewrite.
+### Return Only What's Needed
+
+Don't dump the entire service object when the agent only asked for logs. But DO include enough context that the agent doesn't need a follow-up call.
+
+The sweet spot: return the fields relevant to the action taken + status + URL + any warnings.
+
+### Use Enums, Not Free Text
+
+Agents parse enums reliably. Free text requires interpretation.
+
+```
+// BAD
+"status": "The service is currently experiencing issues and restarting"
+
+// GOOD
+"status": "crash_loop",
+"health_message": "Container exited 3 times in 5 minutes. Last error: Cannot find module 'express'."
+```
+
+Standard status enums: `deploying`, `building`, `running`, `crashed`, `crash_loop`, `stopped`, `deleting`.
 
 ---
 
-## Implementation Priority
+## Error Design
 
-What to build now vs later:
+### Error Response Structure
 
-| Item                                          | Priority  | Effort  | Why now                                            |
-| --------------------------------------------- | --------- | ------- | -------------------------------------------------- |
-| `clusters` table + task queue routing         | **Now**   | Small   | Makes multi-cluster a config change, not a rewrite |
-| `cluster_id` on services/volumes              | **Now**   | Trivial | Know where everything lives                        |
-| Deployer-worker reads cluster config from env | **Now**   | Trivial | Same binary, different clusters                    |
-| `VolumeProvider` interface                    | **Now**   | Small   | Swap Longhorn → Ceph without touching workflows    |
-| Volume backups to S3                          | **Now**   | Medium  | Real disaster recovery, non-negotiable             |
-| Volume size limits and quotas                 | **Now**   | Small   | Prevent resource exhaustion from day 1             |
-| `BuildProvider` interface                     | **Soon**  | Small   | Per-cluster build infra later                      |
-| `IngressProvider` interface                   | **Soon**  | Small   | Per-cluster domain routing                         |
-| Cluster placement logic                       | **Later** | Medium  | Only needed with 2+ clusters                       |
-| Dedicated storage nodes                       | **Later** | Medium  | Only needed when I/O isolation matters             |
-| Ceph deployment                               | **Later** | Large   | Only on new clusters when Longhorn limits hit      |
+Every error should follow this format:
+
+```json
+{
+  "error": {
+    "code": "service_not_found",
+    "message": "No service named 'my-ap' found.",
+    "suggestion": "Did you mean 'my-app'? Use list_services() to see all services.",
+    "available_services": ["my-app", "my-api", "my-frontend"]
+  }
+}
+```
+
+### Common Error Patterns
+
+| Error code                     | When                   | Suggestion to agent                                                                         |
+| ------------------------------ | ---------------------- | ------------------------------------------------------------------------------------------- |
+| `service_not_found`            | Wrong name             | Include list of similar names + suggest list_services()                                     |
+| `build_failed`                 | Code doesn't compile   | Include last 20 lines of build log inline                                                   |
+| `port_not_detected`            | Auto-detect failed     | "Specify port explicitly: port=3000"                                                        |
+| `resource_limit`               | Over quota             | "User has 5/5 services. Delete one or upgrade plan."                                        |
+| `deploy_in_progress`           | Already deploying      | "A deploy is in progress (started 30s ago). Use get_service() to check status."             |
+| `repo_not_found`               | Wrong repo name/host   | "Repo 'my-app' not found on ml.ink. Use create_repo() first or specify host='github.com'."  |
+| `crash_loop`                   | App keeps crashing     | Include last error line + suggest checking logs                                             |
+| `volume_size_exceeded`         | Over storage limit     | "Volume 'data' is 10Gi limit. Current usage: 9.8Gi. Resize with resize_volume()."           |
+| `multi_region_volume_conflict` | Volume + multi-region  | "Services with volumes cannot deploy to multiple regions. Use a database resource instead." |
+| `replicas_volume_conflict`     | Volume + multi-replica | "Services with volumes are limited to 1 replica. Remove volume or use replicas=1."          |
+
+### Build Failures: Inline the Error
+
+When a build fails, the agent needs the build log immediately, not a pointer to it. Include the last 30 lines of build output directly in the error response:
+
+```json
+{
+  "error": {
+    "code": "build_failed",
+    "message": "Build failed at step 'npm install'",
+    "build_log_tail": [
+      "npm ERR! 404 Not Found - GET https://registry.npmjs.org/expresss",
+      "npm ERR! 404 'expresss@latest' is not in this registry.",
+      "npm ERR! A complete log of this run can be found in:"
+    ],
+    "suggestion": "Check package.json for typos in dependency names. 'expresss' looks like a typo for 'express'."
+  }
+}
+```
+
+---
+
+## The Full Tool Surface
+
+Aim for 12-15 tools maximum. Every tool added consumes tokens on every agent request.
+
+### Core (Ship Now)
+
+| Tool               | Purpose                           | Key params                                                                                                                                              |
+| ------------------ | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `whoami`           | Auth check + account status       | —                                                                                                                                                       |
+| `create_service`   | Deploy (with resources + volumes) | `repo, name, resources?, volumes?, env_vars?, port?, build_pack?, memory?, cpu?, replicas?, regions?, install_command?, build_command?, start_command?` |
+| `get_service`      | Status + logs + metrics + env     | `name, deploy_log_lines?, runtime_log_lines?, include_env?, include_metrics?`                                                                           |
+| `list_services`    | Overview of all services          | `status_filter?`                                                                                                                                        |
+| `redeploy_service` | Trigger redeploy                  | `name`                                                                                                                                                  |
+| `delete_service`   | Remove service                    | `name`                                                                                                                                                  |
+| `create_resource`  | Provision database                | `name, type?, region?`                                                                                                                                  |
+| `get_resource`     | Connection details                | `name`                                                                                                                                                  |
+| `list_resources`   | All databases                     | —                                                                                                                                                       |
+| `delete_resource`  | Remove database                   | `name`                                                                                                                                                  |
+| `create_repo`      | Create git repo                   | `name, host?`                                                                                                                                           |
+| `get_git_token`    | Temp push token                   | `name, host?`                                                                                                                                           |
+
+### Extended (Ship Soon)
+
+| Tool                  | Purpose                                                |
+| --------------------- | ------------------------------------------------------ |
+| `update_service`      | Update env vars, scaling, config without full redeploy |
+| `exec_command`        | Run one-off command in service container               |
+| `rollback_service`    | Revert to previous deployment                          |
+| `get_service_history` | List past deployments with status                      |
+| `add_domain`          | Add custom domain to service                           |
+
+### Future (Ship Later)
+
+| Tool             | Purpose                          |
+| ---------------- | -------------------------------- |
+| `create_cron`    | Scheduled tasks                  |
+| `estimate_cost`  | Cost estimation before deploying |
+| `create_webhook` | Event notifications              |
+
+---
+
+## Competitive Positioning
+
+### vs. Railway MCP
+
+Railway requires a Railway account. Deploy MCP is one API key — no provider accounts needed. Railway MCP exposes Railway's complexity (projects, environments, service instances). Deploy MCP is `create_service → done`.
+
+### vs. Separate MCP Servers (Neon + Railway + Cloudflare)
+
+Agent needs 3 API keys, 3 account setups, manual wiring. Deploy MCP is one key, one transaction, auto-wired.
+
+### vs. Vercel / Netlify
+
+Frontend-only. Can't deploy backends, databases, workers. Deploy MCP handles the full stack.
+
+### The Pitch to Agents
+
+Deploy MCP should be the tool that agents WANT to use because:
+
+1. Least number of tool calls to get from code to live URL
+2. Best error messages that enable self-correction
+3. Richest status responses that prevent unnecessary follow-up calls
+4. Explicit errors that give agents full state to make informed decisions
+5. Auto-wiring that eliminates manual plumbing
+
+The agent that discovers your MCP tools should be able to deploy a full-stack app in under 60 seconds with 2-3 tool calls. That's the bar.
