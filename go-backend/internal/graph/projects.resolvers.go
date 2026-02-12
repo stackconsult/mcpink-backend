@@ -38,11 +38,11 @@ func (r *queryResolver) ListProjects(ctx context.Context, first *int32, after *s
 
 	nodes := make([]*model.Project, len(dbProjects))
 	for i, dbProject := range dbProjects {
-		projectApps, err := r.getAppsForProject(ctx, dbProject.ID)
+		projectServices, err := r.getServicesForProject(ctx, dbProject.ID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get apps for project: %w", err)
+			return nil, fmt.Errorf("failed to get services for project: %w", err)
 		}
-		nodes[i] = dbProjectToModel(&dbProject, projectApps)
+		nodes[i] = dbProjectToModel(&dbProject, projectServices)
 	}
 
 	var startCursor, endCursor *string
@@ -76,10 +76,10 @@ func (r *queryResolver) ProjectDetails(ctx context.Context, id string) (*model.P
 		return nil, fmt.Errorf("project not found")
 	}
 
-	projectApps, err := r.getAppsForProject(ctx, dbProject.ID)
+	projectServices, err := r.getServicesForProject(ctx, dbProject.ID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get apps for project: %w", err)
+		return nil, fmt.Errorf("failed to get services for project: %w", err)
 	}
 
-	return dbProjectToModel(&dbProject, projectApps), nil
+	return dbProjectToModel(&dbProject, projectServices), nil
 }

@@ -1,0 +1,29 @@
+enum MetricTimeRange {
+  ONE_HOUR
+  SIX_HOURS
+  SEVEN_DAYS
+  THIRTY_DAYS
+}
+
+type MetricDataPoint {
+  timestamp: Time!
+  value: Float!
+}
+
+type MetricSeries {
+  metric: String!
+  dataPoints: [MetricDataPoint!]!
+}
+
+type ServiceMetrics {
+  cpuUsage: MetricSeries!
+  memoryUsageMB: MetricSeries!
+  networkReceiveBytesPerSec: MetricSeries!
+  networkTransmitBytesPerSec: MetricSeries!
+  memoryLimitMB: Float!
+  cpuLimitVCPUs: Float!
+}
+
+extend type Query {
+  serviceMetrics(serviceId: ID!, timeRange: MetricTimeRange!): ServiceMetrics! @isAuthenticated
+}

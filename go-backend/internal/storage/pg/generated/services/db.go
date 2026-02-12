@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.30.0
 
-package apps
+package services
 
 import (
 	"context"

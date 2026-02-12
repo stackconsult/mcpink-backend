@@ -18,41 +18,30 @@ type APIKey struct {
 	CreatedAt  time.Time  `json:"createdAt"`
 }
 
-type App struct {
-	ID            string    `json:"id"`
-	ProjectID     string    `json:"projectId"`
-	Name          *string   `json:"name,omitempty"`
-	Repo          string    `json:"repo"`
-	Branch        string    `json:"branch"`
-	BuildStatus   string    `json:"buildStatus"`
-	RuntimeStatus *string   `json:"runtimeStatus,omitempty"`
-	ErrorMessage  *string   `json:"errorMessage,omitempty"`
-	EnvVars       []*EnvVar `json:"envVars"`
-	Fqdn          *string   `json:"fqdn,omitempty"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
-}
-
-type AppConnection struct {
-	Nodes      []*App    `json:"nodes"`
-	PageInfo   *PageInfo `json:"pageInfo"`
-	TotalCount int32     `json:"totalCount"`
-}
-
 type CreateAPIKeyResult struct {
 	APIKey *APIKey `json:"apiKey"`
 	Secret string  `json:"secret"`
 }
 
-type DeleteAppResult struct {
-	AppID   string `json:"appId"`
-	Name    string `json:"name"`
-	Message string `json:"message"`
+type DeleteServiceResult struct {
+	ServiceID string `json:"serviceId"`
+	Name      string `json:"name"`
+	Message   string `json:"message"`
 }
 
 type EnvVar struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
+}
+
+type MetricDataPoint struct {
+	Timestamp time.Time `json:"timestamp"`
+	Value     float64   `json:"value"`
+}
+
+type MetricSeries struct {
+	Metric     string             `json:"metric"`
+	DataPoints []*MetricDataPoint `json:"dataPoints"`
 }
 
 type Mutation struct {
@@ -66,12 +55,12 @@ type PageInfo struct {
 }
 
 type Project struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Ref       string    `json:"ref"`
-	Apps      []*App    `json:"apps"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	Ref       string     `json:"ref"`
+	Services  []*Service `json:"services"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
 }
 
 type ProjectConnection struct {
@@ -109,6 +98,38 @@ type ResourceMetadata struct {
 	Group    *string `json:"group,omitempty"`
 }
 
+type Service struct {
+	ID            string    `json:"id"`
+	ProjectID     string    `json:"projectId"`
+	Name          *string   `json:"name,omitempty"`
+	Repo          string    `json:"repo"`
+	Branch        string    `json:"branch"`
+	BuildStatus   string    `json:"buildStatus"`
+	RuntimeStatus *string   `json:"runtimeStatus,omitempty"`
+	ErrorMessage  *string   `json:"errorMessage,omitempty"`
+	EnvVars       []*EnvVar `json:"envVars"`
+	Fqdn          *string   `json:"fqdn,omitempty"`
+	Memory        string    `json:"memory"`
+	CPU           string    `json:"cpu"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+}
+
+type ServiceConnection struct {
+	Nodes      []*Service `json:"nodes"`
+	PageInfo   *PageInfo  `json:"pageInfo"`
+	TotalCount int32      `json:"totalCount"`
+}
+
+type ServiceMetrics struct {
+	CPUUsage                   *MetricSeries `json:"cpuUsage"`
+	MemoryUsageMb              *MetricSeries `json:"memoryUsageMB"`
+	NetworkReceiveBytesPerSec  *MetricSeries `json:"networkReceiveBytesPerSec"`
+	NetworkTransmitBytesPerSec *MetricSeries `json:"networkTransmitBytesPerSec"`
+	MemoryLimitMb              float64       `json:"memoryLimitMB"`
+	CPULimitVCPUs              float64       `json:"cpuLimitVCPUs"`
+}
+
 type User struct {
 	ID                      string    `json:"id"`
 	Email                   *string   `json:"email,omitempty"`
@@ -118,6 +139,65 @@ type User struct {
 	CreatedAt               time.Time `json:"createdAt"`
 	GithubAppInstallationID *string   `json:"githubAppInstallationId,omitempty"`
 	GithubScopes            []string  `json:"githubScopes"`
+}
+
+type MetricTimeRange string
+
+const (
+	MetricTimeRangeOneHour    MetricTimeRange = "ONE_HOUR"
+	MetricTimeRangeSixHours   MetricTimeRange = "SIX_HOURS"
+	MetricTimeRangeSevenDays  MetricTimeRange = "SEVEN_DAYS"
+	MetricTimeRangeThirtyDays MetricTimeRange = "THIRTY_DAYS"
+)
+
+var AllMetricTimeRange = []MetricTimeRange{
+	MetricTimeRangeOneHour,
+	MetricTimeRangeSixHours,
+	MetricTimeRangeSevenDays,
+	MetricTimeRangeThirtyDays,
+}
+
+func (e MetricTimeRange) IsValid() bool {
+	switch e {
+	case MetricTimeRangeOneHour, MetricTimeRangeSixHours, MetricTimeRangeSevenDays, MetricTimeRangeThirtyDays:
+		return true
+	}
+	return false
+}
+
+func (e MetricTimeRange) String() string {
+	return string(e)
+}
+
+func (e *MetricTimeRange) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MetricTimeRange(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MetricTimeRange", str)
+	}
+	return nil
+}
+
+func (e MetricTimeRange) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MetricTimeRange) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MetricTimeRange) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type Role string

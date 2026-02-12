@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/apikeys"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/dnsrecords"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/githubcreds"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/internalrepos"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/resources"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/users"
 	pgxdecimal "github.com/jackc/pgx-shopspring-decimal"
 	"github.com/jackc/pgx/v5"
@@ -35,7 +35,7 @@ type DB struct {
 	logger          *slog.Logger
 	userQueries     users.Querier
 	apiKeyQueries   apikeys.Querier
-	appQueries      apps.Querier
+	serviceQueries  services.Querier
 	projectQueries  projects.Querier
 	githubCredsQ    githubcreds.Querier
 	resourceQueries resources.Querier
@@ -129,7 +129,7 @@ func NewDatabase(lc fx.Lifecycle, config DbConfig, logger *slog.Logger) (*DB, er
 		logger:          logger,
 		userQueries:     users.New(pool),
 		apiKeyQueries:   apikeys.New(pool),
-		appQueries:      apps.New(pool),
+		serviceQueries:  services.New(pool),
 		projectQueries:  projects.New(pool),
 		githubCredsQ:    githubcreds.New(pool),
 		resourceQueries: resources.New(pool),
@@ -155,8 +155,8 @@ func NewAPIKeyQueries(database *DB) apikeys.Querier {
 	return database.apiKeyQueries
 }
 
-func NewAppQueries(database *DB) apps.Querier {
-	return database.appQueries
+func NewServiceQueries(database *DB) services.Querier {
+	return database.serviceQueries
 }
 
 func NewProjectQueries(database *DB) projects.Querier {

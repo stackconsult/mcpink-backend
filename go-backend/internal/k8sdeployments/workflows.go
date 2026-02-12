@@ -35,7 +35,7 @@ func deployService(ctx workflow.Context, input DeployServiceInput) (DeployServic
 	})
 
 	markFailed := func(errMsg string) {
-		_ = workflow.ExecuteActivity(statusCtx, activities.MarkAppFailed, MarkAppFailedInput{
+		_ = workflow.ExecuteActivity(statusCtx, activities.MarkServiceFailed, MarkAppFailedInput{
 			ServiceID:    input.ServiceID,
 			ErrorMessage: errMsg,
 		}).Get(ctx, nil)
@@ -114,7 +114,7 @@ func deployService(ctx workflow.Context, input DeployServiceInput) (DeployServic
 		return fail(err)
 	}
 
-	if err := workflow.ExecuteActivity(statusCtx, activities.MarkAppRunning, MarkAppRunningInput{
+	if err := workflow.ExecuteActivity(statusCtx, activities.MarkServiceRunning, MarkAppRunningInput{
 		ServiceID: input.ServiceID,
 		URL:       deployResult.URL,
 		CommitSHA: buildResult.CommitSHA,
@@ -313,7 +313,7 @@ func DeleteServiceWorkflow(ctx workflow.Context, input DeleteServiceWorkflowInpu
 		}, err
 	}
 
-	if err := workflow.ExecuteActivity(ctx, activities.SoftDeleteApp, input.ServiceID).Get(ctx, nil); err != nil {
+	if err := workflow.ExecuteActivity(ctx, activities.SoftDeleteService, input.ServiceID).Get(ctx, nil); err != nil {
 		logger.Error("Failed to soft-delete app record", "serviceID", input.ServiceID, "error", err)
 		return DeleteServiceWorkflowResult{
 			ServiceID:    input.ServiceID,

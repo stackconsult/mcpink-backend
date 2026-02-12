@@ -8,16 +8,16 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 	"go.temporal.io/sdk/temporal"
 )
 
-func buildImageTag(commitSHA string, app apps.App) string {
-	bc := parseBuildConfig(app.BuildConfig)
-	if app.BuildPack == "railpack" && bc.PublishDirectory == "" && bc.RootDirectory == "" && bc.BuildCommand == "" && bc.StartCommand == "" {
+func buildImageTag(commitSHA string, svc services.Service) string {
+	bc := parseBuildConfig(svc.BuildConfig)
+	if svc.BuildPack == "railpack" && bc.PublishDirectory == "" && bc.RootDirectory == "" && bc.BuildCommand == "" && bc.StartCommand == "" {
 		return commitSHA
 	}
-	h := sha256.Sum256([]byte(app.BuildPack + "\x00" + bc.PublishDirectory + "\x00" + bc.RootDirectory + "\x00" + bc.DockerfilePath + "\x00" + bc.BuildCommand + "\x00" + bc.StartCommand))
+	h := sha256.Sum256([]byte(svc.BuildPack + "\x00" + bc.PublishDirectory + "\x00" + bc.RootDirectory + "\x00" + bc.DockerfilePath + "\x00" + bc.BuildCommand + "\x00" + bc.StartCommand))
 	return fmt.Sprintf("%s-%x", commitSHA, h[:4])
 }
 
@@ -34,7 +34,7 @@ func (a *Activities) ResolveImageRef(ctx context.Context, input ResolveImageRefI
 		return nil, err
 	}
 
-	tag := buildImageTag(input.CommitSHA, id.App)
+	tag := buildImageTag(input.CommitSHA, id.Service)
 	imageRef := fmt.Sprintf("%s/%s/%s:%s", a.config.RegistryAddress, id.Namespace, id.Name, tag)
 	return &ResolveImageRefResult{ImageRef: imageRef}, nil
 }
@@ -58,7 +58,7 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 		return nil, err
 	}
 
-	bc := parseBuildConfig(id.App.BuildConfig)
+	bc := parseBuildConfig(id.Service.BuildConfig)
 
 	// Apply root_directory: narrow build context to subdirectory
 	effectiveSourcePath := input.SourcePath
@@ -76,11 +76,11 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 		}
 	}
 
-	tag := buildImageTag(input.CommitSHA, id.App)
+	tag := buildImageTag(input.CommitSHA, id.Service)
 	imageRef := fmt.Sprintf("%s/%s/%s:%s", a.config.RegistryAddress, id.Namespace, id.Name, tag)
 
 	// Determine build pack
-	buildPack := id.App.BuildPack
+	buildPack := id.Service.BuildPack
 	switch buildPack {
 	case "railpack", "nixpacks":
 		buildPack = "railpack"
@@ -95,13 +95,13 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 		}
 		// Auto-detect port from EXPOSE if user didn't explicitly provide one.
 		// Check for "" (new product server) or "3000" (old product server default).
-		if id.App.Port == "" {
+		if id.Service.Port == "" {
 			if detected := extractPortFromDockerfile(dockerfileFull); detected != "" {
-				id.App.Port = detected
+				id.Service.Port = detected
 			}
 		}
 	case "static":
-		id.App.Port = "8080"
+		id.Service.Port = "8080"
 	case "dockercompose":
 		return nil, fmt.Errorf("dockercompose build pack is not supported on k8s")
 	default:
@@ -113,9 +113,9 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 		dockerfileFull := filepath.Join(effectiveSourcePath, dockerfileName)
 		if _, err := os.Stat(dockerfileFull); err == nil {
 			buildPack = "dockerfile"
-			if id.App.Port == "" {
+			if id.Service.Port == "" {
 				if detected := extractPortFromDockerfile(dockerfileFull); detected != "" {
-					id.App.Port = detected
+					id.Service.Port = detected
 				}
 			}
 		} else {
@@ -123,10 +123,10 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 		}
 	}
 
-	id.App.Port = effectiveAppPort(buildPack, id.App.Port, bc.PublishDirectory)
+	id.Service.Port = effectiveAppPort(buildPack, id.Service.Port, bc.PublishDirectory)
 
-	envVars := parseEnvVars(id.App.EnvVars)
-	envVars["PORT"] = id.App.Port
+	envVars := parseEnvVars(id.Service.EnvVars)
+	envVars["PORT"] = id.Service.Port
 
 	a.logger.Info("ResolveBuildContext completed",
 		"serviceID", input.ServiceID,
@@ -141,7 +141,7 @@ func (a *Activities) ResolveBuildContext(ctx context.Context, input ResolveBuild
 		ImageRef:            imageRef,
 		Namespace:           id.Namespace,
 		Name:                id.Name,
-		Port:                id.App.Port,
+		Port:                id.Service.Port,
 		EnvVars:             envVars,
 		PublishDirectory:    bc.PublishDirectory,
 		EffectiveSourcePath: effectiveSourcePath,
@@ -175,38 +175,38 @@ type serviceIdentity struct {
 	Name       string
 	Tenant     string
 	ProjectRef string
-	App        apps.App
+	Service    services.Service
 }
 
 func (a *Activities) resolveServiceIdentity(ctx context.Context, serviceID string) (*serviceIdentity, error) {
-	app, err := a.appsQ.GetAppByID(ctx, serviceID)
+	svc, err := a.servicesQ.GetServiceByID(ctx, serviceID)
 	if err != nil {
-		return nil, fmt.Errorf("get app: %w", err)
+		return nil, fmt.Errorf("get service: %w", err)
 	}
 
-	project, err := a.projectsQ.GetProjectByID(ctx, app.ProjectID)
+	project, err := a.projectsQ.GetProjectByID(ctx, svc.ProjectID)
 	if err != nil {
 		return nil, fmt.Errorf("get project: %w", err)
 	}
 
-	user, err := a.usersQ.GetUserByID(ctx, app.UserID)
+	user, err := a.usersQ.GetUserByID(ctx, svc.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
 	tenant := ResolveUsername(user)
 	if tenant == "" {
-		return nil, fmt.Errorf("user %s has no gitea or github username", app.UserID)
+		return nil, fmt.Errorf("user %s has no gitea or github username", svc.UserID)
 	}
-	if app.Name == nil || *app.Name == "" {
-		return nil, fmt.Errorf("app %s has empty service name", app.ID)
+	if svc.Name == nil || *svc.Name == "" {
+		return nil, fmt.Errorf("service %s has empty service name", svc.ID)
 	}
 
 	return &serviceIdentity{
 		Namespace:  NamespaceName(tenant, project.Ref),
-		Name:       ServiceName(*app.Name),
+		Name:       ServiceName(*svc.Name),
 		Tenant:     tenant,
 		ProjectRef: project.Ref,
-		App:        app,
+		Service:    svc,
 	}, nil
 }

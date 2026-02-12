@@ -147,7 +147,7 @@ func (s *Server) handleCreateService(ctx context.Context, req *mcp.CallToolReque
 		"is_internal_git", isInternalGit,
 	)
 
-	var result *deployments.CreateAppResult
+	var result *deployments.CreateServiceResult
 
 	if host == "ml.ink" {
 		result, err = s.createServiceFromInternalGit(ctx, user.ID, input, buildPack, port, envVars)
@@ -161,7 +161,7 @@ func (s *Server) handleCreateService(ctx context.Context, req *mcp.CallToolReque
 	}
 
 	output := CreateServiceOutput{
-		ServiceID: result.AppID,
+		ServiceID: result.ServiceID,
 		Name:      result.Name,
 		Status:    result.Status,
 		Repo:      result.Repo,
@@ -215,7 +215,7 @@ func (s *Server) normalizeServiceRepo(ctx context.Context, user *users.User, inp
 	return host, fmt.Sprintf("%s/%s", username, repo), nil
 }
 
-func (s *Server) createServiceFromGitHub(ctx context.Context, user *users.User, input CreateServiceInput, buildPack, port string, envVars []deployments.EnvVar) (*deployments.CreateAppResult, error) {
+func (s *Server) createServiceFromGitHub(ctx context.Context, user *users.User, input CreateServiceInput, buildPack, port string, envVars []deployments.EnvVar) (*deployments.CreateServiceResult, error) {
 	creds, err := s.authService.GetGitHubCredsByUserID(ctx, user.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get GitHub credentials")
@@ -227,7 +227,7 @@ func (s *Server) createServiceFromGitHub(ctx context.Context, user *users.User, 
 
 	repo := strings.TrimPrefix(input.Repo, "github.com/")
 
-	return s.deployService.CreateApp(ctx, deployments.CreateAppInput{
+	return s.deployService.CreateService(ctx, deployments.CreateServiceInput{
 		UserID:           user.ID,
 		ProjectRef:       input.Project,
 		Repo:             repo,
@@ -248,7 +248,7 @@ func (s *Server) createServiceFromGitHub(ctx context.Context, user *users.User, 
 	})
 }
 
-func (s *Server) createServiceFromInternalGit(ctx context.Context, userID string, input CreateServiceInput, buildPack, port string, envVars []deployments.EnvVar) (*deployments.CreateAppResult, error) {
+func (s *Server) createServiceFromInternalGit(ctx context.Context, userID string, input CreateServiceInput, buildPack, port string, envVars []deployments.EnvVar) (*deployments.CreateServiceResult, error) {
 	fullName := strings.TrimPrefix(strings.TrimSpace(input.Repo), "ml.ink/")
 	parts := strings.Split(fullName, "/")
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
@@ -264,7 +264,7 @@ func (s *Server) createServiceFromInternalGit(ctx context.Context, userID string
 		return nil, fmt.Errorf("repo belongs to another user")
 	}
 
-	return s.deployService.CreateApp(ctx, deployments.CreateAppInput{
+	return s.deployService.CreateService(ctx, deployments.CreateServiceInput{
 		UserID:           userID,
 		ProjectRef:       input.Project,
 		Repo:             fullName,
@@ -290,7 +290,7 @@ func (s *Server) handleListServices(ctx context.Context, req *mcp.CallToolReques
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, ListServicesOutput{}, nil
 	}
 
-	apps, err := s.deployService.ListApps(ctx, user.ID, 100, 0)
+	apps, err := s.deployService.ListServices(ctx, user.ID, 100, 0)
 	if err != nil {
 		s.logger.Error("failed to list services", "error", err)
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to list services: %v", err)}}}, ListServicesOutput{}, nil
@@ -339,7 +339,7 @@ func (s *Server) handleRedeployService(ctx context.Context, req *mcp.CallToolReq
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("project not found: %s", projectRef)}}}, RedeployServiceOutput{}, nil
 	}
 
-	app, err := s.deployService.GetAppByNameAndProject(ctx, input.Name, project.ID)
+	app, err := s.deployService.GetServiceByNameAndProject(ctx, input.Name, project.ID)
 	if err != nil {
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("service not found: %s", input.Name)}}}, RedeployServiceOutput{}, nil
 	}
@@ -350,7 +350,7 @@ func (s *Server) handleRedeployService(ctx context.Context, req *mcp.CallToolReq
 		"name", input.Name,
 	)
 
-	workflowID, err := s.deployService.RedeployApp(ctx, app.ID)
+	workflowID, err := s.deployService.RedeployService(ctx, app.ID)
 	if err != nil {
 		s.logger.Error("failed to start redeploy", "error", err)
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to start redeploy: %v", err)}}}, RedeployServiceOutput{}, nil
@@ -517,7 +517,7 @@ func (s *Server) handleGetService(ctx context.Context, req *mcp.CallToolRequest,
 		project = input.Project
 	}
 
-	app, err := s.deployService.GetAppByName(ctx, deployments.GetAppByNameParams{
+	app, err := s.deployService.GetServiceByName(ctx, deployments.GetServiceByNameParams{
 		Name:    input.Name,
 		Project: project,
 		UserID:  user.ID,
@@ -632,7 +632,7 @@ func (s *Server) handleDeleteService(ctx context.Context, req *mcp.CallToolReque
 		project = input.Project
 	}
 
-	result, err := s.deployService.DeleteApp(ctx, deployments.DeleteAppParams{
+	result, err := s.deployService.DeleteService(ctx, deployments.DeleteServiceParams{
 		Name:    input.Name,
 		Project: project,
 		UserID:  user.ID,
@@ -643,7 +643,7 @@ func (s *Server) handleDeleteService(ctx context.Context, req *mcp.CallToolReque
 	}
 
 	return nil, DeleteServiceOutput{
-		ServiceID: result.AppID,
+		ServiceID: result.ServiceID,
 		Name:      result.Name,
 		Message:   "Service deleted successfully",
 	}, nil

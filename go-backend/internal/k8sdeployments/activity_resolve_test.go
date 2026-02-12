@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 )
 
 func mustMarshalBuildConfig(bc BuildConfig) []byte {
@@ -18,19 +18,19 @@ func TestBuildImageTag(t *testing.T) {
 
 	tests := []struct {
 		name string
-		app  apps.App
+		svc  services.Service
 		want string
 	}{
 		{
 			name: "railpack without publish directory keeps legacy commit tag",
-			app: apps.App{
+			svc: services.Service{
 				BuildPack: "railpack",
 			},
 			want: commit,
 		},
 		{
 			name: "railpack with publish directory includes config hash",
-			app: apps.App{
+			svc: services.Service{
 				BuildPack:   "railpack",
 				BuildConfig: mustMarshalBuildConfig(BuildConfig{PublishDirectory: "dist"}),
 			},
@@ -38,14 +38,14 @@ func TestBuildImageTag(t *testing.T) {
 		},
 		{
 			name: "dockerfile includes config hash",
-			app: apps.App{
+			svc: services.Service{
 				BuildPack: "dockerfile",
 			},
 			want: commit + "-",
 		},
 		{
 			name: "railpack with root_directory includes config hash",
-			app: apps.App{
+			svc: services.Service{
 				BuildPack:   "railpack",
 				BuildConfig: mustMarshalBuildConfig(BuildConfig{RootDirectory: "frontend"}),
 			},
@@ -53,7 +53,7 @@ func TestBuildImageTag(t *testing.T) {
 		},
 		{
 			name: "dockerfile with dockerfile_path includes config hash",
-			app: apps.App{
+			svc: services.Service{
 				BuildPack:   "dockerfile",
 				BuildConfig: mustMarshalBuildConfig(BuildConfig{DockerfilePath: "worker.Dockerfile"}),
 			},
@@ -63,7 +63,7 @@ func TestBuildImageTag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildImageTag(commit, tt.app)
+			got := buildImageTag(commit, tt.svc)
 			if tt.want == commit {
 				if got != commit {
 					t.Fatalf("buildImageTag() = %q, want %q", got, commit)
@@ -86,15 +86,15 @@ func TestBuildImageTag(t *testing.T) {
 func TestBuildImageTag_ConfigDrivesTag(t *testing.T) {
 	commit := "0123456789abcdef"
 
-	railpackDist := apps.App{
+	railpackDist := services.Service{
 		BuildPack:   "railpack",
 		BuildConfig: mustMarshalBuildConfig(BuildConfig{PublishDirectory: "dist"}),
 	}
-	railpackPublic := apps.App{
+	railpackPublic := services.Service{
 		BuildPack:   "railpack",
 		BuildConfig: mustMarshalBuildConfig(BuildConfig{PublishDirectory: "public"}),
 	}
-	dockerfile := apps.App{BuildPack: "dockerfile"}
+	dockerfile := services.Service{BuildPack: "dockerfile"}
 
 	distTag := buildImageTag(commit, railpackDist)
 	if distTag != buildImageTag(commit, railpackDist) {
@@ -113,15 +113,15 @@ func TestBuildImageTag_ConfigDrivesTag(t *testing.T) {
 func TestBuildImageTag_RootDirectoryDrivesTag(t *testing.T) {
 	commit := "0123456789abcdef"
 
-	frontend := apps.App{
+	frontend := services.Service{
 		BuildPack:   "railpack",
 		BuildConfig: mustMarshalBuildConfig(BuildConfig{RootDirectory: "frontend"}),
 	}
-	backend := apps.App{
+	backend := services.Service{
 		BuildPack:   "railpack",
 		BuildConfig: mustMarshalBuildConfig(BuildConfig{RootDirectory: "backend"}),
 	}
-	plain := apps.App{BuildPack: "railpack"}
+	plain := services.Service{BuildPack: "railpack"}
 
 	frontendTag := buildImageTag(commit, frontend)
 	backendTag := buildImageTag(commit, backend)
@@ -138,15 +138,15 @@ func TestBuildImageTag_RootDirectoryDrivesTag(t *testing.T) {
 func TestBuildImageTag_DockerfilePathDrivesTag(t *testing.T) {
 	commit := "0123456789abcdef"
 
-	server := apps.App{
+	server := services.Service{
 		BuildPack:   "dockerfile",
 		BuildConfig: mustMarshalBuildConfig(BuildConfig{DockerfilePath: "server.Dockerfile"}),
 	}
-	worker := apps.App{
+	worker := services.Service{
 		BuildPack:   "dockerfile",
 		BuildConfig: mustMarshalBuildConfig(BuildConfig{DockerfilePath: "worker.Dockerfile"}),
 	}
-	defaultDF := apps.App{BuildPack: "dockerfile"}
+	defaultDF := services.Service{BuildPack: "dockerfile"}
 
 	if buildImageTag(commit, server) == buildImageTag(commit, worker) {
 		t.Fatalf("different dockerfile_path should produce different tags")

@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/augustdev/autoclip/internal/graph/model"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 )
 
-func (r *Resolver) getAppsForProject(ctx context.Context, projectID string) ([]*model.App, error) {
-	dbApps, err := r.AppQueries.ListAppsByProjectID(ctx, apps.ListAppsByProjectIDParams{
+func (r *Resolver) getServicesForProject(ctx context.Context, projectID string) ([]*model.Service, error) {
+	dbServices, err := r.ServiceQueries.ListServicesByProjectID(ctx, services.ListServicesByProjectIDParams{
 		ProjectID: projectID,
 		Limit:     1000,
 		Offset:    0,
@@ -18,22 +18,22 @@ func (r *Resolver) getAppsForProject(ctx context.Context, projectID string) ([]*
 		return nil, err
 	}
 
-	result := make([]*model.App, len(dbApps))
-	for i, dbApp := range dbApps {
-		result[i] = dbAppToModel(&dbApp)
+	result := make([]*model.Service, len(dbServices))
+	for i, dbSvc := range dbServices {
+		result[i] = dbServiceToModel(&dbSvc)
 	}
 	return result, nil
 }
 
-func dbProjectToModel(dbProject *projects.Project, projectApps []*model.App) *model.Project {
-	if projectApps == nil {
-		projectApps = []*model.App{}
+func dbProjectToModel(dbProject *projects.Project, projectServices []*model.Service) *model.Project {
+	if projectServices == nil {
+		projectServices = []*model.Service{}
 	}
 	return &model.Project{
 		ID:        dbProject.ID,
 		Name:      dbProject.Name,
 		Ref:       dbProject.Ref,
-		Apps:      projectApps,
+		Services:  projectServices,
 		CreatedAt: dbProject.CreatedAt.Time,
 		UpdatedAt: dbProject.UpdatedAt.Time,
 	}

@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 )
 
 func (a *Activities) UpdateBuildStatus(ctx context.Context, input UpdateBuildStatusInput) error {
-	_, err := a.appsQ.UpdateBuildStatus(ctx, apps.UpdateBuildStatusParams{
+	_, err := a.servicesQ.UpdateBuildStatus(ctx, services.UpdateBuildStatusParams{
 		ID:          input.ServiceID,
 		BuildStatus: input.BuildStatus,
 	})
@@ -19,36 +19,36 @@ func (a *Activities) UpdateBuildStatus(ctx context.Context, input UpdateBuildSta
 	return nil
 }
 
-func (a *Activities) MarkAppRunning(ctx context.Context, input MarkAppRunningInput) error {
-	_, err := a.appsQ.UpdateAppRunning(ctx, apps.UpdateAppRunningParams{
+func (a *Activities) MarkServiceRunning(ctx context.Context, input MarkAppRunningInput) error {
+	_, err := a.servicesQ.UpdateServiceRunning(ctx, services.UpdateServiceRunningParams{
 		ID:         input.ServiceID,
 		Fqdn:       &input.URL,
 		CommitHash: &input.CommitSHA,
 	})
 	if err != nil {
-		return fmt.Errorf("mark app running: %w", err)
+		return fmt.Errorf("mark service running: %w", err)
 	}
-	a.logger.Info("Marked app running", "serviceID", input.ServiceID, "url", input.URL)
+	a.logger.Info("Marked service running", "serviceID", input.ServiceID, "url", input.URL)
 	return nil
 }
 
-func (a *Activities) MarkAppFailed(ctx context.Context, input MarkAppFailedInput) error {
-	_, err := a.appsQ.UpdateAppFailed(ctx, apps.UpdateAppFailedParams{
+func (a *Activities) MarkServiceFailed(ctx context.Context, input MarkAppFailedInput) error {
+	_, err := a.servicesQ.UpdateServiceFailed(ctx, services.UpdateServiceFailedParams{
 		ID:           input.ServiceID,
 		ErrorMessage: &input.ErrorMessage,
 	})
 	if err != nil {
-		return fmt.Errorf("mark app failed: %w", err)
+		return fmt.Errorf("mark service failed: %w", err)
 	}
-	a.logger.Info("Marked app failed", "serviceID", input.ServiceID, "error", input.ErrorMessage)
+	a.logger.Info("Marked service failed", "serviceID", input.ServiceID, "error", input.ErrorMessage)
 	return nil
 }
 
-func (a *Activities) SoftDeleteApp(ctx context.Context, serviceID string) error {
-	_, err := a.appsQ.SoftDeleteApp(ctx, serviceID)
+func (a *Activities) SoftDeleteService(ctx context.Context, serviceID string) error {
+	_, err := a.servicesQ.SoftDeleteService(ctx, serviceID)
 	if err != nil {
-		return fmt.Errorf("soft delete app: %w", err)
+		return fmt.Errorf("soft delete service: %w", err)
 	}
-	a.logger.Info("Soft-deleted app", "serviceID", serviceID)
+	a.logger.Info("Soft-deleted service", "serviceID", serviceID)
 	return nil
 }

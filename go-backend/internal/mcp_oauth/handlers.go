@@ -36,14 +36,15 @@ func NewHandlers(
 	}
 }
 
-func (h *Handlers) RegisterRoutes(r chi.Router) {
+func (h *Handlers) RegisterRoutes(r chi.Router, authMiddleware func(http.Handler) http.Handler) {
 	r.Get("/.well-known/oauth-protected-resource", h.HandleProtectedResourceMetadata)
 	r.Get("/.well-known/oauth-authorization-server", h.HandleAuthServerMetadata)
 	r.Post("/oauth/register", h.HandleRegister)
 	r.Get("/oauth/authorize", h.HandleAuthorize)
-	r.Get("/oauth/context", h.HandleContext)
-	r.Post("/oauth/complete", h.HandleComplete)
 	r.Post("/oauth/token", h.HandleToken)
+
+	r.With(authMiddleware).Get("/oauth/context", h.HandleContext)
+	r.With(authMiddleware).Post("/oauth/complete", h.HandleComplete)
 }
 
 func (h *Handlers) HandleProtectedResourceMetadata(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +143,6 @@ func (h *Handlers) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store OAuth params in cookie for retrieval after Firebase login
 	oauthContext := url.Values{
 		"client_id":      {clientID},
 		"redirect_uri":   {redirectURI},
@@ -159,12 +159,9 @@ func (h *Handlers) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	// Redirect to frontend for Firebase login, then consent
-	http.Redirect(w, r, h.config.FrontendURL+"/?return=/oauth/consent", http.StatusTemporaryRedirect)
+	http.Redirect(w, r, h.config.FrontendURL+"/oauth/consent", http.StatusTemporaryRedirect)
 }
 
-// HandleContext returns the MCP OAuth context for the consent screen.
-// User identification comes from the auth middleware (Bearer token).
 func (h *Handlers) HandleContext(w http.ResponseWriter, r *http.Request) {
 	sc, err := authz.ForErr(r.Context())
 	if err != nil {
@@ -207,8 +204,6 @@ type CompleteRequest struct {
 	APIKeyName string `json:"api_key_name"`
 }
 
-// HandleComplete finalizes the MCP OAuth flow.
-// User identification comes from the auth middleware (Bearer token).
 func (h *Handlers) HandleComplete(w http.ResponseWriter, r *http.Request) {
 	sc, err := authz.ForErr(r.Context())
 	if err != nil {
@@ -265,7 +260,6 @@ func (h *Handlers) HandleComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Clear the OAuth context cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "mcp_oauth_context",
 		Value:    "",

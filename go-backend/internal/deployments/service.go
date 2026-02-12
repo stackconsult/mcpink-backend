@@ -10,10 +10,10 @@ import (
 
 	"github.com/augustdev/autoclip/internal/cloudflare"
 	"github.com/augustdev/autoclip/internal/k8sdeployments"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/dnsrecords"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/githubcreds"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/users"
 	"github.com/lithammer/shortuuid/v4"
 	enumspb "go.temporal.io/api/enums/v1"
@@ -23,7 +23,7 @@ import (
 
 type Service struct {
 	temporalClient   client.Client
-	appsQ            apps.Querier
+	servicesQ        services.Querier
 	projectsQ        projects.Querier
 	usersQ           users.Querier
 	ghCredsQ         githubcreds.Querier
@@ -35,7 +35,7 @@ type Service struct {
 
 func NewService(
 	temporalClient client.Client,
-	appsQ apps.Querier,
+	servicesQ services.Querier,
 	projectsQ projects.Querier,
 	usersQ users.Querier,
 	ghCredsQ githubcreds.Querier,
@@ -46,7 +46,7 @@ func NewService(
 ) *Service {
 	return &Service{
 		temporalClient:   temporalClient,
-		appsQ:            appsQ,
+		servicesQ:        servicesQ,
 		projectsQ:        projectsQ,
 		usersQ:           usersQ,
 		ghCredsQ:         ghCredsQ,
@@ -57,7 +57,7 @@ func NewService(
 	}
 }
 
-type CreateAppInput struct {
+type CreateServiceInput struct {
 	UserID           string
 	ProjectRef       string
 	GitHubAppUUID    string
@@ -78,15 +78,15 @@ type CreateAppInput struct {
 	DockerfilePath   string
 }
 
-type CreateAppResult struct {
-	AppID      string
+type CreateServiceResult struct {
+	ServiceID  string
 	Name       string
 	Status     string
 	Repo       string
 	WorkflowID string
 }
 
-func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateAppResult, error) {
+func (s *Service) CreateService(ctx context.Context, input CreateServiceInput) (*CreateServiceResult, error) {
 	var projectID string
 	if input.ProjectRef != "" {
 		project, err := s.getOrCreateProject(ctx, input.UserID, input.ProjectRef)
@@ -104,7 +104,7 @@ func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateA
 
 	// Check for duplicate name in the same project
 	if input.Name != "" {
-		_, err := s.appsQ.GetAppByNameAndProject(ctx, apps.GetAppByNameAndProjectParams{
+		_, err := s.servicesQ.GetServiceByNameAndProject(ctx, services.GetServiceByNameAndProjectParams{
 			Name:      &input.Name,
 			ProjectID: projectID,
 		})
@@ -113,8 +113,8 @@ func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateA
 		}
 	}
 
-	appID := shortuuid.New()
-	workflowID := fmt.Sprintf("deploy-%s", appID)
+	svcID := shortuuid.New()
+	workflowID := fmt.Sprintf("deploy-%s", svcID)
 
 	gitProvider := input.GitProvider
 	if gitProvider == "" {
@@ -140,8 +140,8 @@ func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateA
 		cpu = "0.5"
 	}
 
-	_, err := s.appsQ.CreateApp(ctx, apps.CreateAppParams{
-		ID:          appID,
+	_, err := s.servicesQ.CreateService(ctx, services.CreateServiceParams{
+		ID:          svcID,
 		UserID:      input.UserID,
 		ProjectID:   projectID,
 		Repo:        input.Repo,
@@ -158,11 +158,11 @@ func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateA
 		Cpu:         cpu,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create app record: %w", err)
+		return nil, fmt.Errorf("failed to create service record: %w", err)
 	}
 
 	workflowInput := k8sdeployments.CreateServiceWorkflowInput{
-		ServiceID:      appID,
+		ServiceID:      svcID,
 		Repo:           input.Repo,
 		Branch:         input.Branch,
 		GitProvider:    gitProvider,
@@ -187,12 +187,12 @@ func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateA
 	}
 
 	runID := run.GetRunID()
-	if err := s.appsQ.UpdateWorkflowRunID(ctx, apps.UpdateWorkflowRunIDParams{
-		ID:            appID,
+	if err := s.servicesQ.UpdateWorkflowRunID(ctx, services.UpdateWorkflowRunIDParams{
+		ID:            svcID,
 		WorkflowRunID: &runID,
 	}); err != nil {
 		s.logger.Warn("failed to persist workflow run id",
-			"appID", appID,
+			"serviceID", svcID,
 			"workflowID", workflowID,
 			"runID", runID,
 			"error", err)
@@ -202,8 +202,8 @@ func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateA
 		"workflowID", workflowID,
 		"runID", run.GetRunID())
 
-	return &CreateAppResult{
-		AppID:      appID,
+	return &CreateServiceResult{
+		ServiceID:  svcID,
 		Name:       input.Name,
 		Status:     string(BuildStatusQueued),
 		Repo:       input.Repo,
@@ -211,16 +211,16 @@ func (s *Service) CreateApp(ctx context.Context, input CreateAppInput) (*CreateA
 	}, nil
 }
 
-func (s *Service) ListApps(ctx context.Context, userID string, limit, offset int32) ([]apps.App, error) {
-	appList, err := s.appsQ.ListAppsByUserID(ctx, apps.ListAppsByUserIDParams{
+func (s *Service) ListServices(ctx context.Context, userID string, limit, offset int32) ([]services.Service, error) {
+	svcList, err := s.servicesQ.ListServicesByUserID(ctx, services.ListServicesByUserIDParams{
 		UserID: userID,
 		Limit:  limit,
 		Offset: offset,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list apps: %w", err)
+		return nil, fmt.Errorf("failed to list services: %w", err)
 	}
-	return appList, nil
+	return svcList, nil
 }
 
 func (s *Service) GetProjectByRef(ctx context.Context, userID, ref string) (*projects.Project, error) {
@@ -248,50 +248,50 @@ func (s *Service) getOrCreateProject(ctx context.Context, userID, ref string) (*
 	return &newProject, nil
 }
 
-func (s *Service) GetAppByNameAndProject(ctx context.Context, name, projectID string) (*apps.App, error) {
-	app, err := s.appsQ.GetAppByNameAndProject(ctx, apps.GetAppByNameAndProjectParams{
+func (s *Service) GetServiceByNameAndProject(ctx context.Context, name, projectID string) (*services.Service, error) {
+	svc, err := s.servicesQ.GetServiceByNameAndProject(ctx, services.GetServiceByNameAndProjectParams{
 		Name:      &name,
 		ProjectID: projectID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("app not found: %s", name)
+		return nil, fmt.Errorf("service not found: %s", name)
 	}
-	return &app, nil
+	return &svc, nil
 }
 
-type GetAppByNameParams struct {
+type GetServiceByNameParams struct {
 	Name    string
 	Project string // "default" uses user's default project
 	UserID  string
 }
 
-func (s *Service) GetAppByName(ctx context.Context, params GetAppByNameParams) (*apps.App, error) {
+func (s *Service) GetServiceByName(ctx context.Context, params GetServiceByNameParams) (*services.Service, error) {
 	project := params.Project
 	if project == "" {
 		project = "default"
 	}
 
-	app, err := s.appsQ.GetAppByNameAndUserProject(ctx, apps.GetAppByNameAndUserProjectParams{
+	svc, err := s.servicesQ.GetServiceByNameAndUserProject(ctx, services.GetServiceByNameAndUserProjectParams{
 		Name:   &params.Name,
 		UserID: params.UserID,
 		Ref:    project,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("app not found: %s in project %s", params.Name, project)
+		return nil, fmt.Errorf("service not found: %s in project %s", params.Name, project)
 	}
-	return &app, nil
+	return &svc, nil
 }
 
-func (s *Service) RedeployApp(ctx context.Context, appID string) (string, error) {
-	workflowID := fmt.Sprintf("redeploy-%s-%s", appID, shortuuid.New())
-	return s.RedeployAppWithWorkflowID(ctx, appID, workflowID)
+func (s *Service) RedeployService(ctx context.Context, svcID string) (string, error) {
+	workflowID := fmt.Sprintf("redeploy-%s-%s", svcID, shortuuid.New())
+	return s.RedeployServiceWithWorkflowID(ctx, svcID, workflowID)
 }
 
 // RedeployFromGitHubPush starts (or reuses) a redeploy workflow triggered by a GitHub push.
 //
 // GitHub delivery is at-least-once, so we treat it as potentially duplicated and use a deterministic workflow ID
 // derived from the commit SHA (preferred) or delivery ID (fallback).
-func (s *Service) RedeployFromGitHubPush(ctx context.Context, appID, afterSHA, deliveryID string) (string, error) {
+func (s *Service) RedeployFromGitHubPush(ctx context.Context, svcID, afterSHA, deliveryID string) (string, error) {
 	key := strings.TrimSpace(afterSHA)
 	if key == "" || key == "0000000000000000000000000000000000000000" {
 		key = strings.TrimSpace(deliveryID)
@@ -300,34 +300,34 @@ func (s *Service) RedeployFromGitHubPush(ctx context.Context, appID, afterSHA, d
 		key = shortuuid.New()
 	}
 
-	workflowID := fmt.Sprintf("redeploy-%s-%s", appID, key)
-	return s.RedeployAppWithWorkflowID(ctx, appID, workflowID)
+	workflowID := fmt.Sprintf("redeploy-%s-%s", svcID, key)
+	return s.RedeployServiceWithWorkflowID(ctx, svcID, workflowID)
 }
 
 // RedeployFromInternalGitPush starts (or reuses) a redeploy workflow triggered by an internal git (Gitea) push.
-func (s *Service) RedeployFromInternalGitPush(ctx context.Context, appID, afterSHA string) (string, error) {
+func (s *Service) RedeployFromInternalGitPush(ctx context.Context, svcID, afterSHA string) (string, error) {
 	key := strings.TrimSpace(afterSHA)
 	if key == "" || key == "0000000000000000000000000000000000000000" {
 		key = shortuuid.New()
 	}
 
-	workflowID := fmt.Sprintf("redeploy-%s-%s", appID, key)
-	return s.RedeployAppWithWorkflowID(ctx, appID, workflowID)
+	workflowID := fmt.Sprintf("redeploy-%s-%s", svcID, key)
+	return s.RedeployServiceWithWorkflowID(ctx, svcID, workflowID)
 }
 
-func (s *Service) RedeployAppWithWorkflowID(ctx context.Context, appID, workflowID string) (string, error) {
+func (s *Service) RedeployServiceWithWorkflowID(ctx context.Context, svcID, workflowID string) (string, error) {
 	if workflowID == "" {
-		workflowID = fmt.Sprintf("redeploy-%s-%s", appID, shortuuid.New())
+		workflowID = fmt.Sprintf("redeploy-%s-%s", svcID, shortuuid.New())
 	}
 
-	app, err := s.appsQ.GetAppByID(ctx, appID)
+	svc, err := s.servicesQ.GetServiceByID(ctx, svcID)
 	if err != nil {
-		return "", fmt.Errorf("app not found: %w", err)
+		return "", fmt.Errorf("service not found: %w", err)
 	}
 
 	var installationID int64
-	if app.GitProvider == "github" {
-		creds, err := s.ghCredsQ.GetGitHubCredsByUserID(ctx, app.UserID)
+	if svc.GitProvider == "github" {
+		creds, err := s.ghCredsQ.GetGitHubCredsByUserID(ctx, svc.UserID)
 		if err == nil && creds.GithubAppInstallationID != nil {
 			installationID = *creds.GithubAppInstallationID
 		}
@@ -340,10 +340,10 @@ func (s *Service) RedeployAppWithWorkflowID(ctx context.Context, appID, workflow
 	}
 
 	we, err := s.temporalClient.ExecuteWorkflow(ctx, workflowOptions, k8sdeployments.RedeployServiceWorkflow, k8sdeployments.RedeployServiceWorkflowInput{
-		ServiceID:      appID,
-		Repo:           app.Repo,
-		Branch:         app.Branch,
-		GitProvider:    app.GitProvider,
+		ServiceID:      svcID,
+		Repo:           svc.Repo,
+		Branch:         svc.Branch,
+		GitProvider:    svc.GitProvider,
 		InstallationID: installationID,
 		AppsDomain:     s.appsDomain,
 	})
@@ -352,7 +352,7 @@ func (s *Service) RedeployAppWithWorkflowID(ctx context.Context, appID, workflow
 		if errors.As(err, &alreadyStarted) {
 			s.logger.Info("redeploy workflow already started, skipping duplicate",
 				"workflowID", workflowID,
-				"appID", appID)
+				"serviceID", svcID)
 			return workflowID, nil
 		}
 
@@ -369,44 +369,44 @@ func (s *Service) RedeployAppWithWorkflowID(ctx context.Context, appID, workflow
 	return we.GetID(), nil
 }
 
-type DeleteAppParams struct {
+type DeleteServiceParams struct {
 	Name    string
 	Project string
 	UserID  string
 }
 
-type DeleteAppResult struct {
-	AppID      string
+type DeleteServiceResult struct {
+	ServiceID  string
 	Name       string
 	WorkflowID string
 }
 
-func (s *Service) DeleteApp(ctx context.Context, params DeleteAppParams) (*DeleteAppResult, error) {
+func (s *Service) DeleteService(ctx context.Context, params DeleteServiceParams) (*DeleteServiceResult, error) {
 	project := params.Project
 	if project == "" {
 		project = "default"
 	}
 
-	app, err := s.appsQ.GetAppByNameAndUserProject(ctx, apps.GetAppByNameAndUserProjectParams{
+	svc, err := s.servicesQ.GetServiceByNameAndUserProject(ctx, services.GetServiceByNameAndUserProjectParams{
 		Name:   &params.Name,
 		UserID: params.UserID,
 		Ref:    project,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("app not found: %s in project %s", params.Name, project)
+		return nil, fmt.Errorf("service not found: %s in project %s", params.Name, project)
 	}
 
 	var name string
-	if app.Name != nil {
-		name = *app.Name
+	if svc.Name != nil {
+		name = *svc.Name
 	}
 
-	user, err := s.usersQ.GetUserByID(ctx, app.UserID)
+	user, err := s.usersQ.GetUserByID(ctx, svc.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
 
-	proj, err := s.projectsQ.GetProjectByID(ctx, app.ProjectID)
+	proj, err := s.projectsQ.GetProjectByID(ctx, svc.ProjectID)
 	if err != nil {
 		return nil, fmt.Errorf("project not found: %w", err)
 	}
@@ -421,7 +421,7 @@ func (s *Service) DeleteApp(ctx context.Context, params DeleteAppParams) (*Delet
 	namespace := k8sdeployments.NamespaceName(username, proj.Ref)
 	serviceName := k8sdeployments.ServiceName(name)
 
-	workflowID := fmt.Sprintf("delete-app-%s", app.ID)
+	workflowID := fmt.Sprintf("delete-svc-%s", svc.ID)
 
 	workflowOptions := client.StartWorkflowOptions{
 		ID:        workflowID,
@@ -429,7 +429,7 @@ func (s *Service) DeleteApp(ctx context.Context, params DeleteAppParams) (*Delet
 	}
 
 	input := k8sdeployments.DeleteServiceWorkflowInput{
-		ServiceID: app.ID,
+		ServiceID: svc.ID,
 		Namespace: namespace,
 		Name:      serviceName,
 	}
@@ -439,13 +439,13 @@ func (s *Service) DeleteApp(ctx context.Context, params DeleteAppParams) (*Delet
 		return nil, fmt.Errorf("failed to start delete workflow: %w", err)
 	}
 
-	s.logger.Info("started delete app workflow",
-		"app_id", app.ID,
+	s.logger.Info("started delete service workflow",
+		"service_id", svc.ID,
 		"name", name,
 		"workflow_id", run.GetID())
 
-	return &DeleteAppResult{
-		AppID:      app.ID,
+	return &DeleteServiceResult{
+		ServiceID:  svc.ID,
 		Name:       name,
 		WorkflowID: run.GetID(),
 	}, nil

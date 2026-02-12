@@ -25,7 +25,7 @@ func main() {
 			bootstrap.NewK8sTemporalWorker,
 			bootstrap.NewK8sClient,
 			pg.NewDatabase,
-			pg.NewAppQueries,
+			pg.NewServiceQueries,
 			pg.NewProjectQueries,
 			pg.NewUserQueries,
 			githubapp.NewService,

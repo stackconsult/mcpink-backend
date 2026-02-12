@@ -7,9 +7,9 @@ import (
 	"github.com/augustdev/autoclip/internal/deployments"
 	"github.com/augustdev/autoclip/internal/githubapp"
 	"github.com/augustdev/autoclip/internal/internalgit"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/githubcreds"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/internalrepos"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -17,7 +17,7 @@ type Handlers struct {
 	config         githubapp.Config
 	giteaConfig    internalgit.Config
 	deployService  *deployments.Service
-	appsQ          apps.Querier
+	servicesQ      services.Querier
 	githubCredsQ   githubcreds.Querier
 	internalReposQ internalrepos.Querier
 	logger         *slog.Logger
@@ -27,7 +27,7 @@ func NewHandlers(
 	config githubapp.Config,
 	giteaConfig internalgit.Config,
 	deployService *deployments.Service,
-	appsQ apps.Querier,
+	servicesQ services.Querier,
 	githubCredsQ githubcreds.Querier,
 	internalReposQ internalrepos.Querier,
 	logger *slog.Logger,
@@ -36,7 +36,7 @@ func NewHandlers(
 		config:         config,
 		giteaConfig:    giteaConfig,
 		deployService:  deployService,
-		appsQ:          appsQ,
+		servicesQ:      servicesQ,
 		githubCredsQ:   githubCredsQ,
 		internalReposQ: internalReposQ,
 		logger:         logger,

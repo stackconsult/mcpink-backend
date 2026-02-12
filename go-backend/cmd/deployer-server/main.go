@@ -23,7 +23,7 @@ func main() {
 			bootstrap.NewLogger,
 			bootstrap.NewConfig,
 			pg.NewDatabase,
-			pg.NewAppQueries,
+			pg.NewServiceQueries,
 			pg.NewGitHubCredsQueries,
 			pg.NewInternalReposQueries,
 			bootstrap.CreateTemporalClient,

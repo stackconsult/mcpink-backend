@@ -6,8 +6,8 @@ import (
 
 	"github.com/augustdev/autoclip/internal/githubapp"
 	"github.com/augustdev/autoclip/internal/internalgit"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/users"
 	"k8s.io/client-go/kubernetes"
 )
@@ -19,7 +19,7 @@ type Activities struct {
 	k8s            kubernetes.Interface
 	githubApp      *githubapp.Service
 	internalGitSvc *internalgit.Service
-	appsQ          apps.Querier
+	servicesQ      services.Querier
 	projectsQ      projects.Querier
 	usersQ         users.Querier
 	config         Config
@@ -30,7 +30,7 @@ func NewActivities(
 	k8s kubernetes.Interface,
 	githubApp *githubapp.Service,
 	internalGitSvc *internalgit.Service,
-	appsQ apps.Querier,
+	servicesQ services.Querier,
 	projectsQ projects.Querier,
 	usersQ users.Querier,
 	config Config,
@@ -40,7 +40,7 @@ func NewActivities(
 		k8s:            k8s,
 		githubApp:      githubApp,
 		internalGitSvc: internalGitSvc,
-		appsQ:          appsQ,
+		servicesQ:      servicesQ,
 		projectsQ:      projectsQ,
 		usersQ:         usersQ,
 		config:         config,

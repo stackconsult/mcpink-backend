@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 )
 
 // GiteaPushPayload represents the incoming webhook payload from Gitea
@@ -109,49 +109,49 @@ func (h *Handlers) handleInternalGitPushWebhook(w http.ResponseWriter, r *http.R
 		"user_id", internalRepo.UserID,
 		"full_name", internalRepo.FullName)
 
-	// Find apps for this repo/branch with git_provider = 'gitea'
-	matchingApps, err := h.appsQ.GetAppsByRepoBranchProvider(r.Context(), apps.GetAppsByRepoBranchProviderParams{
+	// Find services for this repo/branch with git_provider = 'gitea'
+	matchingServices, err := h.servicesQ.GetServicesByRepoBranchProvider(r.Context(), services.GetServicesByRepoBranchProviderParams{
 		Repo:        repoFullName,
 		Branch:      branch,
 		GitProvider: "gitea",
 	})
 	if err != nil {
-		h.logger.Error("failed to query apps", "error", err)
-		http.Error(w, "failed to query apps", http.StatusInternalServerError)
+		h.logger.Error("failed to query services", "error", err)
+		http.Error(w, "failed to query services", http.StatusInternalServerError)
 		return
 	}
 
-	h.logger.Info("found matching apps",
+	h.logger.Info("found matching services",
 		"repo", repoFullName,
 		"branch", branch,
-		"count", len(matchingApps))
+		"count", len(matchingServices))
 
-	if len(matchingApps) == 0 {
-		h.logger.Info("no apps found for repo/branch",
+	if len(matchingServices) == 0 {
+		h.logger.Info("no services found for repo/branch",
 			"repo", repoFullName,
 			"branch", branch)
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(WebhookResponse{Message: "no apps found for this repo/branch"})
+		json.NewEncoder(w).Encode(WebhookResponse{Message: "no services found for this repo/branch"})
 		return
 	}
 
-	// Start redeploy workflow for each app
-	var deployments []DeploymentInfo
-	for _, app := range matchingApps {
-		workflowID, err := h.deployService.RedeployFromInternalGitPush(r.Context(), app.ID, after)
+	// Start redeploy workflow for each service
+	var deploys []DeploymentInfo
+	for _, svc := range matchingServices {
+		workflowID, err := h.deployService.RedeployFromInternalGitPush(r.Context(), svc.ID, after)
 		if err != nil {
 			h.logger.Error("failed to start redeploy workflow",
-				"appID", app.ID,
+				"serviceID", svc.ID,
 				"error", err)
 			continue
 		}
 
 		h.logger.Info("started redeploy workflow",
-			"appID", app.ID,
+			"serviceID", svc.ID,
 			"workflowID", workflowID)
 
-		deployments = append(deployments, DeploymentInfo{
-			AppID:      app.ID,
+		deploys = append(deploys, DeploymentInfo{
+			ServiceID:  svc.ID,
 			WorkflowID: workflowID,
 		})
 	}
@@ -160,7 +160,7 @@ func (h *Handlers) handleInternalGitPushWebhook(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(WebhookResponse{
 		Message:     "redeploy workflows started",
-		Deployments: deployments,
+		Deployments: deploys,
 	})
 }
 

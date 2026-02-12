@@ -20,17 +20,17 @@ func (a *Activities) Deploy(ctx context.Context, input DeployInput) (*DeployResu
 		return nil, err
 	}
 
-	bc := parseBuildConfig(id.App.BuildConfig)
+	bc := parseBuildConfig(id.Service.BuildConfig)
 	// Prefer port resolved during build phase (carries EXPOSE detection).
 	// Fall back to DB value for in-flight workflows that predate the Port field.
 	appPort := input.Port
 	if appPort == "" {
-		appPort = id.App.Port
+		appPort = id.Service.Port
 	}
-	port := effectiveAppPort(id.App.BuildPack, appPort, bc.PublishDirectory)
+	port := effectiveAppPort(id.Service.BuildPack, appPort, bc.PublishDirectory)
 	portInt := parsePort(port)
 
-	envVars := parseEnvVars(id.App.EnvVars)
+	envVars := parseEnvVars(id.Service.EnvVars)
 	envVars["PORT"] = port
 
 	// Ensure namespace
@@ -44,7 +44,7 @@ func (a *Activities) Deploy(ctx context.Context, input DeployInput) (*DeployResu
 	}
 
 	// Apply Deployment
-	if err := a.applyDeployment(ctx, id.Namespace, id.Name, input.ImageRef, portInt, id.App.Memory, id.App.Cpu); err != nil {
+	if err := a.applyDeployment(ctx, id.Namespace, id.Name, input.ImageRef, portInt, id.Service.Memory, id.Service.Cpu); err != nil {
 		return nil, fmt.Errorf("apply deployment: %w", err)
 	}
 

@@ -13,7 +13,7 @@ type Project {
   id: ID!
   name: String!
   ref: String!
-  apps: [App!]!
+  services: [Service!]!
   createdAt: Time!
   updatedAt: Time!
 }

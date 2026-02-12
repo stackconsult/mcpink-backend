@@ -21,9 +21,9 @@ import (
 	"github.com/augustdev/autoclip/internal/mcpserver"
 	"github.com/augustdev/autoclip/internal/prometheus"
 	"github.com/augustdev/autoclip/internal/storage/pg"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/resources"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 	"github.com/augustdev/autoclip/internal/turso"
 	"github.com/augustdev/autoclip/internal/webhooks"
 	"github.com/go-chi/chi/v5"
@@ -44,7 +44,7 @@ func NewResolver(
 	logger *slog.Logger,
 	authService *auth.Service,
 	githubAppService *githubapp.Service,
-	appQueries apps.Querier,
+	serviceQueries services.Querier,
 	projectQueries projects.Querier,
 	resourceQueries resources.Querier,
 	firebaseAuth *firebaseauth.Client,
@@ -55,7 +55,7 @@ func NewResolver(
 		Logger:           logger,
 		AuthService:      authService,
 		GitHubAppService: githubAppService,
-		AppQueries:       appQueries,
+		ServiceQueries:   serviceQueries,
 		ProjectQueries:   projectQueries,
 		ResourceQueries:  resourceQueries,
 		FirebaseAuth:     firebaseAuth,

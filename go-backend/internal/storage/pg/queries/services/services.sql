@@ -1,89 +1,89 @@
--- name: CreateApp :one
-INSERT INTO apps (
+-- name: CreateService :one
+INSERT INTO services (
     id, user_id, project_id, repo, branch, server_uuid, name, build_pack, port, env_vars, workflow_id, workflow_run_id, build_status, git_provider, build_config, memory, cpu
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'queued', $13, $14, $15, $16
 )
 RETURNING *;
 
--- name: GetAppByID :one
-SELECT * FROM apps WHERE id = $1 AND is_deleted = false;
+-- name: GetServiceByID :one
+SELECT * FROM services WHERE id = $1 AND is_deleted = false;
 
--- name: GetAppByWorkflowID :one
-SELECT * FROM apps WHERE workflow_id = $1 AND is_deleted = false;
+-- name: GetServiceByWorkflowID :one
+SELECT * FROM services WHERE workflow_id = $1 AND is_deleted = false;
 
--- name: ListAppsByUserID :many
-SELECT * FROM apps
+-- name: ListServicesByUserID :many
+SELECT * FROM services
 WHERE user_id = $1 AND is_deleted = false
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
--- name: ListAppsByProjectID :many
-SELECT * FROM apps
+-- name: ListServicesByProjectID :many
+SELECT * FROM services
 WHERE project_id = $1 AND is_deleted = false
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
--- name: CountAppsByUserID :one
-SELECT COUNT(*) FROM apps WHERE user_id = $1 AND is_deleted = false;
+-- name: CountServicesByUserID :one
+SELECT COUNT(*) FROM services WHERE user_id = $1 AND is_deleted = false;
 
--- name: CountAppsByProjectID :one
-SELECT COUNT(*) FROM apps WHERE project_id = $1 AND is_deleted = false;
+-- name: CountServicesByProjectID :one
+SELECT COUNT(*) FROM services WHERE project_id = $1 AND is_deleted = false;
 
 -- name: UpdateBuildStatus :one
-UPDATE apps
+UPDATE services
 SET build_status = $2, updated_at = NOW()
 WHERE id = $1 AND is_deleted = false
 RETURNING *;
 
 -- name: UpdateRuntimeStatus :one
-UPDATE apps
+UPDATE services
 SET runtime_status = $2, updated_at = NOW()
 WHERE id = $1 AND is_deleted = false
 RETURNING *;
 
--- name: UpdateAppRunning :one
-UPDATE apps
+-- name: UpdateServiceRunning :one
+UPDATE services
 SET build_status = 'success', runtime_status = 'running', fqdn = $2, commit_hash = $3, updated_at = NOW()
 WHERE id = $1 AND is_deleted = false
 RETURNING *;
 
--- name: UpdateAppFailed :one
-UPDATE apps
+-- name: UpdateServiceFailed :one
+UPDATE services
 SET build_status = 'failed', error_message = $2, updated_at = NOW()
 WHERE id = $1 AND is_deleted = false
 RETURNING *;
 
 -- name: UpdateWorkflowRunID :exec
-UPDATE apps
+UPDATE services
 SET workflow_run_id = $2, updated_at = NOW()
 WHERE id = $1 AND is_deleted = false;
 
--- name: DeleteApp :exec
-DELETE FROM apps WHERE id = $1;
+-- name: DeleteService :exec
+DELETE FROM services WHERE id = $1;
 
--- name: SoftDeleteApp :one
-UPDATE apps
+-- name: SoftDeleteService :one
+UPDATE services
 SET is_deleted = true, updated_at = NOW()
 WHERE id = $1 AND is_deleted = false
 RETURNING *;
 
--- name: GetAppsByRepoBranch :many
-SELECT * FROM apps
+-- name: GetServicesByRepoBranch :many
+SELECT * FROM services
 WHERE repo = $1 AND branch = $2 AND is_deleted = false;
 
--- name: UpdateAppRedeploying :one
-UPDATE apps
+-- name: UpdateServiceRedeploying :one
+UPDATE services
 SET build_status = 'building', updated_at = NOW()
 WHERE id = $1 AND is_deleted = false
 RETURNING *;
 
--- name: GetAppByNameAndProject :one
-SELECT * FROM apps
+-- name: GetServiceByNameAndProject :one
+SELECT * FROM services
 WHERE name = $1 AND project_id = $2 AND is_deleted = false;
 
--- name: GetAppByNameAndUserProject :one
-SELECT a.* FROM apps a
+-- name: GetServiceByNameAndUserProject :one
+SELECT a.* FROM services a
 JOIN projects p ON a.project_id = p.id
 WHERE a.name = $1
   AND p.user_id = $2
@@ -92,16 +92,16 @@ WHERE a.name = $1
 ORDER BY a.updated_at DESC, a.created_at DESC, a.id DESC
 LIMIT 1;
 
--- name: GetAppsByRepoBranchProvider :many
-SELECT * FROM apps
+-- name: GetServicesByRepoBranchProvider :many
+SELECT * FROM services
 WHERE repo = $1 AND branch = $2 AND git_provider = $3 AND is_deleted = false;
 
--- name: UpdateAppBuildProgress :exec
-UPDATE apps
+-- name: UpdateServiceBuildProgress :exec
+UPDATE services
 SET build_progress = $2, updated_at = NOW()
 WHERE id = $1 AND is_deleted = false;
 
--- name: ClearAppBuildProgress :exec
-UPDATE apps
+-- name: ClearServiceBuildProgress :exec
+UPDATE services
 SET build_progress = NULL, updated_at = NOW()
 WHERE id = $1 AND is_deleted = false;

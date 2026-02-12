@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.30.0
 
-package apps
+package services
 
 import (
 	"github.com/jackc/pgx/v5/pgtype"
@@ -17,35 +17,6 @@ type ApiKey struct {
 	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
 	UserID     string             `json:"user_id"`
 	ID         string             `json:"id"`
-}
-
-type App struct {
-	ID            string             `json:"id"`
-	UserID        string             `json:"user_id"`
-	BuildStatus   string             `json:"build_status"`
-	RuntimeStatus *string            `json:"runtime_status"`
-	ErrorMessage  *string            `json:"error_message"`
-	Repo          string             `json:"repo"`
-	Branch        string             `json:"branch"`
-	ServerUuid    string             `json:"server_uuid"`
-	Name          *string            `json:"name"`
-	BuildPack     string             `json:"build_pack"`
-	Port          string             `json:"port"`
-	EnvVars       []byte             `json:"env_vars"`
-	Fqdn          *string            `json:"fqdn"`
-	WorkflowID    string             `json:"workflow_id"`
-	WorkflowRunID *string            `json:"workflow_run_id"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
-	ProjectID     string             `json:"project_id"`
-	CommitHash    *string            `json:"commit_hash"`
-	IsDeleted     bool               `json:"is_deleted"`
-	GitProvider   string             `json:"git_provider"`
-	CustomDomain  *string            `json:"custom_domain"`
-	BuildProgress []byte             `json:"build_progress"`
-	Memory        string             `json:"memory"`
-	Cpu           string             `json:"cpu"`
-	BuildConfig   []byte             `json:"build_config"`
 }
 
 type DnsRecord struct {
@@ -104,6 +75,35 @@ type Resource struct {
 	Status      string             `json:"status"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Service struct {
+	ID            string             `json:"id"`
+	UserID        string             `json:"user_id"`
+	BuildStatus   string             `json:"build_status"`
+	RuntimeStatus *string            `json:"runtime_status"`
+	ErrorMessage  *string            `json:"error_message"`
+	Repo          string             `json:"repo"`
+	Branch        string             `json:"branch"`
+	ServerUuid    string             `json:"server_uuid"`
+	Name          *string            `json:"name"`
+	BuildPack     string             `json:"build_pack"`
+	Port          string             `json:"port"`
+	EnvVars       []byte             `json:"env_vars"`
+	Fqdn          *string            `json:"fqdn"`
+	WorkflowID    string             `json:"workflow_id"`
+	WorkflowRunID *string            `json:"workflow_run_id"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	ProjectID     string             `json:"project_id"`
+	CommitHash    *string            `json:"commit_hash"`
+	IsDeleted     bool               `json:"is_deleted"`
+	GitProvider   string             `json:"git_provider"`
+	CustomDomain  *string            `json:"custom_domain"`
+	BuildProgress []byte             `json:"build_progress"`
+	Memory        string             `json:"memory"`
+	Cpu           string             `json:"cpu"`
+	BuildConfig   []byte             `json:"build_config"`
 }
 
 type User struct {

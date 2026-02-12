@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/augustdev/autoclip/internal/helpers"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/githubcreds"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 )
 
 type GitHubPushPayload struct {
@@ -42,7 +42,7 @@ type WebhookResponse struct {
 }
 
 type DeploymentInfo struct {
-	AppID      string `json:"app_id"`
+	ServiceID  string `json:"service_id"`
 	WorkflowID string `json:"workflow_id"`
 }
 
@@ -165,48 +165,48 @@ func (h *Handlers) handlePushWebhook(w http.ResponseWriter, r *http.Request, bod
 		"after", after,
 		"delivery", delivery)
 
-	// Find apps for this repo/branch
-	matchingApps, err := h.appsQ.GetAppsByRepoBranch(r.Context(), apps.GetAppsByRepoBranchParams{
+	// Find services for this repo/branch
+	matchingServices, err := h.servicesQ.GetServicesByRepoBranch(r.Context(), services.GetServicesByRepoBranchParams{
 		Repo:   repo,
 		Branch: branch,
 	})
 	if err != nil {
-		h.logger.Error("failed to query apps", "error", err)
-		http.Error(w, "failed to query apps", http.StatusInternalServerError)
+		h.logger.Error("failed to query services", "error", err)
+		http.Error(w, "failed to query services", http.StatusInternalServerError)
 		return
 	}
 
-	h.logger.Info("found matching apps",
+	h.logger.Info("found matching services",
 		"repo", repo,
 		"branch", branch,
-		"count", len(matchingApps))
+		"count", len(matchingServices))
 
-	if len(matchingApps) == 0 {
-		h.logger.Info("no apps found for repo/branch",
+	if len(matchingServices) == 0 {
+		h.logger.Info("no services found for repo/branch",
 			"repo", repo,
 			"branch", branch)
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(WebhookResponse{Message: "no apps found for this repo/branch"})
+		json.NewEncoder(w).Encode(WebhookResponse{Message: "no services found for this repo/branch"})
 		return
 	}
 
-	// Start redeploy workflow for each app
-	var deployments []DeploymentInfo
-	for _, app := range matchingApps {
-		workflowID, err := h.deployService.RedeployFromGitHubPush(r.Context(), app.ID, after, delivery)
+	// Start redeploy workflow for each service
+	var deploys []DeploymentInfo
+	for _, svc := range matchingServices {
+		workflowID, err := h.deployService.RedeployFromGitHubPush(r.Context(), svc.ID, after, delivery)
 		if err != nil {
 			h.logger.Error("failed to start redeploy workflow",
-				"appID", app.ID,
+				"serviceID", svc.ID,
 				"error", err)
 			continue
 		}
 
 		h.logger.Info("started redeploy workflow",
-			"appID", app.ID,
+			"serviceID", svc.ID,
 			"workflowID", workflowID)
 
-		deployments = append(deployments, DeploymentInfo{
-			AppID:      app.ID,
+		deploys = append(deploys, DeploymentInfo{
+			ServiceID:  svc.ID,
 			WorkflowID: workflowID,
 		})
 	}
@@ -215,7 +215,7 @@ func (h *Handlers) handlePushWebhook(w http.ResponseWriter, r *http.Request, bod
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(WebhookResponse{
 		Message:     "redeploy workflows started",
-		Deployments: deployments,
+		Deployments: deploys,
 	})
 }
 
