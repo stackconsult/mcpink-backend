@@ -13,6 +13,7 @@ import (
 	"github.com/augustdev/autoclip/internal/k8sdeployments"
 	"github.com/augustdev/autoclip/internal/mcp_oauth"
 	"github.com/augustdev/autoclip/internal/mcpserver"
+	"github.com/augustdev/autoclip/internal/prometheus"
 	"github.com/augustdev/autoclip/internal/storage/pg"
 	"github.com/augustdev/autoclip/internal/turso"
 	"github.com/joho/godotenv"
@@ -40,6 +41,7 @@ func NewConfig() (Config, error) {
 		Firebase   FirebaseConfig
 		K8sWorker  k8sdeployments.Config
 		Loki       mcpserver.LokiConfig
+		Prometheus prometheus.Config
 	}
 
 	if err := viper.Unmarshal(&cfg); err != nil {
@@ -61,6 +63,7 @@ func NewConfig() (Config, error) {
 		Firebase:   cfg.Firebase,
 		K8sWorker:  cfg.K8sWorker,
 		Loki:       cfg.Loki,
+		Prometheus: cfg.Prometheus,
 	}, nil
 }
 
@@ -85,6 +88,7 @@ type Config struct {
 	Firebase   FirebaseConfig
 	K8sWorker  k8sdeployments.Config
 	Loki       mcpserver.LokiConfig
+	Prometheus prometheus.Config
 }
 
 func InitConfig() error {

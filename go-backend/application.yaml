@@ -75,6 +75,11 @@ loki:
   username: ""
   password: ""
 
+prometheus:
+  queryurl: "https://prometheus.ml.ink/api/v1/query_range"
+  username: ""
+  password: ""
+
 k8sworker:
   buildkithost: "tcp://buildkitd.dp-system:1234"
   registryhost: "http://registry.dp-system.svc.cluster.local:5000"

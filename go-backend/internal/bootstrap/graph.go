@@ -19,6 +19,7 @@ import (
 	"github.com/augustdev/autoclip/internal/graph"
 	"github.com/augustdev/autoclip/internal/mcp_oauth"
 	"github.com/augustdev/autoclip/internal/mcpserver"
+	"github.com/augustdev/autoclip/internal/prometheus"
 	"github.com/augustdev/autoclip/internal/storage/pg"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/apps"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
@@ -47,6 +48,7 @@ func NewResolver(
 	projectQueries projects.Querier,
 	resourceQueries resources.Querier,
 	firebaseAuth *firebaseauth.Client,
+	prometheusClient *prometheus.Client,
 ) *graph.Resolver {
 	return &graph.Resolver{
 		Db:               pgdb,
@@ -57,6 +59,7 @@ func NewResolver(
 		ProjectQueries:   projectQueries,
 		ResourceQueries:  resourceQueries,
 		FirebaseAuth:     firebaseAuth,
+		PrometheusClient: prometheusClient,
 	}
 }
 
@@ -160,7 +163,7 @@ func NewGraphQLRouter(
 	router.With(authz.NewAuthMiddleware(tokenValidator, logger)).Post("/auth/github/connect", authHandlers.HandleGitHubConnect(getUserID))
 
 	// Mount MCP OAuth routes (must be before /mcp to handle /.well-known)
-	mcpOAuthHandlers.RegisterRoutes(router)
+	mcpOAuthHandlers.RegisterRoutes(router, authz.NewAuthMiddleware(tokenValidator, logger))
 
 	// Mount MCP server with auth middleware (includes issuer for WWW-Authenticate header)
 	router.Mount("/mcp", mcpserver.AuthMiddleware(authService, logger, mcpOAuthConfig.Issuer, mcpServer.Handler()))

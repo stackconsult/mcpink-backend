@@ -39,6 +39,8 @@ func dbAppToModel(dbApp *apps.App) *model.App {
 		ErrorMessage:  dbApp.ErrorMessage,
 		EnvVars:       envVars,
 		Fqdn:          dbApp.Fqdn,
+		Memory:        dbApp.Memory,
+		CPU:           dbApp.Cpu,
 		CreatedAt:     dbApp.CreatedAt.Time,
 		UpdatedAt:     dbApp.UpdatedAt.Time,
 	}

@@ -369,6 +369,16 @@
     executable: /bin/bash
   when: loki_basic_auth_users | default('') | length > 0
 
+- name: Create Prometheus basic-auth secret when provided
+  shell: |
+    set -euo pipefail
+    k3s kubectl -n dp-system create secret generic prometheus-auth-secret \
+      --from-literal=users={{ prometheus_basic_auth_users | quote }} \
+      --dry-run=client -o yaml | k3s kubectl apply -f -
+  args:
+    executable: /bin/bash
+  when: prometheus_basic_auth_users | default('') | length > 0
+
 - name: Apply Kubernetes manifests
   command: "k3s kubectl apply -f {{ k8s_manifests_remote_dir }}/{{ item }}"
   register: apply_manifest_cmd

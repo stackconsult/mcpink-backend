@@ -12,6 +12,7 @@ import (
 	"github.com/augustdev/autoclip/internal/githubapp"
 	"github.com/augustdev/autoclip/internal/mcp_oauth"
 	"github.com/augustdev/autoclip/internal/mcpserver"
+	"github.com/augustdev/autoclip/internal/prometheus"
 	"github.com/augustdev/autoclip/internal/resources"
 	"github.com/augustdev/autoclip/internal/storage/pg"
 	"github.com/augustdev/autoclip/internal/webhooks"
@@ -41,6 +42,7 @@ func main() {
 			auth.NewHandlers,
 			authz.NewAPIKeyValidator,
 			bootstrap.NewTursoClient,
+			prometheus.NewClient,
 			deployments.NewService,
 			resources.NewService,
 			bootstrap.NewInternalGitService,

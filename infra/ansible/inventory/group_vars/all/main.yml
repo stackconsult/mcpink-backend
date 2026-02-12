@@ -51,6 +51,7 @@ cloudflare_lb_hostnames:
   - "*.{{ apps_domain }}"
   - "grafana.{{ apps_domain }}"
   - "loki.{{ apps_domain }}"
+  - "prometheus.{{ apps_domain }}"
 cloudflare_lb_monitor_path: /
 cloudflare_lb_monitor_port: 443
 cloudflare_lb_monitor_expected_codes: "200,301,302,401,403,404"

@@ -37,6 +37,8 @@ type App {
   errorMessage: String
   envVars: [EnvVar!]!
   fqdn: String
+  memory: String!
+  cpu: String!
   createdAt: Time!
   updatedAt: Time!
 }

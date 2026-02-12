@@ -25,6 +25,7 @@ k8s_manifest_apply_order:
   - deployer-worker.yml
   - deployer-server.yml
   - loki-ingress.yml
+  - prometheus-ingress.yml
   - grafana-ingress.yml
   - gitea.yml
   - gitea-ingress.yml
