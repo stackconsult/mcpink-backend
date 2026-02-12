@@ -21,7 +21,7 @@ type ApiKey struct {
 
 type DnsRecord struct {
 	ID                 string             `json:"id"`
-	AppID              *string            `json:"app_id"`
+	ServiceID          *string            `json:"service_id"`
 	CloudflareRecordID string             `json:"cloudflare_record_id"`
 	Subdomain          string             `json:"subdomain"`
 	FullDomain         string             `json:"full_domain"`

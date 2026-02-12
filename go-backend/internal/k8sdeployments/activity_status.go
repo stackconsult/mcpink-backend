@@ -19,7 +19,7 @@ func (a *Activities) UpdateBuildStatus(ctx context.Context, input UpdateBuildSta
 	return nil
 }
 
-func (a *Activities) MarkServiceRunning(ctx context.Context, input MarkAppRunningInput) error {
+func (a *Activities) MarkServiceRunning(ctx context.Context, input MarkServiceRunningInput) error {
 	_, err := a.servicesQ.UpdateServiceRunning(ctx, services.UpdateServiceRunningParams{
 		ID:         input.ServiceID,
 		Fqdn:       &input.URL,
@@ -32,7 +32,7 @@ func (a *Activities) MarkServiceRunning(ctx context.Context, input MarkAppRunnin
 	return nil
 }
 
-func (a *Activities) MarkServiceFailed(ctx context.Context, input MarkAppFailedInput) error {
+func (a *Activities) MarkServiceFailed(ctx context.Context, input MarkServiceFailedInput) error {
 	_, err := a.servicesQ.UpdateServiceFailed(ctx, services.UpdateServiceFailedParams{
 		ID:           input.ServiceID,
 		ErrorMessage: &input.ErrorMessage,

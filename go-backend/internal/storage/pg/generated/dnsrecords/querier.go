@@ -11,9 +11,9 @@ import (
 type Querier interface {
 	CreateDNSRecord(ctx context.Context, arg CreateDNSRecordParams) (DnsRecord, error)
 	DeleteDNSRecord(ctx context.Context, id string) error
-	DeleteDNSRecordByAppID(ctx context.Context, appID *string) error
-	GetDNSRecordByAppID(ctx context.Context, appID *string) (DnsRecord, error)
+	DeleteDNSRecordByServiceID(ctx context.Context, serviceID *string) error
 	GetDNSRecordByCloudflareID(ctx context.Context, cloudflareRecordID string) (DnsRecord, error)
+	GetDNSRecordByServiceID(ctx context.Context, serviceID *string) (DnsRecord, error)
 	GetDNSRecordBySubdomain(ctx context.Context, subdomain string) (DnsRecord, error)
 	UpdateDNSRecordTarget(ctx context.Context, arg UpdateDNSRecordTargetParams) (DnsRecord, error)
 }

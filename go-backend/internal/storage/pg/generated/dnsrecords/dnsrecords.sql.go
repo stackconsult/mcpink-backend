@@ -10,13 +10,13 @@ import (
 )
 
 const createDNSRecord = `-- name: CreateDNSRecord :one
-INSERT INTO dns_records (app_id, cloudflare_record_id, subdomain, full_domain, target_ip)
+INSERT INTO dns_records (service_id, cloudflare_record_id, subdomain, full_domain, target_ip)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, app_id, cloudflare_record_id, subdomain, full_domain, target_ip, created_at
+RETURNING id, service_id, cloudflare_record_id, subdomain, full_domain, target_ip, created_at
 `
 
 type CreateDNSRecordParams struct {
-	AppID              *string `json:"app_id"`
+	ServiceID          *string `json:"service_id"`
 	CloudflareRecordID string  `json:"cloudflare_record_id"`
 	Subdomain          string  `json:"subdomain"`
 	FullDomain         string  `json:"full_domain"`
@@ -25,7 +25,7 @@ type CreateDNSRecordParams struct {
 
 func (q *Queries) CreateDNSRecord(ctx context.Context, arg CreateDNSRecordParams) (DnsRecord, error) {
 	row := q.db.QueryRow(ctx, createDNSRecord,
-		arg.AppID,
+		arg.ServiceID,
 		arg.CloudflareRecordID,
 		arg.Subdomain,
 		arg.FullDomain,
@@ -34,7 +34,7 @@ func (q *Queries) CreateDNSRecord(ctx context.Context, arg CreateDNSRecordParams
 	var i DnsRecord
 	err := row.Scan(
 		&i.ID,
-		&i.AppID,
+		&i.ServiceID,
 		&i.CloudflareRecordID,
 		&i.Subdomain,
 		&i.FullDomain,
@@ -53,25 +53,25 @@ func (q *Queries) DeleteDNSRecord(ctx context.Context, id string) error {
 	return err
 }
 
-const deleteDNSRecordByAppID = `-- name: DeleteDNSRecordByAppID :exec
-DELETE FROM dns_records WHERE app_id = $1
+const deleteDNSRecordByServiceID = `-- name: DeleteDNSRecordByServiceID :exec
+DELETE FROM dns_records WHERE service_id = $1
 `
 
-func (q *Queries) DeleteDNSRecordByAppID(ctx context.Context, appID *string) error {
-	_, err := q.db.Exec(ctx, deleteDNSRecordByAppID, appID)
+func (q *Queries) DeleteDNSRecordByServiceID(ctx context.Context, serviceID *string) error {
+	_, err := q.db.Exec(ctx, deleteDNSRecordByServiceID, serviceID)
 	return err
 }
 
-const getDNSRecordByAppID = `-- name: GetDNSRecordByAppID :one
-SELECT id, app_id, cloudflare_record_id, subdomain, full_domain, target_ip, created_at FROM dns_records WHERE app_id = $1
+const getDNSRecordByCloudflareID = `-- name: GetDNSRecordByCloudflareID :one
+SELECT id, service_id, cloudflare_record_id, subdomain, full_domain, target_ip, created_at FROM dns_records WHERE cloudflare_record_id = $1
 `
 
-func (q *Queries) GetDNSRecordByAppID(ctx context.Context, appID *string) (DnsRecord, error) {
-	row := q.db.QueryRow(ctx, getDNSRecordByAppID, appID)
+func (q *Queries) GetDNSRecordByCloudflareID(ctx context.Context, cloudflareRecordID string) (DnsRecord, error) {
+	row := q.db.QueryRow(ctx, getDNSRecordByCloudflareID, cloudflareRecordID)
 	var i DnsRecord
 	err := row.Scan(
 		&i.ID,
-		&i.AppID,
+		&i.ServiceID,
 		&i.CloudflareRecordID,
 		&i.Subdomain,
 		&i.FullDomain,
@@ -81,16 +81,16 @@ func (q *Queries) GetDNSRecordByAppID(ctx context.Context, appID *string) (DnsRe
 	return i, err
 }
 
-const getDNSRecordByCloudflareID = `-- name: GetDNSRecordByCloudflareID :one
-SELECT id, app_id, cloudflare_record_id, subdomain, full_domain, target_ip, created_at FROM dns_records WHERE cloudflare_record_id = $1
+const getDNSRecordByServiceID = `-- name: GetDNSRecordByServiceID :one
+SELECT id, service_id, cloudflare_record_id, subdomain, full_domain, target_ip, created_at FROM dns_records WHERE service_id = $1
 `
 
-func (q *Queries) GetDNSRecordByCloudflareID(ctx context.Context, cloudflareRecordID string) (DnsRecord, error) {
-	row := q.db.QueryRow(ctx, getDNSRecordByCloudflareID, cloudflareRecordID)
+func (q *Queries) GetDNSRecordByServiceID(ctx context.Context, serviceID *string) (DnsRecord, error) {
+	row := q.db.QueryRow(ctx, getDNSRecordByServiceID, serviceID)
 	var i DnsRecord
 	err := row.Scan(
 		&i.ID,
-		&i.AppID,
+		&i.ServiceID,
 		&i.CloudflareRecordID,
 		&i.Subdomain,
 		&i.FullDomain,
@@ -101,7 +101,7 @@ func (q *Queries) GetDNSRecordByCloudflareID(ctx context.Context, cloudflareReco
 }
 
 const getDNSRecordBySubdomain = `-- name: GetDNSRecordBySubdomain :one
-SELECT id, app_id, cloudflare_record_id, subdomain, full_domain, target_ip, created_at FROM dns_records WHERE subdomain = $1
+SELECT id, service_id, cloudflare_record_id, subdomain, full_domain, target_ip, created_at FROM dns_records WHERE subdomain = $1
 `
 
 func (q *Queries) GetDNSRecordBySubdomain(ctx context.Context, subdomain string) (DnsRecord, error) {
@@ -109,7 +109,7 @@ func (q *Queries) GetDNSRecordBySubdomain(ctx context.Context, subdomain string)
 	var i DnsRecord
 	err := row.Scan(
 		&i.ID,
-		&i.AppID,
+		&i.ServiceID,
 		&i.CloudflareRecordID,
 		&i.Subdomain,
 		&i.FullDomain,
@@ -123,7 +123,7 @@ const updateDNSRecordTarget = `-- name: UpdateDNSRecordTarget :one
 UPDATE dns_records
 SET target_ip = $2
 WHERE id = $1
-RETURNING id, app_id, cloudflare_record_id, subdomain, full_domain, target_ip, created_at
+RETURNING id, service_id, cloudflare_record_id, subdomain, full_domain, target_ip, created_at
 `
 
 type UpdateDNSRecordTargetParams struct {
@@ -136,7 +136,7 @@ func (q *Queries) UpdateDNSRecordTarget(ctx context.Context, arg UpdateDNSRecord
 	var i DnsRecord
 	err := row.Scan(
 		&i.ID,
-		&i.AppID,
+		&i.ServiceID,
 		&i.CloudflareRecordID,
 		&i.Subdomain,
 		&i.FullDomain,

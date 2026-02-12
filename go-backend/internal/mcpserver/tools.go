@@ -290,29 +290,29 @@ func (s *Server) handleListServices(ctx context.Context, req *mcp.CallToolReques
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, ListServicesOutput{}, nil
 	}
 
-	apps, err := s.deployService.ListServices(ctx, user.ID, 100, 0)
+	svcs, err := s.deployService.ListServices(ctx, user.ID, 100, 0)
 	if err != nil {
 		s.logger.Error("failed to list services", "error", err)
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to list services: %v", err)}}}, ListServicesOutput{}, nil
 	}
 
-	services := make([]ServiceInfo, len(apps))
-	for i, app := range apps {
+	services := make([]ServiceInfo, len(svcs))
+	for i, svc := range svcs {
 		name := ""
-		if app.Name != nil {
-			name = *app.Name
+		if svc.Name != nil {
+			name = *svc.Name
 		}
-		status := app.BuildStatus
-		if app.RuntimeStatus != nil && *app.RuntimeStatus != "" {
-			status = *app.RuntimeStatus
+		status := svc.BuildStatus
+		if svc.RuntimeStatus != nil && *svc.RuntimeStatus != "" {
+			status = *svc.RuntimeStatus
 		}
 		services[i] = ServiceInfo{
-			ServiceID:  app.ID,
+			ServiceID:  svc.ID,
 			Name:       name,
 			Status:     status,
-			Repo:       app.Repo,
-			URL:        app.Fqdn,
-			CommitHash: app.CommitHash,
+			Repo:       svc.Repo,
+			URL:        svc.Fqdn,
+			CommitHash: svc.CommitHash,
 		}
 	}
 
@@ -339,35 +339,35 @@ func (s *Server) handleRedeployService(ctx context.Context, req *mcp.CallToolReq
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("project not found: %s", projectRef)}}}, RedeployServiceOutput{}, nil
 	}
 
-	app, err := s.deployService.GetServiceByNameAndProject(ctx, input.Name, project.ID)
+	svc, err := s.deployService.GetServiceByNameAndProject(ctx, input.Name, project.ID)
 	if err != nil {
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("service not found: %s", input.Name)}}}, RedeployServiceOutput{}, nil
 	}
 
 	s.logger.Info("starting redeploy",
 		"user_id", user.ID,
-		"app_id", app.ID,
+		"service_id", svc.ID,
 		"name", input.Name,
 	)
 
-	workflowID, err := s.deployService.RedeployService(ctx, app.ID)
+	workflowID, err := s.deployService.RedeployService(ctx, svc.ID)
 	if err != nil {
 		s.logger.Error("failed to start redeploy", "error", err)
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to start redeploy: %v", err)}}}, RedeployServiceOutput{}, nil
 	}
 
 	name := ""
-	if app.Name != nil {
-		name = *app.Name
+	if svc.Name != nil {
+		name = *svc.Name
 	}
 
 	var commitHash string
-	if app.CommitHash != nil {
-		commitHash = *app.CommitHash
+	if svc.CommitHash != nil {
+		commitHash = *svc.CommitHash
 	}
 
 	output := RedeployServiceOutput{
-		ServiceID:  app.ID,
+		ServiceID:  svc.ID,
 		Name:       name,
 		Status:     "building",
 		CommitHash: commitHash,
@@ -517,7 +517,7 @@ func (s *Server) handleGetService(ctx context.Context, req *mcp.CallToolRequest,
 		project = input.Project
 	}
 
-	app, err := s.deployService.GetServiceByName(ctx, deployments.GetServiceByNameParams{
+	svc, err := s.deployService.GetServiceByName(ctx, deployments.GetServiceByNameParams{
 		Name:    input.Name,
 		Project: project,
 		UserID:  user.ID,
@@ -527,35 +527,35 @@ func (s *Server) handleGetService(ctx context.Context, req *mcp.CallToolRequest,
 	}
 
 	runtimeStatus := "pending"
-	if app.RuntimeStatus != nil {
-		runtimeStatus = *app.RuntimeStatus
+	if svc.RuntimeStatus != nil {
+		runtimeStatus = *svc.RuntimeStatus
 	}
 
 	output := GetServiceOutput{
-		ServiceID:     app.ID,
-		Name:          helpers.Deref(app.Name),
+		ServiceID:     svc.ID,
+		Name:          helpers.Deref(svc.Name),
 		Project:       project,
-		Repo:          app.Repo,
-		Branch:        app.Branch,
-		CommitHash:    helpers.Deref(app.CommitHash),
-		BuildStatus:   app.BuildStatus,
+		Repo:          svc.Repo,
+		Branch:        svc.Branch,
+		CommitHash:    helpers.Deref(svc.CommitHash),
+		BuildStatus:   svc.BuildStatus,
 		RuntimeStatus: runtimeStatus,
-		URL:           app.Fqdn,
-		CreatedAt:     app.CreatedAt.Time.Format(time.RFC3339),
-		UpdatedAt:     app.UpdatedAt.Time.Format(time.RFC3339),
-		ErrorMessage:  app.ErrorMessage,
+		URL:           svc.Fqdn,
+		CreatedAt:     svc.CreatedAt.Time.Format(time.RFC3339),
+		UpdatedAt:     svc.UpdatedAt.Time.Format(time.RFC3339),
+		ErrorMessage:  svc.ErrorMessage,
 	}
 
-	if len(app.BuildProgress) > 0 {
+	if len(svc.BuildProgress) > 0 {
 		var progress BuildProgress
-		if err := json.Unmarshal(app.BuildProgress, &progress); err == nil {
+		if err := json.Unmarshal(svc.BuildProgress, &progress); err == nil {
 			output.BuildProgress = &progress
 		}
 	}
 
 	if input.IncludeEnv {
 		var envVars []EnvVar
-		if err := json.Unmarshal(app.EnvVars, &envVars); err == nil {
+		if err := json.Unmarshal(svc.EnvVars, &envVars); err == nil {
 			output.EnvVars = make([]EnvVarInfo, len(envVars))
 			for i, ev := range envVars {
 				output.EnvVars[i] = EnvVarInfo(ev)
@@ -566,8 +566,8 @@ func (s *Server) handleGetService(ctx context.Context, req *mcp.CallToolRequest,
 	if input.DeployLogLines > 0 {
 		limit := min(input.DeployLogLines, MaxLogLines)
 		ns := k8sdeployments.NamespaceName(k8sdeployments.ResolveUsername(*user), project)
-		svc := k8sdeployments.ServiceName(helpers.Deref(app.Name))
-		lines, err := k8sdeployments.QueryBuildLogs(ctx, s.lokiQueryURL, s.lokiUsername, s.lokiPassword, ns, svc, 24*time.Hour, limit)
+		svcName := k8sdeployments.ServiceName(helpers.Deref(svc.Name))
+		lines, err := k8sdeployments.QueryBuildLogs(ctx, s.lokiQueryURL, s.lokiUsername, s.lokiPassword, ns, svcName, 24*time.Hour, limit)
 		if err == nil && len(lines) > 0 {
 			output.DeploymentLogs = strings.Join(lines, "\n")
 		}
@@ -576,8 +576,8 @@ func (s *Server) handleGetService(ctx context.Context, req *mcp.CallToolRequest,
 	if input.RuntimeLogLines > 0 {
 		limit := min(input.RuntimeLogLines, MaxLogLines)
 		ns := k8sdeployments.NamespaceName(k8sdeployments.ResolveUsername(*user), project)
-		svc := k8sdeployments.ServiceName(helpers.Deref(app.Name))
-		lines, err := k8sdeployments.QueryRunLogs(ctx, s.lokiQueryURL, s.lokiUsername, s.lokiPassword, ns, svc, 24*time.Hour, limit)
+		svcName := k8sdeployments.ServiceName(helpers.Deref(svc.Name))
+		lines, err := k8sdeployments.QueryRunLogs(ctx, s.lokiQueryURL, s.lokiUsername, s.lokiPassword, ns, svcName, 24*time.Hour, limit)
 		if err == nil && len(lines) > 0 {
 			output.RuntimeLogs = strings.Join(lines, "\n")
 		}

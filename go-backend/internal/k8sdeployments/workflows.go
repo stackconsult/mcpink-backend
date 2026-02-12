@@ -35,7 +35,7 @@ func deployService(ctx workflow.Context, input DeployServiceInput) (DeployServic
 	})
 
 	markFailed := func(errMsg string) {
-		_ = workflow.ExecuteActivity(statusCtx, activities.MarkServiceFailed, MarkAppFailedInput{
+		_ = workflow.ExecuteActivity(statusCtx, activities.MarkServiceFailed, MarkServiceFailedInput{
 			ServiceID:    input.ServiceID,
 			ErrorMessage: errMsg,
 		}).Get(ctx, nil)
@@ -114,7 +114,7 @@ func deployService(ctx workflow.Context, input DeployServiceInput) (DeployServic
 		return fail(err)
 	}
 
-	if err := workflow.ExecuteActivity(statusCtx, activities.MarkServiceRunning, MarkAppRunningInput{
+	if err := workflow.ExecuteActivity(statusCtx, activities.MarkServiceRunning, MarkServiceRunningInput{
 		ServiceID: input.ServiceID,
 		URL:       deployResult.URL,
 		CommitSHA: buildResult.CommitSHA,
@@ -122,8 +122,8 @@ func deployService(ctx workflow.Context, input DeployServiceInput) (DeployServic
 		return DeployServiceResult{
 			ServiceID:    input.ServiceID,
 			Status:       StatusFailed,
-			ErrorMessage: fmt.Sprintf("mark app running: %v", err),
-		}, fmt.Errorf("mark app running: %w", err)
+			ErrorMessage: fmt.Sprintf("mark service running: %v", err),
+		}, fmt.Errorf("mark service running: %w", err)
 	}
 
 	return DeployServiceResult{
@@ -314,12 +314,12 @@ func DeleteServiceWorkflow(ctx workflow.Context, input DeleteServiceWorkflowInpu
 	}
 
 	if err := workflow.ExecuteActivity(ctx, activities.SoftDeleteService, input.ServiceID).Get(ctx, nil); err != nil {
-		logger.Error("Failed to soft-delete app record", "serviceID", input.ServiceID, "error", err)
+		logger.Error("Failed to soft-delete service record", "serviceID", input.ServiceID, "error", err)
 		return DeleteServiceWorkflowResult{
 			ServiceID:    input.ServiceID,
 			Status:       StatusFailed,
-			ErrorMessage: fmt.Sprintf("k8s resources deleted but failed to soft-delete app record: %v", err),
-		}, fmt.Errorf("soft-delete app record: %w", err)
+			ErrorMessage: fmt.Sprintf("k8s resources deleted but failed to soft-delete service record: %v", err),
+		}, fmt.Errorf("soft-delete service record: %w", err)
 	}
 
 	return DeleteServiceWorkflowResult{

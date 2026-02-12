@@ -154,13 +154,13 @@ type UpdateBuildStatusInput struct {
 	BuildStatus string
 }
 
-type MarkAppRunningInput struct {
+type MarkServiceRunningInput struct {
 	ServiceID string
 	URL       string
 	CommitSHA string
 }
 
-type MarkAppFailedInput struct {
+type MarkServiceFailedInput struct {
 	ServiceID    string
 	ErrorMessage string
 }
