@@ -28,3 +28,8 @@
 - let's not show graphql errors like `errors="input: me failed to get Firebase user: context canceled\n"` it means user refreshed the page before query loaded.
 - Separate binaries for `mcp` and `graphql` API.
 - Should we have sepparate application.yaml for mcp, deplyer, server/worker?
+- If agent deploys app on wrong port there should be some mechanism for it to report it as error. Currently it does WaitForRollout until it timesout many times which is weird.
+- Prepare terminal for making videos.
+- App store/gallery.
+- Allow deploying custom domains.
+- Substack mlink
