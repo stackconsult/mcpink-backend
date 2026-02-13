@@ -10,6 +10,7 @@ import (
 	"github.com/augustdev/autoclip/internal/cloudflare"
 	"github.com/augustdev/autoclip/internal/deployments"
 	"github.com/augustdev/autoclip/internal/githubapp"
+	"github.com/augustdev/autoclip/internal/internalgit"
 	"github.com/augustdev/autoclip/internal/storage/pg"
 	"github.com/augustdev/autoclip/internal/webhooks"
 	"github.com/go-chi/chi/v5"
@@ -22,6 +23,7 @@ type config struct {
 	GraphQLAPI bootstrap.GraphQLAPIConfig
 	Db         pg.DbConfig
 	GitHubApp  githubapp.Config
+	Gitea      internalgit.Config
 	Temporal   bootstrap.TemporalClientConfig
 	Cloudflare cloudflare.Config
 }
