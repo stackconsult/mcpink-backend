@@ -1,7 +1,6 @@
 package k8sdeployments
 
 import (
-	"errors"
 	"log/slog"
 
 	"github.com/augustdev/autoclip/internal/githubapp"
@@ -12,8 +11,6 @@ import (
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/users"
 	"k8s.io/client-go/kubernetes"
 )
-
-var ErrNotImplemented = errors.New("k8s deployment activity not implemented")
 
 type Activities struct {
 	logger         *slog.Logger

@@ -211,29 +211,6 @@ func (s *Service) LinkGitHub(ctx context.Context, userID, code string) error {
 	return nil
 }
 
-// ValidateJWT validates a session JWT (used by MCP OAuth internally).
-func (s *Service) ValidateJWT(tokenString string) (string, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(s.config.JWTSecret), nil
-	})
-
-	if err != nil {
-		return "", fmt.Errorf("failed to parse token: %w", err)
-	}
-
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		if sub, ok := claims["sub"].(string); ok {
-			return sub, nil
-		}
-		return "", fmt.Errorf("invalid subject claim type")
-	}
-
-	return "", fmt.Errorf("invalid token")
-}
-
 func (s *Service) GenerateAPIKey(ctx context.Context, userID string, name string) (*APIKeyResult, error) {
 	keyBytes := make([]byte, 32)
 	if _, err := rand.Read(keyBytes); err != nil {
@@ -334,10 +311,6 @@ func (s *Service) GetGitHubCredsByUserID(ctx context.Context, userID string) (*g
 	return &creds, nil
 }
 
-func (s *Service) EncryptToken(token string) (string, error) {
-	return s.encryptToken(token)
-}
-
 func (s *Service) encryptToken(token string) (string, error) {
 	key := sha256.Sum256([]byte(s.config.APIKeyEncryptionKey))
 
@@ -389,10 +362,6 @@ func (s *Service) DecryptToken(encrypted string) (string, error) {
 	}
 
 	return string(plaintext), nil
-}
-
-func (s *Service) GetGitHubOAuth() *github_oauth.OAuthService {
-	return s.githubOAuth
 }
 
 func parseScopes(scopeStr string) []string {

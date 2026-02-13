@@ -36,10 +36,6 @@ func NewOAuthService(config Config) *OAuthService {
 	}
 }
 
-func (s *OAuthService) GetAuthURL(state string) string {
-	return s.GetAuthURLWithScopes(state, nil)
-}
-
 func (s *OAuthService) GetAuthURLWithScopes(state string, additionalScopes []string) string {
 	params := url.Values{}
 	params.Add("client_id", s.config.ClientID)
