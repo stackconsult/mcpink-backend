@@ -3,7 +3,7 @@
   hosts: localhost
   gather_facts: false
   vars:
-    known_hosts_file: "{{ playbook_dir }}/../known_hosts"
+    known_hosts_file: "{{ inventory_dir }}/../known_hosts"
 
   tasks:
     - name: Build SSH keyscan target list from inventory

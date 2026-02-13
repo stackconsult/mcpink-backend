@@ -14,9 +14,8 @@ It also preserves the original `README.md` platform goals:
 - `playbooks/add-run-node.yml` - Add a new run node.
 - `playbooks/upgrade-k3s.yml` - Upgrade existing cluster nodes.
 - `playbooks/patch-hosts.yml` - Apply OS security updates (apt upgrade + optional reboot).
-- `playbooks/refresh-known-hosts.yml` - Rebuild `known_hosts` from current inventory host targets.
+- `playbooks/refresh-known-hosts.yml` - Rebuild per-cluster `known_hosts` from inventory host targets.
 - `roles/` - Node/bootstrap responsibilities.
-- `known_hosts` - Repository-managed SSH host keys used for strict host verification.
 
 ## Prerequisites
 
@@ -30,7 +29,7 @@ It also preserves the original `README.md` platform goals:
 
 ## SSH host key workflow
 
-Host key checking is enforced and SSH only trusts keys in `known_hosts`.
+Host key checking is enforced. Each cluster has its own `known_hosts` file (e.g. `eu-central-1/known_hosts`), referenced via `ansible_ssh_extra_args` in cluster group_vars.
 
 Refresh host keys whenever you add/reimage hosts or rotate SSH host keys:
 
@@ -107,7 +106,7 @@ What gets created:
 
 ### Vault variables for CI/CD
 
-Add these to `inventory/group_vars/all/secrets.yml`:
+Add these to `eu-central-1/inventory/group_vars/all/secrets.yml`:
 
 ```yaml
 # CI/CD deploy — SSH key for GitHub Actions

@@ -10,7 +10,7 @@
 # This copies the matching values file and runs helm upgrade.
 # For full cluster bootstrap use site.yml instead.
 
-- name: "Upgrade Helm chart: {{ chart_name }}"
+- name: "Upgrade Helm chart: {{ chart_name | default('unset') }}"
   hosts: ctrl
   become: true
   vars:
