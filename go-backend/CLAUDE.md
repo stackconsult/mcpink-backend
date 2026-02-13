@@ -275,8 +275,8 @@ There are 5 binaries split across two runtimes:
 | `graphql` | `cmd/graphql/main.go` | Railway | GraphQL API, GitHub OAuth, webhooks, Firebase auth (port 8081) | — |
 | `mcp` | `cmd/mcp/main.go` | Railway | MCP server, MCP OAuth (port 8082) | — |
 | `worker` | `cmd/worker/main.go` | Railway | Product Temporal worker (task queue: `default`) | — |
-| `deployer-server` | `cmd/deployer-server/main.go` | k3s (`dp-system`) | Webhook receiver (GitHub + Gitea), kicks off Temporal workflows | `infra/eu-west-1/k8s/workloads/deployer-server.yml` |
-| `deployer-worker` | `cmd/deployer-worker/main.go` | k3s (`dp-system`) | K8s deployment worker (build, deploy, delete) (task queue: `k8s-native`) | `infra/eu-west-1/k8s/workloads/deployer-worker.yml` |
+| `deployer-server` | `cmd/deployer-server/main.go` | k3s (`dp-system`) | Webhook receiver (GitHub + Gitea), kicks off Temporal workflows | `infra/eu-central-1/k8s/workloads/deployer-server.yml` |
+| `deployer-worker` | `cmd/deployer-worker/main.go` | k3s (`dp-system`) | K8s deployment worker (build, deploy, delete) (task queue: `k8s-native`) | `infra/eu-central-1/k8s/workloads/deployer-worker.yml` |
 
 Mapping note: conceptual `k8s-server` = `deployer-server`; conceptual `k8s-worker` = `deployer-worker`.
 

@@ -1,6 +1,6 @@
 # k3s Ansible Automation
 
-This directory implements `infra/eu-west-1/docs/architecture.md` as reproducible Ansible.
+This directory implements `infra/eu-central-1/docs/architecture.md` as reproducible Ansible.
 
 It also preserves the original `README.md` platform goals:
 - Stable agent contract (`create/redeploy/get/delete`) while swapping infra internals.
@@ -9,7 +9,7 @@ It also preserves the original `README.md` platform goals:
 
 ## Layout
 
-- `../eu-west-1/inventory/` - Cluster inventory (hosts, group_vars, host_vars).
+- `../eu-central-1/inventory/` - Cluster inventory (hosts, group_vars, host_vars).
 - `playbooks/site.yml` - Full cluster bootstrap/reconcile.
 - `playbooks/add-run-node.yml` - Add a new run node.
 - `playbooks/upgrade-k3s.yml` - Upgrade existing cluster nodes.

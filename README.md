@@ -190,8 +190,8 @@ There are 4 binaries split across two runtimes:
 | ----------------- | ----------------------------- | -------------- | --------------------------------------------------------------- | ------------ | ------------------------------- |
 | `server`          | `cmd/server/main.go`          | Railway        | Product API — GraphQL, MCP server, OAuth, Firebase auth        | —            | —                               |
 | `worker`          | `cmd/worker/main.go`          | Railway        | Product Temporal worker — account workflows                     | `default`    | —                               |
-| `deployer-server` | `cmd/deployer-server/main.go` | k3s (`dp-system`) | Webhook receiver (GitHub + Gitea), kicks off Temporal workflows | —            | `infra/eu-west-1/k8s/workloads/deployer-server.yml` |
-| `deployer-worker` | `cmd/deployer-worker/main.go` | k3s (`dp-system`) | K8s deployment worker — build, deploy, delete, status          | `k8s-native` | `infra/eu-west-1/k8s/workloads/deployer-worker.yml` |
+| `deployer-server` | `cmd/deployer-server/main.go` | k3s (`dp-system`) | Webhook receiver (GitHub + Gitea), kicks off Temporal workflows | —            | `infra/eu-central-1/k8s/workloads/deployer-server.yml` |
+| `deployer-worker` | `cmd/deployer-worker/main.go` | k3s (`dp-system`) | K8s deployment worker — build, deploy, delete, status          | `k8s-native` | `infra/eu-central-1/k8s/workloads/deployer-worker.yml` |
 
 Mapping note: conceptual `k8s-server` = `deployer-server`; conceptual `k8s-worker` = `deployer-worker`.
 
@@ -469,7 +469,7 @@ Infrastructure is managed via Ansible playbooks in `infra/ansible/`:
 - `add-run-node.yml` — Add a new run node
 - `upgrade-k3s.yml` — Rolling k3s upgrade
 
-K8s manifests live in `infra/eu-west-1/k8s/` and are applied by Ansible.
+K8s manifests live in `infra/eu-central-1/k8s/` and are applied by Ansible.
 
 ---
 

@@ -7,7 +7,7 @@ The product (MCP API, Temporal Cloud, Postgres, auth) stays on Railway.
 
 This plan intentionally avoids low-level manifests and command-level procedures. For implementation details, use:
 - `infra/ansible` for host provisioning, network/bootstrap, hardening, and node lifecycle
-- `infra/eu-west-1/k8s` for cluster workloads, routing objects, runtime controls, and observability resources
+- `infra/eu-central-1/k8s` for cluster workloads, routing objects, runtime controls, and observability resources
 
 ## responsibility split
 Railway is the product plane and system-of-record boundary. It owns API contracts, auth, metadata, and workflow orchestration triggers.
@@ -55,7 +55,7 @@ Security posture is defense-in-depth:
 ## operations model
 Operational ownership is split between declarative host automation and declarative cluster resources:
 - `infra/ansible` is the source for node bootstrap, OS/network policy, and fleet changes
-- `infra/eu-west-1/k8s` is the source for in-cluster services, routing, scheduling, and policies
+- `infra/eu-central-1/k8s` is the source for in-cluster services, routing, scheduling, and policies
 
 Steady-state operations center on:
 - pool capacity management, especially run-pool scaling
