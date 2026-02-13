@@ -12,7 +12,6 @@ import (
 	"github.com/augustdev/autoclip/internal/dnsverify"
 	"github.com/augustdev/autoclip/internal/k8sdeployments"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/customdomains"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/dnsrecords"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/githubcreds"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
@@ -24,17 +23,15 @@ import (
 )
 
 type Service struct {
-	temporalClient   client.Client
-	servicesQ        services.Querier
-	projectsQ        projects.Querier
-	usersQ           users.Querier
-	ghCredsQ         githubcreds.Querier
-	dnsQ             dnsrecords.Querier
-	customDomainsQ   customdomains.Querier
-	cloudflareClient *cloudflare.Client
-	appsDomain       string
-	cnameTarget      string
-	logger           *slog.Logger
+	temporalClient client.Client
+	servicesQ      services.Querier
+	projectsQ      projects.Querier
+	usersQ         users.Querier
+	ghCredsQ       githubcreds.Querier
+	customDomainsQ customdomains.Querier
+	appsDomain     string
+	cnameTarget    string
+	logger         *slog.Logger
 }
 
 func NewService(
@@ -43,9 +40,7 @@ func NewService(
 	projectsQ projects.Querier,
 	usersQ users.Querier,
 	ghCredsQ githubcreds.Querier,
-	dnsQ dnsrecords.Querier,
 	customDomainsQ customdomains.Querier,
-	cloudflareClient *cloudflare.Client,
 	cfConfig cloudflare.Config,
 	logger *slog.Logger,
 ) *Service {
@@ -54,17 +49,15 @@ func NewService(
 		cnameTarget = "cname." + cfConfig.BaseDomain
 	}
 	return &Service{
-		temporalClient:   temporalClient,
-		servicesQ:        servicesQ,
-		projectsQ:        projectsQ,
-		usersQ:           usersQ,
-		ghCredsQ:         ghCredsQ,
-		dnsQ:             dnsQ,
-		customDomainsQ:   customDomainsQ,
-		cloudflareClient: cloudflareClient,
-		appsDomain:       cfConfig.BaseDomain,
-		cnameTarget:      cnameTarget,
-		logger:           logger,
+		temporalClient: temporalClient,
+		servicesQ:      servicesQ,
+		projectsQ:      projectsQ,
+		usersQ:         usersQ,
+		ghCredsQ:       ghCredsQ,
+		customDomainsQ: customDomainsQ,
+		appsDomain:     cfConfig.BaseDomain,
+		cnameTarget:    cnameTarget,
+		logger:         logger,
 	}
 }
 

@@ -43,8 +43,6 @@ func main() {
 			// Transitive deps for deployments.NewService
 			pg.NewUserQueries,
 			pg.NewProjectQueries,
-			pg.NewDNSRecordQueries,
-			cloudflare.NewClient,
 		),
 		fx.Invoke(
 			startDeployerServer,
