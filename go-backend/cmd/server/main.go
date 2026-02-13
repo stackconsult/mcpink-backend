@@ -10,21 +10,41 @@ import (
 	"github.com/augustdev/autoclip/internal/deployments"
 	"github.com/augustdev/autoclip/internal/github_oauth"
 	"github.com/augustdev/autoclip/internal/githubapp"
+	"github.com/augustdev/autoclip/internal/internalgit"
 	"github.com/augustdev/autoclip/internal/mcp_oauth"
 	"github.com/augustdev/autoclip/internal/mcpserver"
 	"github.com/augustdev/autoclip/internal/prometheus"
 	"github.com/augustdev/autoclip/internal/resources"
 	"github.com/augustdev/autoclip/internal/storage/pg"
+	"github.com/augustdev/autoclip/internal/turso"
 	"github.com/augustdev/autoclip/internal/webhooks"
 	"go.uber.org/fx"
 )
+
+type config struct {
+	fx.Out
+
+	GraphQLAPI bootstrap.GraphQLAPIConfig
+	Db         pg.DbConfig
+	GitHub     github_oauth.Config
+	GitHubApp  githubapp.Config
+	Auth       auth.Config
+	Temporal   bootstrap.TemporalClientConfig
+	Turso      turso.Config
+	Gitea      internalgit.Config
+	Cloudflare cloudflare.Config
+	MCPOAuth   mcp_oauth.Config
+	Firebase   bootstrap.FirebaseConfig
+	Loki       mcpserver.LokiConfig
+	Prometheus prometheus.Config
+}
 
 func main() {
 	fx.New(
 		fx.StopTimeout(15*time.Second),
 		fx.Provide(
 			bootstrap.NewLogger,
-			bootstrap.NewConfig,
+			bootstrap.LoadConfig[config],
 			pg.NewDatabase,
 			pg.NewUserQueries,
 			pg.NewAPIKeyQueries,

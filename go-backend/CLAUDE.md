@@ -86,11 +86,19 @@ import (
     "go.uber.org/fx"
 )
 
+type config struct {
+    fx.Out
+
+    Db   pg.DbConfig
+    Auth auth.Config
+    // Only the configs this binary actually needs
+}
+
 func main() {
     fx.New(
         fx.Provide(
             bootstrap.NewLogger,
-            bootstrap.NewConfig,
+            bootstrap.LoadConfig[config],
             pg.NewDatabase,
             auth.NewService,    // Use package constructors directly
             auth.NewHandlers,   // Not bootstrap wrappers
@@ -163,7 +171,7 @@ type Config struct {
 
 ### Pattern
 
-Each package defines its own `Config` struct. The `bootstrap.Config` aggregates all package configs using `fx.Out` for dependency injection.
+Each package defines its own `Config` struct. Each binary defines a config struct in `main.go` with `fx.Out` containing only the configs it needs. `bootstrap.LoadConfig[T]()` loads and unmarshals into any struct type.
 
 **Package-level config** (e.g., `internal/storage/pg/database.go`):
 ```go
@@ -176,15 +184,15 @@ type DbConfig struct {
 }
 ```
 
-**Aggregated config** (`internal/bootstrap/config.go`):
+**Per-binary config** (e.g., `cmd/worker/main.go`):
 ```go
-type Config struct {
+type config struct {
     fx.Out
 
-    GraphQLAPI GraphQLAPIConfig
-    Db         pg.DbConfig
-    // Add new package configs here
+    Db       pg.DbConfig
+    Temporal bootstrap.TemporalClientConfig
 }
+// Then use: bootstrap.LoadConfig[config]
 ```
 
 ### Configuration Sources
@@ -197,10 +205,9 @@ type Config struct {
 
 ### Adding New Configuration
 
-1. Define `Config` struct in the package with `mapstructure` tags
+1. Define `Config` struct in the package
 2. Add corresponding section to `application.yaml`
-3. Import and embed in `bootstrap.Config`
-4. Update `NewConfig()` to unmarshal the new section
+3. Add the config field to the relevant binary's config struct in `cmd/*/main.go`
 
 ## Code Style
 

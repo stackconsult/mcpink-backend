@@ -14,12 +14,19 @@ import (
 	"go.uber.org/fx"
 )
 
+type config struct {
+	fx.Out
+
+	Db       pg.DbConfig
+	Temporal bootstrap.TemporalClientConfig
+}
+
 func main() {
 	fx.New(
 		fx.StopTimeout(1*time.Minute),
 		fx.Provide(
 			bootstrap.NewLogger,
-			bootstrap.NewConfig,
+			bootstrap.LoadConfig[config],
 			pg.NewDatabase,
 			pg.NewProjectQueries,
 			bootstrap.CreateTemporalClient,

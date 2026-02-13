@@ -5,90 +5,23 @@ import (
 	"os"
 	"strings"
 
-	"github.com/augustdev/autoclip/internal/auth"
-	"github.com/augustdev/autoclip/internal/cloudflare"
-	"github.com/augustdev/autoclip/internal/github_oauth"
-	"github.com/augustdev/autoclip/internal/githubapp"
-	"github.com/augustdev/autoclip/internal/internalgit"
-	"github.com/augustdev/autoclip/internal/k8sdeployments"
-	"github.com/augustdev/autoclip/internal/mcp_oauth"
-	"github.com/augustdev/autoclip/internal/mcpserver"
-	"github.com/augustdev/autoclip/internal/prometheus"
-	"github.com/augustdev/autoclip/internal/storage/pg"
-	"github.com/augustdev/autoclip/internal/turso"
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
-	"go.uber.org/fx"
 )
 
-func NewConfig() (Config, error) {
+func LoadConfig[T any]() (T, error) {
 	if err := InitConfig(); err != nil {
-		return Config{}, err
+		var zero T
+		return zero, err
 	}
 
-	var cfg struct {
-		GraphQLAPI GraphQLAPIConfig
-		Db         pg.DbConfig
-		GitHub     github_oauth.Config
-		GitHubApp  githubapp.Config
-		Auth       auth.Config
-		Temporal   TemporalClientConfig
-		NATS       NATSConfig
-		Turso      turso.Config
-		Gitea      internalgit.Config
-		Cloudflare cloudflare.Config
-		MCPOAuth   mcp_oauth.Config
-		Firebase   FirebaseConfig
-		K8sWorker  k8sdeployments.Config
-		Loki       mcpserver.LokiConfig
-		Prometheus prometheus.Config
-	}
-
+	var cfg T
 	if err := viper.Unmarshal(&cfg); err != nil {
-		return Config{}, fmt.Errorf("unable to decode config: %w", err)
+		var zero T
+		return zero, fmt.Errorf("unable to decode config: %w", err)
 	}
 
-	return Config{
-		GraphQLAPI: cfg.GraphQLAPI,
-		Db:         cfg.Db,
-		GitHub:     cfg.GitHub,
-		GitHubApp:  cfg.GitHubApp,
-		Auth:       cfg.Auth,
-		Temporal:   cfg.Temporal,
-		NATS:       cfg.NATS,
-		Turso:      cfg.Turso,
-		Gitea:      cfg.Gitea,
-		Cloudflare: cfg.Cloudflare,
-		MCPOAuth:   cfg.MCPOAuth,
-		Firebase:   cfg.Firebase,
-		K8sWorker:  cfg.K8sWorker,
-		Loki:       cfg.Loki,
-		Prometheus: cfg.Prometheus,
-	}, nil
-}
-
-type FirebaseConfig struct {
-	ServiceAccountJSON string
-}
-
-type Config struct {
-	fx.Out
-
-	GraphQLAPI GraphQLAPIConfig
-	Db         pg.DbConfig
-	GitHub     github_oauth.Config
-	GitHubApp  githubapp.Config
-	Auth       auth.Config
-	Temporal   TemporalClientConfig
-	NATS       NATSConfig
-	Turso      turso.Config
-	Gitea      internalgit.Config
-	Cloudflare cloudflare.Config
-	MCPOAuth   mcp_oauth.Config
-	Firebase   FirebaseConfig
-	K8sWorker  k8sdeployments.Config
-	Loki       mcpserver.LokiConfig
-	Prometheus prometheus.Config
+	return cfg, nil
 }
 
 func InitConfig() error {
@@ -108,6 +41,10 @@ func InitConfig() error {
 	}
 
 	return nil
+}
+
+type FirebaseConfig struct {
+	ServiceAccountJSON string
 }
 
 type NATSConfig struct {

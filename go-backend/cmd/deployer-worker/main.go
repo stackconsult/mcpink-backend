@@ -9,18 +9,29 @@ import (
 
 	"github.com/augustdev/autoclip/internal/bootstrap"
 	"github.com/augustdev/autoclip/internal/githubapp"
+	"github.com/augustdev/autoclip/internal/internalgit"
 	"github.com/augustdev/autoclip/internal/k8sdeployments"
 	"github.com/augustdev/autoclip/internal/storage/pg"
 	"go.temporal.io/sdk/worker"
 	"go.uber.org/fx"
 )
 
+type config struct {
+	fx.Out
+
+	Db        pg.DbConfig
+	Temporal  bootstrap.TemporalClientConfig
+	GitHubApp githubapp.Config
+	Gitea     internalgit.Config
+	K8sWorker k8sdeployments.Config
+}
+
 func main() {
 	fx.New(
 		fx.StopTimeout(1*time.Minute),
 		fx.Provide(
 			bootstrap.NewLogger,
-			bootstrap.NewConfig,
+			bootstrap.LoadConfig[config],
 			bootstrap.CreateTemporalClient,
 			bootstrap.NewK8sTemporalWorker,
 			bootstrap.NewK8sClient,

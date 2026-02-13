@@ -16,12 +16,22 @@ import (
 	"go.uber.org/fx"
 )
 
+type config struct {
+	fx.Out
+
+	GraphQLAPI bootstrap.GraphQLAPIConfig
+	Db         pg.DbConfig
+	GitHubApp  githubapp.Config
+	Temporal   bootstrap.TemporalClientConfig
+	Cloudflare cloudflare.Config
+}
+
 func main() {
 	fx.New(
 		fx.StopTimeout(15*time.Second),
 		fx.Provide(
 			bootstrap.NewLogger,
-			bootstrap.NewConfig,
+			bootstrap.LoadConfig[config],
 			pg.NewDatabase,
 			pg.NewServiceQueries,
 			pg.NewGitHubCredsQueries,
