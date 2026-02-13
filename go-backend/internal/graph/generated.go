@@ -43,6 +43,7 @@ type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
 	Resource() ResourceResolver
+	Service() ServiceResolver
 	User() UserResolver
 }
 
@@ -156,15 +157,19 @@ type ComplexityRoot struct {
 	Service struct {
 		Branch             func(childComplexity int) int
 		BuildStatus        func(childComplexity int) int
+		CommitHash         func(childComplexity int) int
 		CreatedAt          func(childComplexity int) int
 		CustomDomain       func(childComplexity int) int
 		CustomDomainStatus func(childComplexity int) int
 		EnvVars            func(childComplexity int) int
 		ErrorMessage       func(childComplexity int) int
 		Fqdn               func(childComplexity int) int
+		GitProvider        func(childComplexity int) int
 		ID                 func(childComplexity int) int
 		Memory             func(childComplexity int) int
 		Name               func(childComplexity int) int
+		Port               func(childComplexity int) int
+		Project            func(childComplexity int) int
 		ProjectID          func(childComplexity int) int
 		Repo               func(childComplexity int) int
 		RuntimeStatus      func(childComplexity int) int
@@ -218,6 +223,9 @@ type QueryResolver interface {
 }
 type ResourceResolver interface {
 	Project(ctx context.Context, obj *model.Resource) (*model.Project, error)
+}
+type ServiceResolver interface {
+	Project(ctx context.Context, obj *model.Service) (*model.Project, error)
 }
 type UserResolver interface {
 	GithubAppInstallationID(ctx context.Context, obj *model.User) (*string, error)
@@ -673,6 +681,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Service.BuildStatus(childComplexity), true
+	case "Service.commitHash":
+		if e.complexity.Service.CommitHash == nil {
+			break
+		}
+
+		return e.complexity.Service.CommitHash(childComplexity), true
 	case "Service.createdAt":
 		if e.complexity.Service.CreatedAt == nil {
 			break
@@ -709,6 +723,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Service.Fqdn(childComplexity), true
+	case "Service.gitProvider":
+		if e.complexity.Service.GitProvider == nil {
+			break
+		}
+
+		return e.complexity.Service.GitProvider(childComplexity), true
 	case "Service.id":
 		if e.complexity.Service.ID == nil {
 			break
@@ -727,6 +747,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Service.Name(childComplexity), true
+	case "Service.port":
+		if e.complexity.Service.Port == nil {
+			break
+		}
+
+		return e.complexity.Service.Port(childComplexity), true
+	case "Service.project":
+		if e.complexity.Service.Project == nil {
+			break
+		}
+
+		return e.complexity.Service.Project(childComplexity), true
 	case "Service.projectId":
 		if e.complexity.Service.ProjectID == nil {
 			break
@@ -2130,6 +2162,8 @@ func (ec *executionContext) fieldContext_Project_services(_ context.Context, fie
 				return ec.fieldContext_Service_id(ctx, field)
 			case "projectId":
 				return ec.fieldContext_Service_projectId(ctx, field)
+			case "project":
+				return ec.fieldContext_Service_project(ctx, field)
 			case "name":
 				return ec.fieldContext_Service_name(ctx, field)
 			case "repo":
@@ -2146,6 +2180,12 @@ func (ec *executionContext) fieldContext_Project_services(_ context.Context, fie
 				return ec.fieldContext_Service_envVars(ctx, field)
 			case "fqdn":
 				return ec.fieldContext_Service_fqdn(ctx, field)
+			case "port":
+				return ec.fieldContext_Service_port(ctx, field)
+			case "gitProvider":
+				return ec.fieldContext_Service_gitProvider(ctx, field)
+			case "commitHash":
+				return ec.fieldContext_Service_commitHash(ctx, field)
 			case "memory":
 				return ec.fieldContext_Service_memory(ctx, field)
 			case "vcpus":
@@ -2890,6 +2930,8 @@ func (ec *executionContext) fieldContext_Query_serviceDetails(ctx context.Contex
 				return ec.fieldContext_Service_id(ctx, field)
 			case "projectId":
 				return ec.fieldContext_Service_projectId(ctx, field)
+			case "project":
+				return ec.fieldContext_Service_project(ctx, field)
 			case "name":
 				return ec.fieldContext_Service_name(ctx, field)
 			case "repo":
@@ -2906,6 +2948,12 @@ func (ec *executionContext) fieldContext_Query_serviceDetails(ctx context.Contex
 				return ec.fieldContext_Service_envVars(ctx, field)
 			case "fqdn":
 				return ec.fieldContext_Service_fqdn(ctx, field)
+			case "port":
+				return ec.fieldContext_Service_port(ctx, field)
+			case "gitProvider":
+				return ec.fieldContext_Service_gitProvider(ctx, field)
+			case "commitHash":
+				return ec.fieldContext_Service_commitHash(ctx, field)
 			case "memory":
 				return ec.fieldContext_Service_memory(ctx, field)
 			case "vcpus":
@@ -3651,6 +3699,49 @@ func (ec *executionContext) fieldContext_Service_projectId(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _Service_project(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Service_project,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Service().Project(ctx, obj)
+		},
+		nil,
+		ec.marshalOProject2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐProject,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Service_project(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Service",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Project_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Project_name(ctx, field)
+			case "ref":
+				return ec.fieldContext_Project_ref(ctx, field)
+			case "services":
+				return ec.fieldContext_Project_services(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Project_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Project_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Project", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Service_name(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3889,6 +3980,93 @@ func (ec *executionContext) fieldContext_Service_fqdn(_ context.Context, field g
 	return fc, nil
 }
 
+func (ec *executionContext) _Service_port(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Service_port,
+		func(ctx context.Context) (any, error) {
+			return obj.Port, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Service_port(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Service",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Service_gitProvider(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Service_gitProvider,
+		func(ctx context.Context) (any, error) {
+			return obj.GitProvider, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Service_gitProvider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Service",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Service_commitHash(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Service_commitHash,
+		func(ctx context.Context) (any, error) {
+			return obj.CommitHash, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Service_commitHash(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Service",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Service_memory(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -4091,6 +4269,8 @@ func (ec *executionContext) fieldContext_ServiceConnection_nodes(_ context.Conte
 				return ec.fieldContext_Service_id(ctx, field)
 			case "projectId":
 				return ec.fieldContext_Service_projectId(ctx, field)
+			case "project":
+				return ec.fieldContext_Service_project(ctx, field)
 			case "name":
 				return ec.fieldContext_Service_name(ctx, field)
 			case "repo":
@@ -4107,6 +4287,12 @@ func (ec *executionContext) fieldContext_ServiceConnection_nodes(_ context.Conte
 				return ec.fieldContext_Service_envVars(ctx, field)
 			case "fqdn":
 				return ec.fieldContext_Service_fqdn(ctx, field)
+			case "port":
+				return ec.fieldContext_Service_port(ctx, field)
+			case "gitProvider":
+				return ec.fieldContext_Service_gitProvider(ctx, field)
+			case "commitHash":
+				return ec.fieldContext_Service_commitHash(ctx, field)
 			case "memory":
 				return ec.fieldContext_Service_memory(ctx, field)
 			case "vcpus":
@@ -7037,29 +7223,62 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 		case "id":
 			out.Values[i] = ec._Service_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "projectId":
 			out.Values[i] = ec._Service_projectId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "project":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Service_project(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "name":
 			out.Values[i] = ec._Service_name(ctx, field, obj)
 		case "repo":
 			out.Values[i] = ec._Service_repo(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "branch":
 			out.Values[i] = ec._Service_branch(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "buildStatus":
 			out.Values[i] = ec._Service_buildStatus(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "runtimeStatus":
 			out.Values[i] = ec._Service_runtimeStatus(ctx, field, obj)
@@ -7068,19 +7287,31 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 		case "envVars":
 			out.Values[i] = ec._Service_envVars(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "fqdn":
 			out.Values[i] = ec._Service_fqdn(ctx, field, obj)
+		case "port":
+			out.Values[i] = ec._Service_port(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "gitProvider":
+			out.Values[i] = ec._Service_gitProvider(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "commitHash":
+			out.Values[i] = ec._Service_commitHash(ctx, field, obj)
 		case "memory":
 			out.Values[i] = ec._Service_memory(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "vcpus":
 			out.Values[i] = ec._Service_vcpus(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "customDomain":
 			out.Values[i] = ec._Service_customDomain(ctx, field, obj)
@@ -7089,12 +7320,12 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 		case "createdAt":
 			out.Values[i] = ec._Service_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._Service_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))

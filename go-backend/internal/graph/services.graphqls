@@ -29,6 +29,7 @@ type PageInfo {
 type Service {
   id: ID!
   projectId: ID!
+  project: Project @goField(forceResolver: true)
   name: String
   repo: String!
   branch: String!
@@ -37,6 +38,9 @@ type Service {
   errorMessage: String
   envVars: [EnvVar!]!
   fqdn: String
+  port: String!
+  gitProvider: String!
+  commitHash: String
   memory: String!
   vcpus: String!
   customDomain: String

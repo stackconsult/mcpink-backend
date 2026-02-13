@@ -118,3 +118,18 @@ func (r *queryResolver) ServiceDetails(ctx context.Context, id string) (*model.S
 	}
 	return svcModel, nil
 }
+
+// Project is the resolver for the project field.
+func (r *serviceResolver) Project(ctx context.Context, obj *model.Service) (*model.Project, error) {
+	dbProject, err := r.ProjectQueries.GetProjectByID(ctx, obj.ProjectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch project %s: %w", obj.ProjectID, err)
+	}
+
+	return dbProjectToModel(&dbProject, nil), nil
+}
+
+// Service returns ServiceResolver implementation.
+func (r *Resolver) Service() ServiceResolver { return &serviceResolver{r} }
+
+type serviceResolver struct{ *Resolver }

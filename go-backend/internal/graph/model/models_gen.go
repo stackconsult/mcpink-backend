@@ -101,6 +101,7 @@ type ResourceMetadata struct {
 type Service struct {
 	ID                 string    `json:"id"`
 	ProjectID          string    `json:"projectId"`
+	Project            *Project  `json:"project,omitempty"`
 	Name               *string   `json:"name,omitempty"`
 	Repo               string    `json:"repo"`
 	Branch             string    `json:"branch"`
@@ -109,6 +110,9 @@ type Service struct {
 	ErrorMessage       *string   `json:"errorMessage,omitempty"`
 	EnvVars            []*EnvVar `json:"envVars"`
 	Fqdn               *string   `json:"fqdn,omitempty"`
+	Port               string    `json:"port"`
+	GitProvider        string    `json:"gitProvider"`
+	CommitHash         *string   `json:"commitHash,omitempty"`
 	Memory             string    `json:"memory"`
 	Vcpus              string    `json:"vcpus"`
 	CustomDomain       *string   `json:"customDomain,omitempty"`
