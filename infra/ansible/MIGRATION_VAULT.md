@@ -211,7 +211,7 @@ Map from `go-backend/.env` to Ansible variables:
 | _(not in .env)_ | `temporal_cloud_api_key` | Yes | Temporal Cloud → API Keys |
 | _(not in .env)_ | `loki_basic_auth_users` | Yes | Generate new with `htpasswd` |
 
-The remaining .env values (`GITHUB_CLIENTID`, `GITHUB_CLIENTSECRET`, `AUTH_*`, `COOLIFY_*`, `GITEA_*`, `DB_URL`, etc.) are for the Railway-hosted Go backend, not the k3s cluster.
+The remaining .env values (`GITHUB_CLIENTID`, `GITHUB_CLIENTSECRET`, `AUTH_*`, `GITEA_*`, `DB_URL`, etc.) are for the Go backend, not the k3s cluster.
 
 ---
 

@@ -6,8 +6,6 @@
     - role: common
     - role: vswitch
       when: is_dedicated | default(false) | bool
-    - role: legacy_cleanup
-      when: legacy_cleanup_enabled | default(false) | bool
 
 - name: Install and configure k3s server
   hosts: ctrl
@@ -34,3 +32,9 @@
     - role: k8s_addons
   vars:
     run_k8s_addons_on_host: "{{ groups['ctrl'][0] }}"
+
+- name: Configure Hetzner Load Balancer
+  hosts: ctrl[0]
+  become: true
+  roles:
+    - role: hetzner_lb

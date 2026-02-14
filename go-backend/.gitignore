@@ -2,7 +2,11 @@
 keys/*
 go-backend/server
 go-backend/worker
+go-backend/deployer-server
+go-backend/deployer-worker
 server
 worker
+deployer-server
+deployer-worker
 .gocache
 go-backend/keys/*

@@ -1,43 +1,59 @@
-# k3s Ansible Automation
+# Ansible Automation
 
-This directory implements `infra/eu-central-1/docs/architecture.md` as reproducible Ansible.
-
-It also preserves the original `README.md` platform goals:
-- Stable agent contract (`create/redeploy/get/delete`) while swapping infra internals.
-- 3-plane isolation (control/build/run) to prevent build contention on runtime nodes.
-- Security defaults (gVisor runtime class, egress restrictions, host firewall, no workflow secrets).
+Operations runbook for all MCPDeploy clusters. Region-specific details (machines, network, topology) live in `infra/<region>/README.md`.
 
 ## Layout
 
-- `../eu-central-1/inventory/` - Cluster inventory (hosts, group_vars, host_vars).
-- `playbooks/site.yml` - Full cluster bootstrap/reconcile.
-- `playbooks/add-run-node.yml` - Add a new run node.
-- `playbooks/upgrade-k3s.yml` - Upgrade existing cluster nodes.
-- `playbooks/patch-hosts.yml` - Apply OS security updates (apt upgrade + optional reboot).
-- `playbooks/refresh-known-hosts.yml` - Rebuild per-cluster `known_hosts` from inventory host targets.
-- `roles/` - Node/bootstrap responsibilities.
+```
+playbooks/
+├── site.yml                Full cluster bootstrap/reconcile
+├── add-run-node.yml        Add or reconcile a single run node
+├── upgrade-k3s.yml         Rolling k3s upgrade
+├── patch-hosts.yml         OS security updates (apt upgrade + optional reboot)
+└── refresh-known-hosts.yml Rebuild per-cluster known_hosts from inventory
+
+roles/
+├── common                  Base packages, kernel modules, sysctl, disable swap
+├── vswitch                 VLAN netplan for dedicated servers
+├── k3s_server              K3s control plane install/upgrade
+├── k3s_agent               K3s agent install/upgrade
+├── gvisor                  gVisor runtime for containerd (run nodes)
+├── registry_client         kubelet registry mirror + containerd certs.d
+├── firewall                iptables rules (ingress restrictions, egress blocks)
+├── k8s_addons              Helm charts + K8s secrets + RBAC + quota reconciler
+├── hetzner_lb              Hetzner Cloud LB management (hcloud CLI, Hetzner-specific)
+└── security_patch          apt upgrade + conditional reboot
+```
 
 ## Prerequisites
 
-1. `ansible-core` installed on your local machine.
-2. SSH access as root to all target nodes.
-3. Hetzner private networking configured (cloud network + vSwitch).
-4. DNS records in place for:
-   - `*.ml.ink`
-   - `grafana.ml.ink`
-   - `loki.ml.ink`
+1. `ansible-core` installed locally
+2. SSH access as root to all target nodes
+3. Private networking configured (provider-specific — see region README)
+4. DNS records in place (see `infra/README.md`)
 
-## SSH host key workflow
+## SSH host keys
 
-Host key checking is enforced. Each cluster has its own `known_hosts` file (e.g. `eu-central-1/known_hosts`), referenced via `ansible_ssh_extra_args` in cluster group_vars.
-
-Refresh host keys whenever you add/reimage hosts or rotate SSH host keys:
+Host key checking is enforced. Each cluster has its own `known_hosts` file (e.g., `eu-central-1/known_hosts`), referenced via `ansible_ssh_extra_args` in group_vars.
 
 ```bash
 ansible-playbook playbooks/refresh-known-hosts.yml
 ```
 
-## First Run
+Run this whenever you add/reimage hosts or rotate SSH keys.
+
+## Important: Ansible is the source of truth
+
+All long-lived infrastructure changes (firewall rules, K8s manifests, Helm charts, secrets, node configuration) MUST go through Ansible — not manual `kubectl apply` or SSH commands. One-off debugging is fine, but any change that should persist across reprovisioning belongs in a role or manifest committed to this repo.
+
+```bash
+# Dry-run first, always
+ansible-playbook playbooks/site.yml --check --diff
+# Then apply
+ansible-playbook playbooks/site.yml --diff
+```
+
+## Bootstrap (first run)
 
 ```bash
 cd infra/ansible
@@ -45,7 +61,9 @@ ansible-playbook playbooks/refresh-known-hosts.yml
 ansible-playbook playbooks/site.yml
 ```
 
-If you keep secrets outside inventory, pass them at runtime:
+`site.yml` runs in order: baseline all nodes → k3s server → k3s agents + gVisor → Helm addons → Hetzner LB.
+
+Secrets can live in vault or be passed at runtime:
 
 ```bash
 ansible-playbook playbooks/site.yml \
@@ -53,80 +71,72 @@ ansible-playbook playbooks/site.yml \
   -e loki_basic_auth_users="deploy:$LOKI_BCRYPT"
 ```
 
-After adding or replacing run nodes, update the Cloudflare Load Balancer origin pool in the dashboard.
-Cloudflare remains the source of truth for public host/origin routing.
+**Manual step after bootstrap**: Add run-pool node IPs to the Cloudflare LB origin pool (Cloudflare dashboard).
 
-## Security Patching
+## Day-2 operations
 
-Run vulnerability and package updates separately from cluster reconciliation:
+### Add a run node
 
-```bash
-ansible-playbook playbooks/patch-hosts.yml --limit all
-```
+1. Provision server in Hetzner, add to `inventory/hosts.yml` under `run`
+2. `ansible-playbook playbooks/add-run-node.yml --limit <hostname>`
+3. Node is auto-added to Hetzner LB by the playbook
+4. Manually add to Cloudflare LB origin pool
 
-Useful options:
-
-```bash
-# No reboot
-ansible-playbook playbooks/patch-hosts.yml -e security_patch_reboot_if_required=false
-
-# Patch one node at a time (default) or increase serial batch size
-ansible-playbook playbooks/patch-hosts.yml -e serial=2
-```
-
-## Post-bootstrap secrets (Ansible-managed)
-
-`playbooks/site.yml` creates/updates required runtime secrets directly when vars are set.
-
-Managed by `roles/k8s_addons`:
-
-- `github-app` (`dp-system`): `github_app_id` + `github_app_private_key`
-- `temporal-creds` (`dp-system`): `temporal_cloud_api_key` as `cloud-api-key`
-- `temporal-worker-config` (`dp-system`): `temporal_address` + `temporal_namespace`
-- `cloudflare-api-token` (`cert-manager`): `cloudflare_api_token`
-- `loki-auth-secret` (`dp-system`): `loki_basic_auth_users`
-- `ghcr-pull-secret` (`dp-system`): `ghcr_pull_token` (docker-registry secret for ghcr.io)
-
-After setting values in inventory/vault (or via `-e`), re-run:
+### Security patching
 
 ```bash
-ansible-playbook playbooks/site.yml
+ansible-playbook playbooks/patch-hosts.yml
 ```
+
+Options: `-e security_patch_reboot_if_required=false` (no reboot), `-e serial=2` (batch size).
+
+### K3s upgrade
+
+Update `k3s_version` in inventory, then:
+
+```bash
+ansible-playbook playbooks/upgrade-k3s.yml
+```
+
+## Secrets (vault-managed)
+
+`site.yml` creates K8s secrets when the corresponding vars are set.
+
+| K8s Secret | Namespace | Vault variable(s) |
+|------------|-----------|-------------------|
+| `github-app` | dp-system | `github_app_id`, `github_app_private_key` |
+| `temporal-creds` | dp-system | `temporal_cloud_api_key` |
+| `temporal-worker-config` | dp-system | `temporal_address`, `temporal_namespace` |
+| `cloudflare-api-token` | cert-manager | `cloudflare_api_token` |
+| `loki-auth-secret` | dp-system | `loki_basic_auth_users` |
+| `ghcr-pull-secret` | dp-system | `ghcr_pull_token` |
 
 ## CI/CD deploy user
 
-The `k8s_addons` role provisions a restricted `deploy` Linux user on the control plane node for GitHub Actions to SSH into and run `kubectl set image`. This is fully automated — no manual setup needed.
+The `k8s_addons` role provisions a restricted `deploy` user on the control plane for GitHub Actions:
 
-What gets created:
+- Linux user `deploy` with SSH key from `deploy_ssh_private_key`
+- RBAC-limited ServiceAccount (`ci-deployer`) — can only `get/patch` deployer deployments in `dp-system`
+- Restricted kubeconfig at `/home/deploy/.kube/config`
 
-- Linux user `deploy` with SSH authorized_keys derived from `deploy_ssh_private_key`
-- RBAC-limited ServiceAccount (`ci-deployer`) that can only `get/patch` deployer-worker and deployer-server deployments in `dp-system`
-- Restricted kubeconfig at `/home/deploy/.kube/config` using the ci-deployer token
-- `ghcr-pull-secret` docker-registry secret for pulling images from ghcr.io
-
-### Vault variables for CI/CD
-
-Add these to `eu-central-1/inventory/group_vars/all/secrets.yml`:
+### Vault variables
 
 ```yaml
-# CI/CD deploy — SSH key for GitHub Actions
-# Generate: ssh-keygen -t ed25519 -f deploy_key -N "" -C "ci-deploy"
+# eu-central-1/inventory/group_vars/all/secrets.yml
+
+# ssh-keygen -t ed25519 -f deploy_key -N "" -C "ci-deploy"
 deploy_ssh_private_key: |
   -----BEGIN OPENSSH PRIVATE KEY-----
   ...
   -----END OPENSSH PRIVATE KEY-----
 
-# ghcr.io — pull token for deployer images
-# Create at: GitHub → Settings → Developer settings → Personal access tokens
-# Scope: read:packages
+# GitHub → Settings → Developer settings → Personal access tokens (read:packages)
 ghcr_pull_token: "ghp_..."
 ```
 
-### GitHub Secrets
-
-The same `deploy_ssh_private_key` value must also be added as a GitHub Actions secret:
+### GitHub Actions secrets
 
 | Secret | Value |
 |--------|-------|
-| `K3S_HOST` | `46.225.100.234` |
-| `DEPLOY_SSH_KEY` | Same value as `deploy_ssh_private_key` in vault |
+| `K3S_HOST` | Control plane public IP (see region README) |
+| `DEPLOY_SSH_KEY` | Same as `deploy_ssh_private_key` in vault |

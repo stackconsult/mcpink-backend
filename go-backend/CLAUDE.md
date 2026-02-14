@@ -211,6 +211,10 @@ type config struct {
 2. Add corresponding section to `application.yaml`
 3. Add the config field to the relevant binary's config struct in `cmd/*/main.go`
 
+## Infrastructure
+
+All long-lived infrastructure changes (firewall, K8s manifests, Helm charts, secrets, node config) go through Ansible (`infra/ansible/`), not manual kubectl or SSH. See `infra/ansible/README.md`.
+
 ## Code Style
 
 - NEVER add comments that restate what the code already says

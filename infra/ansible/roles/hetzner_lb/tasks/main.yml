@@ -1,0 +1,117 @@
+---
+- name: Skip LB configuration when hcloud_token is not set
+  meta: end_host
+  when: hcloud_token is not defined or hcloud_token | length == 0
+
+- name: Check if hcloud CLI is available
+  command: command -v hcloud
+  register: hcloud_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Fail if hcloud CLI is not installed
+  fail:
+    msg: >-
+      hcloud CLI not found. Install it on the control node:
+      https://github.com/hetznercloud/cli
+  when: hcloud_check.rc != 0
+
+- name: Check if LB exists
+  command: hcloud load-balancer describe {{ hetzner_lb_name }} -o json
+  register: lb_describe
+  changed_when: false
+  failed_when: false
+  environment:
+    HCLOUD_TOKEN: "{{ hcloud_token }}"
+
+- name: Create LB if missing
+  command: >-
+    hcloud load-balancer create
+    --name {{ hetzner_lb_name }}
+    --type {{ hetzner_lb_type }}
+    --location {{ hetzner_lb_location }}
+  when: lb_describe.rc != 0
+  environment:
+    HCLOUD_TOKEN: "{{ hcloud_token }}"
+
+- name: Check if LB is attached to network
+  shell: |
+    set -euo pipefail
+    hcloud load-balancer describe {{ hetzner_lb_name }} -o json \
+      | grep -q '"network"' && echo "attached" || echo "detached"
+  args:
+    executable: /bin/bash
+  register: lb_network_status
+  changed_when: false
+  environment:
+    HCLOUD_TOKEN: "{{ hcloud_token }}"
+
+- name: Attach LB to cloud network
+  command: >-
+    hcloud load-balancer attach-to-network {{ hetzner_lb_name }}
+    --network {{ hetzner_lb_network }}
+  when: lb_network_status.stdout == "detached"
+  environment:
+    HCLOUD_TOKEN: "{{ hcloud_token }}"
+
+- name: Configure LB services
+  command: >-
+    hcloud load-balancer update-service {{ hetzner_lb_name }}
+    --protocol {{ item.protocol }}
+    --listen-port {{ item.listen_port }}
+    --destination-port {{ item.destination_port }}
+  loop: "{{ hetzner_lb_services }}"
+  register: lb_service_update
+  failed_when: false
+  changed_when: lb_service_update.rc == 0
+  environment:
+    HCLOUD_TOKEN: "{{ hcloud_token }}"
+
+- name: Add LB services that don't exist yet
+  command: >-
+    hcloud load-balancer add-service {{ hetzner_lb_name }}
+    --protocol {{ item.item.protocol }}
+    --listen-port {{ item.item.listen_port }}
+    --destination-port {{ item.item.destination_port }}
+  loop: "{{ lb_service_update.results }}"
+  when: item.rc != 0
+  environment:
+    HCLOUD_TOKEN: "{{ hcloud_token }}"
+
+- name: Get current LB targets
+  shell: |
+    set -euo pipefail
+    hcloud load-balancer describe {{ hetzner_lb_name }} -o json \
+      | python3 -c "import sys,json; targets=json.load(sys.stdin).get('targets',[]); print('\n'.join(t.get('ip',{}).get('ip','') for t in targets if t.get('type')=='ip'))"
+  args:
+    executable: /bin/bash
+  register: lb_current_targets
+  changed_when: false
+  environment:
+    HCLOUD_TOKEN: "{{ hcloud_token }}"
+
+- name: Add run node IP targets to LB
+  command: >-
+    hcloud load-balancer add-target {{ hetzner_lb_name }}
+    --ip {{ hostvars[item].private_ip }}
+  loop: "{{ groups['run'] }}"
+  when: hostvars[item].private_ip not in lb_current_targets.stdout_lines
+  environment:
+    HCLOUD_TOKEN: "{{ hcloud_token }}"
+
+- name: Get LB public IP
+  shell: |
+    set -euo pipefail
+    hcloud load-balancer describe {{ hetzner_lb_name }} -o json \
+      | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['public_net']['ipv4']['ip'])"
+  args:
+    executable: /bin/bash
+  register: lb_public_ip_result
+  changed_when: false
+  environment:
+    HCLOUD_TOKEN: "{{ hcloud_token }}"
+
+- name: Register LB public IP as fact
+  set_fact:
+    hetzner_lb_discovered_ip: "{{ lb_public_ip_result.stdout }}"

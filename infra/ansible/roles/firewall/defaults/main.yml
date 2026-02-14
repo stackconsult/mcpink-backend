@@ -19,3 +19,7 @@ traefik_public_ports:
 traefik_private_probe_ports:
   - "8080"
   - "19100"
+
+# If non-empty, restrict Traefik public ports to these source CIDRs only.
+# If empty, allow from anywhere (current default behavior).
+traefik_public_allowed_sources: []

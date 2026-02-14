@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: "{{ service }}-cd"
+  namespace: "dp-{{ tenant }}-{{ project }}"
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - "{{ custom_domain }}"
+      secretName: "{{ service }}-cd-tls"
+  rules:
+    - host: "{{ custom_domain }}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: "{{ service }}"
+                port:
+                  number: !!int "{{ port }}"

@@ -4,6 +4,7 @@
   register: ufw_check
   changed_when: false
   failed_when: false
+  check_mode: false
 
 - name: Disable UFW if active (we manage iptables directly)
   community.general.ufw:
@@ -101,7 +102,7 @@
     rule_num: 1
   notify: Persist iptables rules
 
-- name: Allow public Traefik ingress ports on run nodes
+- name: Allow public Traefik ingress ports from anywhere on run nodes
   ansible.builtin.iptables:
     chain: INPUT
     protocol: tcp
@@ -112,7 +113,40 @@
     action: insert
     rule_num: 1
   loop: "{{ traefik_public_ports }}"
-  when: "'run' in group_names"
+  when:
+    - "'run' in group_names"
+    - traefik_public_allowed_sources | length == 0
+  notify: Persist iptables rules
+
+- name: Allow public Traefik ingress ports from approved sources on run nodes
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    source: "{{ item.0 }}"
+    destination_port: "{{ item.1 }}"
+    jump: ACCEPT
+    comment: "allow traefik ingress from {{ item.0 }}"
+    state: present
+    action: insert
+    rule_num: 1
+  loop: "{{ traefik_public_allowed_sources | product(traefik_public_ports) | list }}"
+  when:
+    - "'run' in group_names"
+    - traefik_public_allowed_sources | length > 0
+  notify: Persist iptables rules
+
+- name: Drop Traefik ingress from unapproved sources on run nodes
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "{{ item }}"
+    jump: DROP
+    comment: drop traefik ingress from unapproved sources
+    state: present
+  loop: "{{ traefik_public_ports }}"
+  when:
+    - "'run' in group_names"
+    - traefik_public_allowed_sources | length > 0
   notify: Persist iptables rules
 
 - name: Allow Traefik probe/metrics ports from private CIDRs on run nodes

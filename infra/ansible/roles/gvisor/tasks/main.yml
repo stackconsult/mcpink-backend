@@ -13,7 +13,7 @@
     owner: root
     group: root
     mode: "0755"
-    force: false
+    force: true
   loop:
     - src: runsc
       dest: "{{ gvisor_runsc_binary }}"

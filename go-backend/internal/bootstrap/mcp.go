@@ -35,7 +35,7 @@ func NewMCPRouter(
 
 	mcpOAuthHandlers.RegisterRoutes(router, authz.NewAuthMiddleware(tokenValidator, logger))
 
-	router.Mount("/mcp", mcpserver.AuthMiddleware(authService, logger, mcpOAuthConfig.Issuer, mcpServer.Handler()))
+	router.Mount("/", mcpserver.AuthMiddleware(authService, logger, mcpOAuthConfig.Issuer, mcpServer.Handler()))
 
 	return router
 }

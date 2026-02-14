@@ -20,6 +20,7 @@
   register: helm_current_version
   changed_when: false
   failed_when: false
+  check_mode: false
 
 - name: Normalize installed Helm semver
   set_fact:
@@ -51,7 +52,9 @@
     src: "/tmp/helm-v{{ helm_cli_version }}-linux-{{ helm_platform_arch }}.tar.gz"
     dest: /tmp
     remote_src: true
-  when: helm_current_version_semver != ('v' ~ helm_cli_version)
+  when:
+    - helm_current_version_semver != ('v' ~ helm_cli_version)
+    - not ansible_check_mode
 
 - name: Install pinned Helm binary
   copy:
@@ -61,7 +64,9 @@
     owner: root
     group: root
     mode: "0755"
-  when: helm_current_version_semver != ('v' ~ helm_cli_version)
+  when:
+    - helm_current_version_semver != ('v' ~ helm_cli_version)
+    - not ansible_check_mode
 
 - name: Remove Helm installation artifacts
   file:
@@ -154,7 +159,9 @@
     owner: root
     group: root
     mode: "0600"
+  no_log: true
   when:
+    - not ansible_check_mode
     - github_app_private_key | default('') | length > 0
     - github_app_id | default('') | length > 0
 
@@ -494,7 +501,9 @@
     owner: root
     group: root
     mode: "0600"
-  when: deploy_ssh_private_key | default('') | length > 0
+  when:
+    - not ansible_check_mode
+    - deploy_ssh_private_key | default('') | length > 0
   no_log: true
 
 - name: Derive and install deploy SSH authorized_keys
@@ -539,6 +548,7 @@
   retries: 12
   delay: 5
   changed_when: false
+  check_mode: false
 
 - name: Generate restricted kubeconfig for deploy user
   shell: |
