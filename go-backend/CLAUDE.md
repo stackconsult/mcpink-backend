@@ -219,7 +219,13 @@ type config struct {
 
 ## Infrastructure
 
-All infrastructure changes MUST be applied via Ansible (`infra/ansible/`), never by SSHing into nodes and running kubectl/shell commands directly. Ansible is the single source of truth — if a change isn't applied through Ansible, there's no guarantee the cluster state matches the repo. Even "quick fixes" like RBAC updates must go through `ansible-playbook playbooks/site.yml`. The only exception is read-only debugging (e.g., checking logs, describing pods). See `infra/ansible/README.md`.
+Ansible (`infra/ansible/`) is the single source of truth for cluster state. All **persistent** infrastructure changes (manifests, RBAC, Helm values, secrets, firewall rules) MUST be applied via `ansible-playbook playbooks/site.yml`. Never SSH into nodes to apply persistent changes directly — if it's not in Ansible, it doesn't survive a reprovision.
+
+**kubectl is fine for one-time fixes** — cleaning up a stale resource, deleting a broken pod, fixing a bad state. But don't build Ansible tasks to automate one-time cleanup. Ansible should only describe desired state, not track historical mistakes. Fix the live cluster with kubectl, update the Ansible manifests to the correct state, and verify with a full `site.yml` run.
+
+**Read-only debugging** (logs, describe, get) can always be done via SSH/kubectl.
+
+See `infra/ansible/README.md`.
 
 ## Code Style
 
