@@ -1,7 +1,5 @@
 package k8sdeployments
 
-const TaskQueue = "k8s-native"
-
 type DeployServiceInput struct {
 	ServiceID      string
 	DeploymentID   string
@@ -185,7 +183,6 @@ type AttachCustomDomainWorkflowInput struct {
 	Namespace      string
 	ServiceName    string
 	CustomDomain   string
-	Port           int32
 }
 
 type AttachCustomDomainWorkflowResult struct {
@@ -209,7 +206,6 @@ type ApplyCustomDomainIngressInput struct {
 	Namespace   string
 	ServiceName string
 	Domain      string
-	Port        int32
 }
 
 type DeleteCustomDomainIngressInput struct {

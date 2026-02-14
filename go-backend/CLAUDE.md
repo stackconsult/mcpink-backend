@@ -1,5 +1,9 @@
 # Project Guidelines
 
+## Git Workflow
+
+Never commit or push without explicit user consent. Always stop after making changes and let the user decide when to commit.
+
 ## Security Model
 
 This is a production platform with untrusted users. Never assume the operator is the only user.

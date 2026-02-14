@@ -5,7 +5,6 @@ import (
 
 	"github.com/augustdev/autoclip/internal/auth"
 	"github.com/augustdev/autoclip/internal/bootstrap"
-	"github.com/augustdev/autoclip/internal/cloudflare"
 	"github.com/augustdev/autoclip/internal/deployments"
 	"github.com/augustdev/autoclip/internal/github_oauth"
 	"github.com/augustdev/autoclip/internal/githubapp"
@@ -30,7 +29,6 @@ type config struct {
 	Temporal       bootstrap.TemporalClientConfig
 	Turso          turso.Config
 	Gitea          internalgit.Config
-	Cloudflare     cloudflare.Config
 	MCPOAuth       mcp_oauth.Config
 	Firebase       bootstrap.FirebaseConfig
 	Loki           mcpserver.LokiConfig
@@ -52,6 +50,7 @@ func main() {
 			pg.NewResourceQueries,
 			pg.NewInternalReposQueries,
 			pg.NewCustomDomainQueries,
+			pg.NewClusterMap,
 			bootstrap.CreateTemporalClient,
 			github_oauth.NewOAuthService,
 			githubapp.NewService,
@@ -59,7 +58,7 @@ func main() {
 			bootstrap.NewTursoClient,
 			deployments.NewService,
 			resources.NewService,
-			bootstrap.NewInternalGitService,
+			internalgit.NewService,
 			bootstrap.NewTokenValidator,
 			mcpserver.NewServer,
 			mcp_oauth.NewMCPOAuthService,

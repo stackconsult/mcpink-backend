@@ -245,6 +245,7 @@ func (s *Server) createServiceFromGitHub(ctx context.Context, user *users.User, 
 		PublishDirectory: input.PublishDirectory,
 		RootDirectory:    input.RootDirectory,
 		DockerfilePath:   input.DockerfilePath,
+		Region:           input.Region,
 	})
 }
 
@@ -281,6 +282,7 @@ func (s *Server) createServiceFromInternalGit(ctx context.Context, userID string
 		PublishDirectory: input.PublishDirectory,
 		RootDirectory:    input.RootDirectory,
 		DockerfilePath:   input.DockerfilePath,
+		Region:           input.Region,
 	})
 }
 

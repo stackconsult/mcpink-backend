@@ -10,6 +10,7 @@ import (
 	"github.com/augustdev/autoclip/internal/account"
 	"github.com/augustdev/autoclip/internal/bootstrap"
 	"github.com/augustdev/autoclip/internal/storage/pg"
+	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 	"go.uber.org/fx"
 )
@@ -30,7 +31,7 @@ func main() {
 			pg.NewDatabase,
 			pg.NewProjectQueries,
 			bootstrap.CreateTemporalClient,
-			bootstrap.NewTemporalWorker,
+			newTemporalWorker,
 			account.NewActivities,
 		),
 		fx.Invoke(
@@ -38,6 +39,12 @@ func main() {
 			startWorker,
 		),
 	).Run()
+}
+
+func newTemporalWorker(c client.Client) worker.Worker {
+	return worker.New(c, "default", worker.Options{
+		WorkerStopTimeout: 10 * time.Minute,
+	})
 }
 
 func startWorker(lc fx.Lifecycle, w worker.Worker, logger *slog.Logger) {

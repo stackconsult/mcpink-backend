@@ -19,6 +19,7 @@ type CreateServiceInput struct {
 	Host   string `json:"host,omitempty" jsonschema:"description=Git host,enum=ml.ink,enum=github.com,default=ml.ink"`
 	Branch string `json:"branch,omitempty" jsonschema:"description=Branch to deploy,default=main"`
 	Name   string `json:"name" jsonschema:"description=Name for the deployment"`
+	Region string `json:"region,omitempty" jsonschema:"description=Cluster region to deploy to,enum=eu-central-1,default=eu-central-1"`
 
 	Project   string   `json:"project,omitempty" jsonschema:"description=Project name,default=default"`
 	BuildPack string   `json:"build_pack,omitempty" jsonschema:"description=Build pack to use. 'railpack' (default) auto-detects and builds most apps. 'static' serves files as-is with no build step. 'dockerfile' uses a custom Dockerfile. Use 'railpack' with publish_directory for Vite/React/Vue SPAs that need a build step then static serving via nginx.,enum=railpack,enum=dockerfile,enum=static,enum=dockercompose,default=railpack"`

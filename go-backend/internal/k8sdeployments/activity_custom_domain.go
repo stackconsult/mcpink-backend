@@ -99,7 +99,16 @@ func (a *Activities) ApplyCustomDomainIngress(ctx context.Context, input ApplyCu
 		"serviceName", input.ServiceName,
 		"domain", input.Domain)
 
-	ingress := buildCustomDomainIngress(input.Namespace, input.ServiceName, input.Domain, input.Port)
+	svc, err := a.k8s.CoreV1().Services(input.Namespace).Get(ctx, input.ServiceName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("get service to resolve port: %w", err)
+	}
+	if len(svc.Spec.Ports) == 0 {
+		return fmt.Errorf("service %s has no ports", input.ServiceName)
+	}
+	port := svc.Spec.Ports[0].Port
+
+	ingress := buildCustomDomainIngress(input.Namespace, input.ServiceName, input.Domain, port)
 	data, err := json.Marshal(ingress)
 	if err != nil {
 		return fmt.Errorf("marshal custom domain ingress: %w", err)

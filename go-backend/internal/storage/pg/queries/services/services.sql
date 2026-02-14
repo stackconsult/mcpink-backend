@@ -1,8 +1,8 @@
 -- name: CreateService :one
 INSERT INTO services (
-    id, user_id, project_id, repo, branch, server_uuid, name, build_pack, port, env_vars, git_provider, build_config, memory, vcpus
+    id, user_id, project_id, repo, branch, server_uuid, name, build_pack, port, env_vars, git_provider, build_config, memory, vcpus, region
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 )
 RETURNING *;
 

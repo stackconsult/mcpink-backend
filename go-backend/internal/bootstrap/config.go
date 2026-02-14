@@ -51,3 +51,7 @@ type NATSConfig struct {
 	URL   string
 	Token string
 }
+
+type ClusterConfig struct {
+	Region string
+}

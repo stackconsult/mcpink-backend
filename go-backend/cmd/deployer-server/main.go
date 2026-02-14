@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/augustdev/autoclip/internal/bootstrap"
-	"github.com/augustdev/autoclip/internal/cloudflare"
 	"github.com/augustdev/autoclip/internal/deployments"
 	"github.com/augustdev/autoclip/internal/githubapp"
 	"github.com/augustdev/autoclip/internal/internalgit"
@@ -25,7 +24,6 @@ type config struct {
 	GitHubApp  githubapp.Config
 	Gitea      internalgit.Config
 	Temporal   bootstrap.TemporalClientConfig
-	Cloudflare cloudflare.Config
 }
 
 func main() {
@@ -41,6 +39,7 @@ func main() {
 			pg.NewInternalReposQueries,
 			bootstrap.CreateTemporalClient,
 			githubapp.NewService,
+			pg.NewClusterMap,
 			deployments.NewService,
 			webhooks.NewHandlers,
 			// Transitive deps for deployments.NewService

@@ -5,33 +5,30 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/augustdev/autoclip/internal/storage/pg"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/internalrepos"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/users"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Service struct {
 	client      *Client
-	db          *pgxpool.Pool
 	webhookURL  string
 	repoQueries internalrepos.Querier
 	userQueries users.Querier
 }
 
-type ServiceConfig struct {
-	Client     *Client
-	DB         *pgxpool.Pool
-	WebhookURL string
-}
-
-func NewService(cfg ServiceConfig) *Service {
-	return &Service{
-		client:      cfg.Client,
-		db:          cfg.DB,
-		webhookURL:  cfg.WebhookURL,
-		repoQueries: internalrepos.New(cfg.DB),
-		userQueries: users.New(cfg.DB),
+func NewService(config Config, db *pg.DB) (*Service, error) {
+	client, err := NewClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("internal git client: %w", err)
 	}
+
+	return &Service{
+		client:      client,
+		webhookURL:  config.WebhookURL,
+		repoQueries: internalrepos.New(db.Pool),
+		userQueries: users.New(db.Pool),
+	}, nil
 }
 
 func (s *Service) Client() *Client {

@@ -92,3 +92,6 @@ k8sworker:
   registryaddress: "registry.internal:5000"
   lokipushurl: "http://loki.dp-system.svc.cluster.local:3100/loki/api/v1/push"
   lokiqueryurl: "http://loki.dp-system.svc.cluster.local:3100/loki/api/v1/query_range"
+
+cluster:
+  region: "eu-central-1"

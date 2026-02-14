@@ -7,12 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/augustdev/autoclip/internal/k8sdeployments"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/contrib/opentelemetry"
 	"go.temporal.io/sdk/interceptor"
-	"go.temporal.io/sdk/worker"
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -136,18 +134,4 @@ func CreateTemporalClient(lc fx.Lifecycle, config TemporalClientConfig) (client.
 	})
 
 	return c, nil
-}
-
-func NewTemporalWorker(c client.Client) worker.Worker {
-	w := worker.New(c, "default", worker.Options{
-		WorkerStopTimeout: 10 * time.Minute,
-	})
-	return w
-}
-
-func NewK8sTemporalWorker(c client.Client) worker.Worker {
-	w := worker.New(c, k8sdeployments.TaskQueue, worker.Options{
-		WorkerStopTimeout: 10 * time.Minute,
-	})
-	return w
 }

@@ -91,19 +91,9 @@ spec:
                 secretKeyRef:
                   name: api-server-config
                   key: githubapp-webhook-secret
-            # Cloudflare (used by deployments.Service for DNS)
-            - name: CLOUDFLARE_APITOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: api-server-config
-                  key: cloudflare-api-token
-            - name: CLOUDFLARE_ZONEID
-              valueFrom:
-                secretKeyRef:
-                  name: api-server-config
-                  key: cloudflare-zone-id
-            - name: CLOUDFLARE_BASEDOMAIN
-              value: "ml.ink"
+            # Cluster identity (viper: cluster.region)
+            - name: CLUSTER_REGION
+              value: "eu-central-1"
           resources:
             requests:
               cpu: "100m"
