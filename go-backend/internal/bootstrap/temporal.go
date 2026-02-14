@@ -145,9 +145,12 @@ func NewTemporalWorker(c client.Client) worker.Worker {
 	return w
 }
 
-func NewK8sTemporalWorker(c client.Client) worker.Worker {
-	w := worker.New(c, k8sdeployments.TaskQueue, worker.Options{
+func NewK8sTemporalWorker(c client.Client, cfg k8sdeployments.Config) worker.Worker {
+	taskQueue := cfg.TaskQueue
+	if taskQueue == "" {
+		taskQueue = k8sdeployments.DefaultTaskQueue
+	}
+	return worker.New(c, taskQueue, worker.Options{
 		WorkerStopTimeout: 10 * time.Minute,
 	})
-	return w
 }

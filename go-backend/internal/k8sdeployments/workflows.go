@@ -370,7 +370,6 @@ func AttachCustomDomainWorkflow(ctx workflow.Context, input AttachCustomDomainWo
 		Namespace:   input.Namespace,
 		ServiceName: input.ServiceName,
 		Domain:      input.CustomDomain,
-		Port:        input.Port,
 	}).Get(ctx, nil); err != nil {
 		return markFailed(fmt.Sprintf("failed to apply ingress: %v", err))
 	}

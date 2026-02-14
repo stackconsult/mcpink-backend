@@ -20,6 +20,17 @@ type ApiKey struct {
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
 
+type Cluster struct {
+	ID          string             `json:"id"`
+	Name        string             `json:"name"`
+	Region      string             `json:"region"`
+	TaskQueue   string             `json:"task_queue"`
+	AppsDomain  string             `json:"apps_domain"`
+	CnameTarget string             `json:"cname_target"`
+	Status      string             `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type CustomDomain struct {
 	ID                   string             `json:"id"`
 	ServiceID            string             `json:"service_id"`
@@ -148,6 +159,7 @@ type Service struct {
 	IsDeleted           bool               `json:"is_deleted"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	ClusterID           string             `json:"cluster_id"`
 }
 
 type User struct {

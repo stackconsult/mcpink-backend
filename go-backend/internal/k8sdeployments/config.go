@@ -6,4 +6,5 @@ type Config struct {
 	RegistryAddress string
 	LokiPushURL     string
 	LokiQueryURL    string
+	TaskQueue       string
 }

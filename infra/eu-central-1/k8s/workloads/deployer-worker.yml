@@ -139,6 +139,8 @@ spec:
               value: http://loki.dp-system:3100/loki/api/v1/push
             - name: K8SWORKER_LOKIQUERYURL
               value: http://loki.dp-system:3100/loki/api/v1/query_range
+            - name: K8SWORKER_TASKQUEUE
+              value: "deployer-eu-central-1"
           resources:
             requests:
               cpu: "200m"

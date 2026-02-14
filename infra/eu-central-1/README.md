@@ -100,8 +100,20 @@ Managed by the `hetzner_lb` Ansible role (runs as part of `site.yml`). Uses Hetz
 | Type | lb11 |
 | Location | fsn1 |
 | Public IP | 46.225.35.234 |
-| Services | TCP 80→80, TCP 443→443 |
-| Targets | Run-pool node private IPs |
+| Private IP | 10.0.0.5 |
+| Network | Cloud Network (subnet 10.0.0.0/24) |
+| Targets | Run-pool node private IPs (e.g. 10.0.1.3) |
+
+### Services
+
+| Listen Port | Destination Port | Protocol | Mode |
+|-------------|-----------------|----------|------|
+| 80 | 80 | TCP | — |
+| 443 | 443 | TCP | TLS Passthrough |
+
+Port 443 **must** use TLS Passthrough (not TLS Termination). Traefik on run-1 terminates TLS using per-domain certs from cert-manager. If the LB terminates TLS, cert-manager HTTP-01 challenges and per-domain cert routing both break.
+
+The Ansible `hetzner_lb` role creates both services via `hcloud load-balancer add-service --protocol tcp`. TLS Passthrough is the Hetzner Console name for TCP protocol on port 443.
 
 **Hetzner-specific**: Other providers will need an equivalent TCP passthrough LB. The `hetzner_lb` role won't apply to non-Hetzner regions.
 
