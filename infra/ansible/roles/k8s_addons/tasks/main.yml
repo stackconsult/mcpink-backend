@@ -398,18 +398,6 @@
     executable: /bin/bash
   when: prometheus_basic_auth_users | default('') | length > 0
 
-- name: Remove stale manifests no longer in apply order
-  command: "k3s kubectl delete -f {{ k8s_manifests_remote_dir }}/{{ item }} --ignore-not-found"
-  register: remove_stale_cmd
-  changed_when: "'deleted' in remove_stale_cmd.stdout"
-  loop: "{{ k8s_manifest_remove_stale | default([]) }}"
-
-- name: Clean up stale manifest files from controller
-  file:
-    path: "{{ k8s_manifests_remote_dir }}/{{ item }}"
-    state: absent
-  loop: "{{ k8s_manifest_remove_stale | default([]) }}"
-
 - name: Apply Kubernetes manifests
   command: "k3s kubectl apply -f {{ k8s_manifests_remote_dir }}/{{ item }}"
   register: apply_manifest_cmd

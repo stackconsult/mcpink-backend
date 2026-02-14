@@ -30,11 +30,6 @@ k8s_manifest_apply_order:
   - workloads/gitea.yml
   - workloads/gitea-ingress.yml
 
-# Manifests previously in apply order that should be removed from the cluster.
-# Once confirmed deleted from all clusters, entries can be cleared.
-k8s_manifest_remove_stale:
-  - system/traefik-redirect-middleware.yml
-
 # Customer namespace quota enforcement (cluster-side, not app deploy code)
 customer_quota_namespace_selector: "dp.ml.ink/tenant"
 customer_quota_pods: "200"

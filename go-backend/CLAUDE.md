@@ -219,7 +219,7 @@ type config struct {
 
 ## Infrastructure
 
-All long-lived infrastructure changes (firewall, K8s manifests, Helm charts, secrets, node config) go through Ansible (`infra/ansible/`), not manual kubectl or SSH. See `infra/ansible/README.md`.
+All infrastructure changes MUST be applied via Ansible (`infra/ansible/`), never by SSHing into nodes and running kubectl/shell commands directly. Ansible is the single source of truth — if a change isn't applied through Ansible, there's no guarantee the cluster state matches the repo. Even "quick fixes" like RBAC updates must go through `ansible-playbook playbooks/site.yml`. The only exception is read-only debugging (e.g., checking logs, describing pods). See `infra/ansible/README.md`.
 
 ## Code Style
 
