@@ -21,6 +21,7 @@ k8s_manifest_apply_order:
   - system/cert-manager-issuer.yml
   - system/wildcard-cert.yml
   - system/traefik-tlsstore.yml
+  - system/traefik-redirect-middleware.yml
   - system/ci-deployer-rbac.yml
   - workloads/deployer-worker.yml
   - workloads/deployer-server.yml

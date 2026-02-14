@@ -5,6 +5,7 @@ metadata:
   namespace: "dp-{{ tenant }}-{{ project }}"
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.middlewares: dp-system-redirect-to-https@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:

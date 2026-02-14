@@ -248,6 +248,9 @@ func buildIngress(namespace, name, host string, port int32) *networkingv1.Ingres
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
+			Annotations: map[string]string{
+				"traefik.ingress.kubernetes.io/router.middlewares": "dp-system-redirect-to-https@kubernetescrd",
+			},
 		},
 		Spec: networkingv1.IngressSpec{
 			IngressClassName: &ingressClassName,
@@ -289,7 +292,8 @@ func buildCustomDomainIngress(namespace, serviceName, customDomain string, port 
 			Name:      ingressName,
 			Namespace: namespace,
 			Annotations: map[string]string{
-				"cert-manager.io/cluster-issuer": "letsencrypt-prod",
+				"cert-manager.io/cluster-issuer":                  "letsencrypt-prod",
+				"traefik.ingress.kubernetes.io/router.middlewares": "dp-system-redirect-to-https@kubernetescrd",
 			},
 		},
 		Spec: networkingv1.IngressSpec{

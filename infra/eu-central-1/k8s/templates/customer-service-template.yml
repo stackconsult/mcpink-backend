@@ -68,6 +68,8 @@ kind: Ingress
 metadata:
   name: "{{ service }}"
   namespace: "dp-{{ tenant }}-{{ project }}"
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: dp-system-redirect-to-https@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
