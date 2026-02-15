@@ -117,7 +117,10 @@ func AttachSubdomainWorkflow(ctx workflow.Context, input AttachSubdomainInput) (
 
 	var a *Activities
 
-	fqdn := input.Name + "." + input.Zone
+	fqdn := input.Zone
+	if input.Name != "@" {
+		fqdn = input.Name + "." + input.Zone
+	}
 
 	if err := workflow.ExecuteActivity(shortCtx, a.UpsertRecord, UpsertRecordInput{
 		Zone:    input.Zone,
@@ -176,7 +179,10 @@ func DetachSubdomainWorkflow(ctx workflow.Context, input DetachSubdomainInput) (
 		}, err
 	}
 
-	fqdn := input.Name + "." + input.Zone
+	fqdn := input.Zone
+	if input.Name != "@" {
+		fqdn = input.Name + "." + input.Zone
+	}
 	if err := workflow.ExecuteActivity(actCtx, a.DeleteRecord, DeleteRecordInput{
 		Zone: input.Zone,
 		Name: fqdn,

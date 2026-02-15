@@ -306,21 +306,31 @@ func (s *Service) AddCustomDomain(ctx context.Context, params AddCustomDomainPar
 		return nil, err
 	}
 
-	dz, err := s.delegatedZonesQ.FindMatchingZoneForDomain(ctx, delegatedzones.FindMatchingZoneForDomainParams{
-		UserID: params.UserID,
-		Lower:  domain,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("no active delegated zone found for domain %s — delegate the zone first using delegate_zone", domain)
+	// Try exact zone match first (domain == zone apex)
+	dz, err := s.delegatedZonesQ.GetByZone(ctx, domain)
+	if err != nil || dz.UserID != params.UserID || dz.Status != "active" {
+		// Try subdomain match
+		dz, err = s.delegatedZonesQ.FindMatchingZoneForDomain(ctx, delegatedzones.FindMatchingZoneForDomainParams{
+			UserID: params.UserID,
+			Lower:  domain,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("no active delegated zone found for domain %s — delegate the zone first using delegate_zone", domain)
+		}
 	}
 
-	suffix := "." + dz.Zone
-	if !strings.HasSuffix(domain, suffix) {
-		return nil, fmt.Errorf("domain %s is not under zone %s", domain, dz.Zone)
-	}
-	name := strings.TrimSuffix(domain, suffix)
-	if name == "" || strings.Contains(name, ".") {
-		return nil, fmt.Errorf("only single-level subdomains are supported (e.g. api.%s)", dz.Zone)
+	var name string
+	if domain == dz.Zone {
+		name = "@"
+	} else {
+		suffix := "." + dz.Zone
+		if !strings.HasSuffix(domain, suffix) {
+			return nil, fmt.Errorf("domain %s is not under zone %s", domain, dz.Zone)
+		}
+		name = strings.TrimSuffix(domain, suffix)
+		if name == "" || strings.Contains(name, ".") {
+			return nil, fmt.Errorf("only single-level subdomains are supported (e.g. api.%s)", dz.Zone)
+		}
 	}
 
 	_, err = s.zoneRecordsQ.GetByZoneAndName(ctx, zonerecords.GetByZoneAndNameParams{

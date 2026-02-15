@@ -49,7 +49,7 @@ func (a *Activities) ApplyWildcardCert(ctx context.Context, input ApplyWildcardC
 					"name": "letsencrypt-prod",
 					"kind": "ClusterIssuer",
 				},
-				"dnsNames": []any{"*." + input.Zone},
+				"dnsNames": []any{"*." + input.Zone, input.Zone},
 			},
 		},
 	}
