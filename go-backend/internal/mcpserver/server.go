@@ -32,8 +32,8 @@ type Server struct {
 	internalGitSvc   *internalgit.Service
 	logger           *slog.Logger
 	lokiQueryURL     string
-	lokiUsername      string
-	lokiPassword      string
+	lokiUsername     string
+	lokiPassword     string
 }
 
 type LokiConfig struct {
@@ -50,7 +50,7 @@ func NewServer(authService *auth.Service, deployService *deployments.Service, dn
 			Version: "0.1.0",
 		},
 		&mcp.ServerOptions{
-			Instructions: "This server has capabilities to deploy most single port apps NextJS, React, flask etc as well as many other servers and returns the URL of the deployed application. It can provision sqlite databases too. 99% of apps should be deployable with this MCP.",
+			Instructions: "Ink MCP server has capabilities to deploy most single port apps NextJS, React, flask etc as well as many other servers and returns the URL of the deployed application. It can provision sqlite databases too. 99% of all apps and servers should be deployable with this MCP.",
 		},
 	)
 
@@ -64,8 +64,8 @@ func NewServer(authService *auth.Service, deployService *deployments.Service, dn
 		internalGitSvc:   internalGitSvc,
 		logger:           logger,
 		lokiQueryURL:     lokiCfg.QueryURL,
-		lokiUsername:      lokiCfg.Username,
-		lokiPassword:      lokiCfg.Password,
+		lokiUsername:     lokiCfg.Username,
+		lokiPassword:     lokiCfg.Password,
 	}
 
 	s.registerTools()
