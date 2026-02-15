@@ -117,3 +117,4 @@ type DeleteCertificateInput struct {
 	Namespace       string
 	CertificateName string
 }
+
