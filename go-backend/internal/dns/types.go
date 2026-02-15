@@ -33,7 +33,6 @@ type AttachSubdomainInput struct {
 	Namespace    string
 	ServiceName  string
 	ServicePort  int32
-	CertSecret   string
 }
 
 type AttachSubdomainResult struct {
@@ -104,7 +103,6 @@ type ApplySubdomainIngressInput struct {
 	Namespace   string
 	ServiceName string
 	FQDN        string
-	CertSecret  string
 	ServicePort int32
 }
 
@@ -118,9 +116,15 @@ type DeleteCertificateInput struct {
 	CertificateName string
 }
 
-type CopySecretInput struct {
-	SecretName      string
-	SourceNamespace string
-	TargetNamespace string
+type ApplyCertLoaderInput struct {
+	Zone       string
+	SecretName string
 }
 
+type DeleteCertLoaderInput struct {
+	Zone string
+}
+
+type EnsureRedirectMiddlewareInput struct {
+	Namespace string
+}

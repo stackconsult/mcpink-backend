@@ -17,7 +17,9 @@ func RegisterWorkflowsAndActivities(w worker.Worker, activities *Activities) {
 	w.RegisterActivity(activities.WaitForCertReady)
 	w.RegisterActivity(activities.UpdateZoneStatus)
 	w.RegisterActivity(activities.DeleteCertificate)
-	w.RegisterActivity(activities.CopySecret)
+	w.RegisterActivity(activities.ApplyCertLoader)
+	w.RegisterActivity(activities.DeleteCertLoader)
+	w.RegisterActivity(activities.EnsureRedirectMiddleware)
 	w.RegisterActivity(activities.ApplySubdomainIngress)
 	w.RegisterActivity(activities.DeleteIngress)
 }

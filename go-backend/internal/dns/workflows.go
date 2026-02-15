@@ -86,6 +86,16 @@ func ActivateZoneWorkflow(ctx workflow.Context, input ActivateZoneInput) (Activa
 	}
 
 	certSecret := wildcardSecretName(input.Zone)
+
+	// Create cert-loader IngressRoute in dp-system so Traefik loads the
+	// wildcard cert into its global TLS pool for SNI-based selection.
+	if err := workflow.ExecuteActivity(shortCtx, a.ApplyCertLoader, ApplyCertLoaderInput{
+		Zone:       input.Zone,
+		SecretName: certSecret,
+	}).Get(ctx, nil); err != nil {
+		return markFailed(fmt.Sprintf("failed to create cert loader: %v", err))
+	}
+
 	if err := workflow.ExecuteActivity(shortCtx, a.UpdateZoneStatus, UpdateZoneStatusInput{
 		ZoneID:             input.ZoneID,
 		Status:             "active",
@@ -135,14 +145,12 @@ func AttachSubdomainWorkflow(ctx workflow.Context, input AttachSubdomainInput) (
 		}, err
 	}
 
-	if err := workflow.ExecuteActivity(shortCtx, a.CopySecret, CopySecretInput{
-		SecretName:      input.CertSecret,
-		SourceNamespace: "dp-system",
-		TargetNamespace: input.Namespace,
+	if err := workflow.ExecuteActivity(shortCtx, a.EnsureRedirectMiddleware, EnsureRedirectMiddlewareInput{
+		Namespace: input.Namespace,
 	}).Get(ctx, nil); err != nil {
 		return AttachSubdomainResult{
 			Status:       "failed",
-			ErrorMessage: fmt.Sprintf("failed to copy TLS secret: %v", err),
+			ErrorMessage: fmt.Sprintf("failed to create redirect middleware: %v", err),
 		}, err
 	}
 
@@ -150,7 +158,6 @@ func AttachSubdomainWorkflow(ctx workflow.Context, input AttachSubdomainInput) (
 		Namespace:   input.Namespace,
 		ServiceName: input.ServiceName,
 		FQDN:        fqdn,
-		CertSecret:  input.CertSecret,
 		ServicePort: input.ServicePort,
 	}).Get(ctx, nil); err != nil {
 		return AttachSubdomainResult{
@@ -223,6 +230,11 @@ func DeactivateZoneWorkflow(ctx workflow.Context, input DeactivateZoneInput) (De
 	})
 
 	var a *Activities
+
+	// Delete the cert-loader IngressRoute from dp-system
+	_ = workflow.ExecuteActivity(actCtx, a.DeleteCertLoader, DeleteCertLoaderInput{
+		Zone: input.Zone,
+	}).Get(ctx, nil)
 
 	certName := wildcardCertName(input.Zone)
 	certNamespace := "dp-system"

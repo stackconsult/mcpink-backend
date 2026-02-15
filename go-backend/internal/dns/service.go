@@ -369,11 +369,6 @@ func (s *Service) AddCustomDomain(ctx context.Context, params AddCustomDomainPar
 	serviceName := k8sdeployments.ServiceName(*svc.Name)
 	port := k8sdeployments.EffectivePort(svc.BuildPack, svc.Port, svc.BuildConfig)
 
-	certSecret := ""
-	if dz.WildcardCertSecret != nil {
-		certSecret = *dz.WildcardCertSecret
-	}
-
 	workflowID := fmt.Sprintf("attach-dz-%s", zr.ID)
 	_, err = s.temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 		ID:        workflowID,
@@ -386,7 +381,6 @@ func (s *Service) AddCustomDomain(ctx context.Context, params AddCustomDomainPar
 		Namespace:    namespace,
 		ServiceName:  serviceName,
 		ServicePort:  port,
-		CertSecret:   certSecret,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to start subdomain attach workflow: %w", err)

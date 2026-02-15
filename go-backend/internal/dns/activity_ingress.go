@@ -18,32 +18,68 @@ var ingressRouteGVR = schema.GroupVersionResource{
 	Resource: "ingressroutes",
 }
 
-const certNamespace = "dp-system"
+var middlewareGVR = schema.GroupVersionResource{
+	Group:    "traefik.io",
+	Version:  "v1alpha1",
+	Resource: "middlewares",
+}
 
-func (a *Activities) CopySecret(ctx context.Context, input CopySecretInput) error {
-	a.logger.Info("CopySecret",
-		"secret", input.SecretName,
-		"from", input.SourceNamespace,
-		"to", input.TargetNamespace)
+const certLoaderNamespace = "dp-system"
 
-	src, err := a.k8s.CoreV1().Secrets(input.SourceNamespace).Get(ctx, input.SecretName, metav1.GetOptions{})
+func certLoaderName(zone string) string {
+	return "wc-" + sanitizeDNSLabel(zone) + "-tls-loader"
+}
+
+// ApplyCertLoader creates an IngressRoute in dp-system that loads the zone's
+// wildcard TLS cert into Traefik's global cert pool. User namespace
+// IngressRoutes with tls:{} then get the cert via SNI selection.
+func (a *Activities) ApplyCertLoader(ctx context.Context, input ApplyCertLoaderInput) error {
+	a.logger.Info("ApplyCertLoader", "zone", input.Zone, "secret", input.SecretName)
+
+	ir := buildCertLoaderIngressRoute(input.Zone, input.SecretName)
+	data, err := json.Marshal(ir)
 	if err != nil {
-		return fmt.Errorf("get source secret: %w", err)
+		return fmt.Errorf("marshal cert-loader ingressroute: %w", err)
 	}
 
-	dst := src.DeepCopy()
-	dst.Namespace = input.TargetNamespace
-	dst.ResourceVersion = ""
-	dst.UID = ""
-
-	_, err = a.k8s.CoreV1().Secrets(input.TargetNamespace).Create(ctx, dst, metav1.CreateOptions{})
-	if apierrors.IsAlreadyExists(err) {
-		_, err = a.k8s.CoreV1().Secrets(input.TargetNamespace).Update(ctx, dst, metav1.UpdateOptions{})
-	}
+	name := certLoaderName(input.Zone)
+	_, err = a.dynClient.Resource(ingressRouteGVR).Namespace(certLoaderNamespace).Patch(
+		ctx, name, types.ApplyPatchType, data,
+		metav1.PatchOptions{FieldManager: "temporal-worker"},
+	)
 	if err != nil {
-		return fmt.Errorf("copy secret to %s: %w", input.TargetNamespace, err)
+		return fmt.Errorf("apply cert-loader ingressroute: %w", err)
+	}
+	return nil
+}
+
+func (a *Activities) DeleteCertLoader(ctx context.Context, input DeleteCertLoaderInput) error {
+	a.logger.Info("DeleteCertLoader", "zone", input.Zone)
+
+	name := certLoaderName(input.Zone)
+	err := a.dynClient.Resource(ingressRouteGVR).Namespace(certLoaderNamespace).Delete(ctx, name, metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete cert-loader ingressroute: %w", err)
+	}
+	return nil
+}
+
+func (a *Activities) EnsureRedirectMiddleware(ctx context.Context, input EnsureRedirectMiddlewareInput) error {
+	a.logger.Info("EnsureRedirectMiddleware", "namespace", input.Namespace)
+
+	mw := buildRedirectMiddleware(input.Namespace)
+	data, err := json.Marshal(mw)
+	if err != nil {
+		return fmt.Errorf("marshal redirect middleware: %w", err)
 	}
 
+	_, err = a.dynClient.Resource(middlewareGVR).Namespace(input.Namespace).Patch(
+		ctx, "redirect-https", types.ApplyPatchType, data,
+		metav1.PatchOptions{FieldManager: "temporal-worker"},
+	)
+	if err != nil {
+		return fmt.Errorf("apply redirect middleware: %w", err)
+	}
 	return nil
 }
 
@@ -57,7 +93,6 @@ func (a *Activities) ApplySubdomainIngress(ctx context.Context, input ApplySubdo
 		input.Namespace,
 		input.ServiceName,
 		input.FQDN,
-		input.CertSecret,
 		input.ServicePort,
 	)
 
@@ -91,7 +126,62 @@ func (a *Activities) DeleteIngress(ctx context.Context, input DeleteIngressInput
 	return nil
 }
 
-func buildSubdomainIngressRoute(namespace, serviceName, fqdn, certSecretName string, port int32) *unstructured.Unstructured {
+// buildCertLoaderIngressRoute creates an IngressRoute in dp-system that loads
+// the zone wildcard cert into Traefik's global TLS cert pool via its tls.secretName.
+// The route uses a dummy host that never matches real traffic.
+func buildCertLoaderIngressRoute(zone, secretName string) *unstructured.Unstructured {
+	name := certLoaderName(zone)
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "traefik.io/v1alpha1",
+			"kind":       "IngressRoute",
+			"metadata": map[string]any{
+				"name":      name,
+				"namespace": certLoaderNamespace,
+			},
+			"spec": map[string]any{
+				"entryPoints": []any{"websecure"},
+				"routes": []any{
+					map[string]any{
+						"match":    fmt.Sprintf("Host(`_certload.%s`)", zone),
+						"kind":     "Rule",
+						"priority": 1,
+						"services": []any{
+							map[string]any{
+								"name": "traefik",
+								"port": 443,
+							},
+						},
+					},
+				},
+				"tls": map[string]any{
+					"secretName": secretName,
+				},
+			},
+		},
+	}
+}
+
+func buildRedirectMiddleware(namespace string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "traefik.io/v1alpha1",
+			"kind":       "Middleware",
+			"metadata": map[string]any{
+				"name":      "redirect-https",
+				"namespace": namespace,
+			},
+			"spec": map[string]any{
+				"redirectScheme": map[string]any{
+					"scheme":    "https",
+					"permanent": true,
+				},
+			},
+		},
+	}
+}
+
+func buildSubdomainIngressRoute(namespace, serviceName, fqdn string, port int32) *unstructured.Unstructured {
 	ingressName := serviceName + "-dz"
 
 	return &unstructured.Unstructured{
@@ -103,11 +193,16 @@ func buildSubdomainIngressRoute(namespace, serviceName, fqdn, certSecretName str
 				"namespace": namespace,
 			},
 			"spec": map[string]any{
-				"entryPoints": []any{"websecure"},
+				"entryPoints": []any{"web", "websecure"},
 				"routes": []any{
 					map[string]any{
-						"match":    fmt.Sprintf("Host(`%s`)", fqdn),
-						"kind":     "Rule",
+						"match": fmt.Sprintf("Host(`%s`)", fqdn),
+						"kind":  "Rule",
+						"middlewares": []any{
+							map[string]any{
+								"name": "redirect-https",
+							},
+						},
 						"services": []any{
 							map[string]any{
 								"name": serviceName,
@@ -116,9 +211,7 @@ func buildSubdomainIngressRoute(namespace, serviceName, fqdn, certSecretName str
 						},
 					},
 				},
-				"tls": map[string]any{
-					"secretName": certSecretName,
-				},
+				"tls": map[string]any{},
 			},
 		},
 	}
