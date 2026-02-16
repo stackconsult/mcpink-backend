@@ -112,15 +112,11 @@ jobs:
           username: deploy
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            kubectl set image deployment/deployer-worker \
-              worker=${{ env.WORKER_IMAGE }}:${{ env.SHORT_SHA }} \
-              -n dp-system
-            kubectl set image deployment/deployer-server \
-              deployer-server=${{ env.SERVER_IMAGE }}:${{ env.SHORT_SHA }} \
-              -n dp-system
-            kubectl set image deployment/git-server \
-              git-server=${{ env.GIT_SERVER_IMAGE }}:${{ env.SHORT_SHA }} \
-              -n dp-system
-            kubectl rollout status deployment/deployer-worker -n dp-system --timeout=120s
-            kubectl rollout status deployment/deployer-server -n dp-system --timeout=120s
-            kubectl rollout status deployment/git-server -n dp-system --timeout=120s
+            kubectl set image deployment/deployer-worker worker=${{ env.WORKER_IMAGE }}:${{ env.SHORT_SHA }} -n dp-system &
+            kubectl set image deployment/deployer-server deployer-server=${{ env.SERVER_IMAGE }}:${{ env.SHORT_SHA }} -n dp-system &
+            kubectl set image deployment/git-server git-server=${{ env.GIT_SERVER_IMAGE }}:${{ env.SHORT_SHA }} -n dp-system &
+            wait
+            kubectl rollout status deployment/deployer-worker -n dp-system --timeout=120s &
+            kubectl rollout status deployment/deployer-server -n dp-system --timeout=120s &
+            kubectl rollout status deployment/git-server -n dp-system --timeout=120s &
+            wait

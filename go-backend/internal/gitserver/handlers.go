@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os/exec"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -45,7 +46,9 @@ func (s *Server) handleInfoRefs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	cmd := exec.CommandContext(r.Context(), "git", service, "--stateless-rpc", "--advertise-refs", repoPath)
+	// service is "git-receive-pack" or "git-upload-pack"; git expects "receive-pack"/"upload-pack"
+	gitCmd := strings.TrimPrefix(service, "git-")
+	cmd := exec.CommandContext(r.Context(), "git", gitCmd, "--stateless-rpc", "--advertise-refs", repoPath)
 	out, err := cmd.Output()
 	if err != nil {
 		s.logger.Error("git advertise-refs failed", "service", service, "error", err)
