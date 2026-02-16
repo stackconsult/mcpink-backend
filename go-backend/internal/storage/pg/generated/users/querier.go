@@ -12,6 +12,7 @@ type Querier interface {
 	CreateFirebaseUser(ctx context.Context, arg CreateFirebaseUserParams) (User, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteUser(ctx context.Context, id string) error
+	GetMeByID(ctx context.Context, id string) (GetMeByIDRow, error)
 	GetUserByGitHubID(ctx context.Context, githubID *int64) (User, error)
 	GetUserByGiteaUsername(ctx context.Context, giteaUsername *string) (User, error)
 	GetUserByID(ctx context.Context, id string) (User, error)

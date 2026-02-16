@@ -19,11 +19,15 @@ import (
 	"github.com/augustdev/autoclip/internal/dns"
 	"github.com/augustdev/autoclip/internal/githubapp"
 	"github.com/augustdev/autoclip/internal/graph"
+	"github.com/augustdev/autoclip/internal/graph/dataloader"
 	"github.com/augustdev/autoclip/internal/prometheus"
 	"github.com/augustdev/autoclip/internal/storage/pg"
+	deploymentsdb "github.com/augustdev/autoclip/internal/storage/pg/generated/deployments"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/delegatedzones"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/resources"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/zonerecords"
 	"github.com/augustdev/autoclip/internal/turso"
 	"github.com/augustdev/autoclip/internal/webhooks"
 	"github.com/go-chi/chi/v5"
@@ -65,6 +69,20 @@ func NewResolver(
 	}
 }
 
+func NewLoaderDeps(
+	serviceQueries services.Querier,
+	deploymentQueries deploymentsdb.Querier,
+	zoneRecordQueries zonerecords.Querier,
+	delegatedZoneQueries delegatedzones.Querier,
+) *dataloader.LoaderDeps {
+	return &dataloader.LoaderDeps{
+		ServiceQueries:       serviceQueries,
+		DeploymentQueries:    deploymentQueries,
+		ZoneRecordQueries:    zoneRecordQueries,
+		DelegatedZoneQueries: delegatedZoneQueries,
+	}
+}
+
 func NewGraphQLRouter(
 	logger *slog.Logger,
 	resolver *graph.Resolver,
@@ -75,6 +93,7 @@ func NewGraphQLRouter(
 	authService *auth.Service,
 	authHandlers *auth.Handlers,
 	webhookHandlers *webhooks.Handlers,
+	loaderDeps *dataloader.LoaderDeps,
 ) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -87,6 +106,7 @@ func NewGraphQLRouter(
 	}).Handler
 
 	router.Use(corsMiddleware)
+	router.Use(dataloader.Middleware(loaderDeps))
 
 	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

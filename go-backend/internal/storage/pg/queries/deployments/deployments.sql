@@ -82,3 +82,8 @@ WHERE id = $1;
 
 -- name: CountDeploymentsByServiceID :one
 SELECT COUNT(*) FROM deployments WHERE service_id = $1;
+
+-- name: GetLatestDeploymentsByServiceIDs :many
+SELECT DISTINCT ON (service_id) * FROM deployments
+WHERE service_id = ANY($1::text[])
+ORDER BY service_id, created_at DESC;

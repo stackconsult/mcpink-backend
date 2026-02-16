@@ -21,3 +21,8 @@ ORDER BY created_at DESC;
 
 -- name: DeleteByServiceID :exec
 DELETE FROM zone_records WHERE service_id = $1;
+
+-- name: ListByServiceIDs :many
+SELECT * FROM zone_records
+WHERE service_id = ANY($1::text[])
+ORDER BY created_at DESC;

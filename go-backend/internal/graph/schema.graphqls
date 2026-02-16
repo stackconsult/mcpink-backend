@@ -24,8 +24,8 @@ type User {
   githubUsername: String
   avatarUrl: String
   createdAt: Time!
-  githubAppInstallationId: String @goField(forceResolver: true)
-  githubScopes: [String!]! @goField(forceResolver: true)
+  githubAppInstallationId: String
+  githubScopes: [String!]!
 }
 
 type APIKey {

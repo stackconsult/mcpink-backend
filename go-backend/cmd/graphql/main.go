@@ -64,6 +64,7 @@ func main() {
 			dns.NewService,
 			resources.NewService,
 			internalgit.NewService,
+			bootstrap.NewLoaderDeps,
 			bootstrap.NewResolver,
 			bootstrap.NewTokenValidator,
 			webhooks.NewHandlers,

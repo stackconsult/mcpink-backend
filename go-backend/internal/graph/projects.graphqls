@@ -13,7 +13,7 @@ type Project {
   id: ID!
   name: String!
   ref: String!
-  services: [Service!]!
+  services: [Service!]! @goField(forceResolver: true)
   createdAt: Time!
   updatedAt: Time!
 }

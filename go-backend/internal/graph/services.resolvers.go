@@ -62,17 +62,9 @@ func (r *queryResolver) ListServices(ctx context.Context, first *int32, after *s
 		return nil, fmt.Errorf("failed to list services: %w", err)
 	}
 
-	nodes := make([]*model.Service, len(dbServices))
-	for i, dbSvc := range dbServices {
-		nodes[i] = dbServiceToModel(&dbSvc)
-		if dep, err := r.DeployService.GetLatestDeployment(ctx, dbSvc.ID); err == nil {
-			enrichServiceWithDeployment(nodes[i], dep)
-		}
-		if zr, dz, err := r.DNSService.GetCustomDomainForService(ctx, dbSvc.ID); err == nil {
-			domain := zr.Name + "." + dz.Zone
-			nodes[i].CustomDomain = &domain
-			nodes[i].CustomDomainStatus = &dz.Status
-		}
+	nodes, err := enrichServices(ctx, dbServices)
+	if err != nil {
+		return nil, fmt.Errorf("failed to enrich services: %w", err)
 	}
 
 	var startCursor, endCursor *string
@@ -106,16 +98,11 @@ func (r *queryResolver) ServiceDetails(ctx context.Context, id string) (*model.S
 		return nil, fmt.Errorf("service not found")
 	}
 
-	svcModel := dbServiceToModel(&dbSvc)
-	if dep, err := r.DeployService.GetLatestDeployment(ctx, dbSvc.ID); err == nil {
-		enrichServiceWithDeployment(svcModel, dep)
+	svcs, err := enrichServices(ctx, []services.Service{dbSvc})
+	if err != nil {
+		return nil, fmt.Errorf("failed to enrich service: %w", err)
 	}
-	if zr, dz, err := r.DNSService.GetCustomDomainForService(ctx, dbSvc.ID); err == nil {
-		domain := zr.Name + "." + dz.Zone
-		svcModel.CustomDomain = &domain
-		svcModel.CustomDomainStatus = &dz.Status
-	}
-	return svcModel, nil
+	return svcs[0], nil
 }
 
 // Project is the resolver for the project field.
@@ -125,7 +112,7 @@ func (r *serviceResolver) Project(ctx context.Context, obj *model.Service) (*mod
 		return nil, fmt.Errorf("failed to fetch project %s: %w", obj.ProjectID, err)
 	}
 
-	return dbProjectToModel(&dbProject, nil), nil
+	return dbProjectToModel(&dbProject), nil
 }
 
 // Service returns ServiceResolver implementation.

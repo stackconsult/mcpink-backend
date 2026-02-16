@@ -29,6 +29,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/tonistiigi/fsutil v0.0.0-20251211185533-a2aa163d723f
 	github.com/vektah/gqlparser/v2 v2.5.31
+	github.com/vikstrous/dataloadgen v0.0.10
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.63.0
 	go.temporal.io/api v1.59.0
 	go.temporal.io/sdk v1.39.0

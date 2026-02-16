@@ -85,7 +85,7 @@ func (r *resourceResolver) Project(ctx context.Context, obj *model.Resource) (*m
 		return nil, nil
 	}
 
-	return dbProjectToModel(&dbProject, nil), nil
+	return dbProjectToModel(&dbProject), nil
 }
 
 // Resource returns ResourceResolver implementation.

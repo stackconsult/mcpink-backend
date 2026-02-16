@@ -16,6 +16,7 @@ type Querier interface {
 	GetDeploymentByID(ctx context.Context, id string) (Deployment, error)
 	GetDeploymentByWorkflowID(ctx context.Context, workflowID string) (Deployment, error)
 	GetLatestDeploymentByServiceID(ctx context.Context, serviceID string) (Deployment, error)
+	GetLatestDeploymentsByServiceIDs(ctx context.Context, dollar_1 []string) ([]Deployment, error)
 	ListDeploymentsByServiceID(ctx context.Context, arg ListDeploymentsByServiceIDParams) ([]Deployment, error)
 	MarkDeploymentActive(ctx context.Context, arg MarkDeploymentActiveParams) error
 	MarkDeploymentCancelled(ctx context.Context, id string) error

@@ -15,6 +15,7 @@ type Querier interface {
 	FindMatchingZoneForDomain(ctx context.Context, arg FindMatchingZoneForDomainParams) (DelegatedZone, error)
 	FindOverlappingZone(ctx context.Context, lower string) (DelegatedZone, error)
 	GetByID(ctx context.Context, id string) (DelegatedZone, error)
+	GetByIDs(ctx context.Context, dollar_1 []string) ([]DelegatedZone, error)
 	GetByZone(ctx context.Context, lower string) (DelegatedZone, error)
 	ListByUserID(ctx context.Context, userID string) ([]DelegatedZone, error)
 	UpdateActivated(ctx context.Context, arg UpdateActivatedParams) (DelegatedZone, error)

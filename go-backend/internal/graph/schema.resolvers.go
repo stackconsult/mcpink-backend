@@ -87,7 +87,7 @@ func (r *mutationResolver) RecheckGithubAppInstallation(ctx context.Context) (*s
 // Me is the resolver for the me field.
 func (r *queryResolver) Me(ctx context.Context) (*model1.User, error) {
 	uid := authz.For(ctx).GetUserID()
-	user, err := r.AuthService.GetUserByID(ctx, uid)
+	me, err := r.AuthService.GetMeByID(ctx, uid)
 	if err != nil {
 		// Auto-create: get user details from Firebase Admin SDK
 		if r.FirebaseAuth != nil {
@@ -95,22 +95,38 @@ func (r *queryResolver) Me(ctx context.Context) (*model1.User, error) {
 			if fbErr != nil {
 				return nil, fmt.Errorf("failed to get Firebase user: %w", fbErr)
 			}
-			user, err = r.AuthService.GetOrCreateUser(ctx, uid, firebaseUser.Email, firebaseUser.DisplayName, firebaseUser.PhotoURL)
-			if err != nil {
+			if _, err = r.AuthService.GetOrCreateUser(ctx, uid, firebaseUser.Email, firebaseUser.DisplayName, firebaseUser.PhotoURL); err != nil {
 				return nil, err
+			}
+			me, err = r.AuthService.GetMeByID(ctx, uid)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get user after creation: %w", err)
 			}
 		} else {
 			return nil, fmt.Errorf("failed to get user: %w", err)
 		}
 	}
 
+	var githubAppInstallationID *string
+	if me.GithubAppInstallationID != nil {
+		id := fmt.Sprintf("%d", *me.GithubAppInstallationID)
+		githubAppInstallationID = &id
+	}
+
+	scopes := me.GithubOauthScopes
+	if scopes == nil {
+		scopes = []string{}
+	}
+
 	return &model1.User{
-		ID:             user.ID,
-		Email:          user.Email,
-		DisplayName:    user.DisplayName,
-		GithubUsername: user.GithubUsername,
-		AvatarURL:      user.AvatarUrl,
-		CreatedAt:      user.CreatedAt.Time,
+		ID:                      me.ID,
+		Email:                   me.Email,
+		DisplayName:             me.DisplayName,
+		GithubUsername:          me.GithubUsername,
+		AvatarURL:               me.AvatarUrl,
+		CreatedAt:               me.CreatedAt.Time,
+		GithubAppInstallationID: githubAppInstallationID,
+		GithubScopes:            scopes,
 	}, nil
 }
 
@@ -141,41 +157,11 @@ func (r *queryResolver) MyAPIKeys(ctx context.Context) ([]*model1.APIKey, error)
 	return result, nil
 }
 
-// GithubAppInstallationID is the resolver for the githubAppInstallationId field.
-func (r *userResolver) GithubAppInstallationID(ctx context.Context, obj *model1.User) (*string, error) {
-	userID := authz.For(ctx).GetUserID()
-
-	creds, err := r.AuthService.GetGitHubCredsByUserID(ctx, userID)
-	if err != nil {
-		return nil, nil
-	}
-
-	if creds.GithubAppInstallationID != nil {
-		id := fmt.Sprintf("%d", *creds.GithubAppInstallationID)
-		return &id, nil
-	}
-
-	return nil, nil
-}
-
-// GithubScopes is the resolver for the githubScopes field.
-func (r *userResolver) GithubScopes(ctx context.Context, obj *model1.User) ([]string, error) {
-	creds, err := r.AuthService.GetGitHubCredsByUserID(ctx, authz.For(ctx).GetUserID())
-	if err != nil {
-		return []string{}, nil
-	}
-	return creds.GithubOauthScopes, nil
-}
-
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
-// User returns UserResolver implementation.
-func (r *Resolver) User() UserResolver { return &userResolver{r} }
-
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
-type userResolver struct{ *Resolver }

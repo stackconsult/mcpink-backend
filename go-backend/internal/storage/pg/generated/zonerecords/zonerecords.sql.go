@@ -106,6 +106,38 @@ func (q *Queries) ListByServiceID(ctx context.Context, serviceID string) ([]Zone
 	return items, nil
 }
 
+const listByServiceIDs = `-- name: ListByServiceIDs :many
+SELECT id, zone_id, service_id, name, created_at FROM zone_records
+WHERE service_id = ANY($1::text[])
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListByServiceIDs(ctx context.Context, dollar_1 []string) ([]ZoneRecord, error) {
+	rows, err := q.db.Query(ctx, listByServiceIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ZoneRecord{}
+	for rows.Next() {
+		var i ZoneRecord
+		if err := rows.Scan(
+			&i.ID,
+			&i.ZoneID,
+			&i.ServiceID,
+			&i.Name,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listByZoneID = `-- name: ListByZoneID :many
 SELECT id, zone_id, service_id, name, created_at FROM zone_records
 WHERE zone_id = $1

@@ -10,9 +10,19 @@ import (
 	"fmt"
 
 	"github.com/augustdev/autoclip/internal/authz"
+	"github.com/augustdev/autoclip/internal/graph/dataloader"
 	"github.com/augustdev/autoclip/internal/graph/model"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
 )
+
+// Services is the resolver for the services field.
+func (r *projectResolver) Services(ctx context.Context, obj *model.Project) ([]*model.Service, error) {
+	dbServices, err := dataloader.For(ctx).ServicesByProjectID.Load(ctx, obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	return enrichServices(ctx, dbServices)
+}
 
 // ListProjects is the resolver for the listProjects field.
 func (r *queryResolver) ListProjects(ctx context.Context, first *int32, after *string) (*model.ProjectConnection, error) {
@@ -38,11 +48,7 @@ func (r *queryResolver) ListProjects(ctx context.Context, first *int32, after *s
 
 	nodes := make([]*model.Project, len(dbProjects))
 	for i, dbProject := range dbProjects {
-		projectServices, err := r.getServicesForProject(ctx, dbProject.ID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get services for project: %w", err)
-		}
-		nodes[i] = dbProjectToModel(&dbProject, projectServices)
+		nodes[i] = dbProjectToModel(&dbProject)
 	}
 
 	var startCursor, endCursor *string
@@ -76,10 +82,10 @@ func (r *queryResolver) ProjectDetails(ctx context.Context, id string) (*model.P
 		return nil, fmt.Errorf("project not found")
 	}
 
-	projectServices, err := r.getServicesForProject(ctx, dbProject.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get services for project: %w", err)
-	}
-
-	return dbProjectToModel(&dbProject, projectServices), nil
+	return dbProjectToModel(&dbProject), nil
 }
+
+// Project returns ProjectResolver implementation.
+func (r *Resolver) Project() ProjectResolver { return &projectResolver{r} }
+
+type projectResolver struct{ *Resolver }

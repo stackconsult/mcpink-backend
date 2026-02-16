@@ -234,6 +234,40 @@ func (q *Queries) GetServiceByNameAndUserProject(ctx context.Context, arg GetSer
 	return i, err
 }
 
+const getServiceMetricsContext = `-- name: GetServiceMetricsContext :one
+SELECT s.name AS service_name, s.memory, s.vcpus, u.id AS user_id, p.ref AS project_ref
+FROM services s
+JOIN users u ON u.id = s.user_id
+JOIN projects p ON p.id = s.project_id
+WHERE s.id = $1 AND s.user_id = $2 AND s.is_deleted = false
+`
+
+type GetServiceMetricsContextParams struct {
+	ID     string `json:"id"`
+	UserID string `json:"user_id"`
+}
+
+type GetServiceMetricsContextRow struct {
+	ServiceName *string `json:"service_name"`
+	Memory      string  `json:"memory"`
+	Vcpus       string  `json:"vcpus"`
+	UserID      string  `json:"user_id"`
+	ProjectRef  string  `json:"project_ref"`
+}
+
+func (q *Queries) GetServiceMetricsContext(ctx context.Context, arg GetServiceMetricsContextParams) (GetServiceMetricsContextRow, error) {
+	row := q.db.QueryRow(ctx, getServiceMetricsContext, arg.ID, arg.UserID)
+	var i GetServiceMetricsContextRow
+	err := row.Scan(
+		&i.ServiceName,
+		&i.Memory,
+		&i.Vcpus,
+		&i.UserID,
+		&i.ProjectRef,
+	)
+	return i, err
+}
+
 const getServicesByRepoBranch = `-- name: GetServicesByRepoBranch :many
 SELECT id, user_id, project_id, repo, branch, git_provider, name, port, build_pack, env_vars, build_config, memory, vcpus, publish_directory, fqdn, custom_domain, server_uuid, current_deployment_id, is_deleted, created_at, updated_at, region FROM services
 WHERE repo = $1 AND branch = $2 AND is_deleted = false
@@ -356,6 +390,55 @@ type ListServicesByProjectIDParams struct {
 
 func (q *Queries) ListServicesByProjectID(ctx context.Context, arg ListServicesByProjectIDParams) ([]Service, error) {
 	rows, err := q.db.Query(ctx, listServicesByProjectID, arg.ProjectID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Service{}
+	for rows.Next() {
+		var i Service
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ProjectID,
+			&i.Repo,
+			&i.Branch,
+			&i.GitProvider,
+			&i.Name,
+			&i.Port,
+			&i.BuildPack,
+			&i.EnvVars,
+			&i.BuildConfig,
+			&i.Memory,
+			&i.Vcpus,
+			&i.PublishDirectory,
+			&i.Fqdn,
+			&i.CustomDomain,
+			&i.ServerUuid,
+			&i.CurrentDeploymentID,
+			&i.IsDeleted,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Region,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listServicesByProjectIDs = `-- name: ListServicesByProjectIDs :many
+SELECT id, user_id, project_id, repo, branch, git_provider, name, port, build_pack, env_vars, build_config, memory, vcpus, publish_directory, fqdn, custom_domain, server_uuid, current_deployment_id, is_deleted, created_at, updated_at, region FROM services
+WHERE project_id = ANY($1::text[]) AND is_deleted = false
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListServicesByProjectIDs(ctx context.Context, dollar_1 []string) ([]Service, error) {
+	rows, err := q.db.Query(ctx, listServicesByProjectIDs, dollar_1)
 	if err != nil {
 		return nil, err
 	}

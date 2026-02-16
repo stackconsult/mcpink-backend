@@ -14,6 +14,7 @@ type Querier interface {
 	DeleteByServiceID(ctx context.Context, serviceID string) error
 	GetByZoneAndName(ctx context.Context, arg GetByZoneAndNameParams) (ZoneRecord, error)
 	ListByServiceID(ctx context.Context, serviceID string) ([]ZoneRecord, error)
+	ListByServiceIDs(ctx context.Context, dollar_1 []string) ([]ZoneRecord, error)
 	ListByZoneID(ctx context.Context, zoneID string) ([]ZoneRecord, error)
 }
 

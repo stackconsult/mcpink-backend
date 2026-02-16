@@ -74,6 +74,9 @@ WHERE user_id = $1
 ORDER BY length(zone) DESC
 LIMIT 1;
 
+-- name: GetByIDs :many
+SELECT * FROM delegated_zones WHERE id = ANY($1::text[]);
+
 -- name: ExpireStale :exec
 UPDATE delegated_zones
 SET status = 'failed',

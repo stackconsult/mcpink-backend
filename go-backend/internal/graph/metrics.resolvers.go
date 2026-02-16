@@ -12,35 +12,26 @@ import (
 	"github.com/augustdev/autoclip/internal/authz"
 	"github.com/augustdev/autoclip/internal/graph/model"
 	"github.com/augustdev/autoclip/internal/k8sdeployments"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 )
 
 // ServiceMetrics is the resolver for the serviceMetrics field.
 func (r *queryResolver) ServiceMetrics(ctx context.Context, serviceID string, timeRange model.MetricTimeRange) (*model.ServiceMetrics, error) {
 	userID := authz.For(ctx).GetUserID()
 
-	dbService, err := r.ServiceQueries.GetServiceByID(ctx, serviceID)
+	svc, err := r.ServiceQueries.GetServiceMetricsContext(ctx, services.GetServiceMetricsContextParams{
+		ID:     serviceID,
+		UserID: userID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("service not found")
 	}
-	if dbService.UserID != userID {
-		return nil, fmt.Errorf("service not found")
-	}
 
-	user, err := r.AuthService.GetUserByID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user")
-	}
-
-	project, err := r.ProjectQueries.GetProjectByID(ctx, dbService.ProjectID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get project")
-	}
-
-	namespace := k8sdeployments.NamespaceName(user.ID, project.Ref)
+	namespace := k8sdeployments.NamespaceName(svc.UserID, svc.ProjectRef)
 
 	svcName := ""
-	if dbService.Name != nil {
-		svcName = *dbService.Name
+	if svc.ServiceName != nil {
+		svcName = *svc.ServiceName
 	}
 	serviceName := k8sdeployments.ServiceName(svcName)
 
@@ -54,15 +45,12 @@ func (r *queryResolver) ServiceMetrics(ctx context.Context, serviceID string, ti
 		return nil, fmt.Errorf("metrics temporarily unavailable")
 	}
 
-	memoryLimitMB := parseMemoryToMB(dbService.Memory)
-	cpuLimitVCPUs := parseCPUToVCPUs(dbService.Vcpus)
-
 	return &model.ServiceMetrics{
 		CPUUsage:                   toModelSeries(metrics.CPUUsage),
 		MemoryUsageMb:              toModelSeries(metrics.MemoryUsageMB),
 		NetworkReceiveBytesPerSec:  toModelSeries(metrics.NetworkReceiveBytesPerSec),
 		NetworkTransmitBytesPerSec: toModelSeries(metrics.NetworkTransmitBytesPerSec),
-		MemoryLimitMb:              memoryLimitMB,
-		CPULimitVCPUs:              cpuLimitVCPUs,
+		MemoryLimitMb:              parseMemoryToMB(svc.Memory),
+		CPULimitVCPUs:              parseCPUToVCPUs(svc.Vcpus),
 	}, nil
 }

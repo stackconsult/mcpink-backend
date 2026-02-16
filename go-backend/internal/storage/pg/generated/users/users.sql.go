@@ -7,6 +7,8 @@ package users
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createFirebaseUser = `-- name: CreateFirebaseUser :one
@@ -88,6 +90,48 @@ DELETE FROM users WHERE id = $1
 func (q *Queries) DeleteUser(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, deleteUser, id)
 	return err
+}
+
+const getMeByID = `-- name: GetMeByID :one
+SELECT
+    u.id,
+    u.email,
+    u.display_name,
+    u.github_username,
+    u.avatar_url,
+    u.created_at,
+    gc.github_app_installation_id,
+    gc.github_oauth_scopes
+FROM users u
+LEFT JOIN github_creds gc ON u.id = gc.user_id
+WHERE u.id = $1
+`
+
+type GetMeByIDRow struct {
+	ID                      string             `json:"id"`
+	Email                   *string            `json:"email"`
+	DisplayName             *string            `json:"display_name"`
+	GithubUsername          *string            `json:"github_username"`
+	AvatarUrl               *string            `json:"avatar_url"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	GithubAppInstallationID *int64             `json:"github_app_installation_id"`
+	GithubOauthScopes       []string           `json:"github_oauth_scopes"`
+}
+
+func (q *Queries) GetMeByID(ctx context.Context, id string) (GetMeByIDRow, error) {
+	row := q.db.QueryRow(ctx, getMeByID, id)
+	var i GetMeByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.DisplayName,
+		&i.GithubUsername,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.GithubAppInstallationID,
+		&i.GithubOauthScopes,
+	)
+	return i, err
 }
 
 const getUserByGitHubID = `-- name: GetUserByGitHubID :one

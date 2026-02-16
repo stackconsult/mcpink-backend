@@ -283,6 +283,14 @@ func (s *Service) GetUserByID(ctx context.Context, userID string) (*users.User, 
 	return &user, nil
 }
 
+func (s *Service) GetMeByID(ctx context.Context, userID string) (*users.GetMeByIDRow, error) {
+	row, err := s.usersQ.GetMeByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+	return &row, nil
+}
+
 func (s *Service) ListAPIKeys(ctx context.Context, userID string) ([]apikeys.ListAPIKeysByUserIDRow, error) {
 	return s.apiKeysQ.ListAPIKeysByUserID(ctx, userID)
 }

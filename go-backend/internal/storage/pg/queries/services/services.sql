@@ -67,3 +67,15 @@ WHERE id = $1 AND is_deleted = false;
 UPDATE services
 SET fqdn = $2, updated_at = NOW()
 WHERE id = $1 AND is_deleted = false;
+
+-- name: ListServicesByProjectIDs :many
+SELECT * FROM services
+WHERE project_id = ANY($1::text[]) AND is_deleted = false
+ORDER BY created_at DESC;
+
+-- name: GetServiceMetricsContext :one
+SELECT s.name AS service_name, s.memory, s.vcpus, u.id AS user_id, p.ref AS project_ref
+FROM services s
+JOIN users u ON u.id = s.user_id
+JOIN projects p ON p.id = s.project_id
+WHERE s.id = $1 AND s.user_id = $2 AND s.is_deleted = false;

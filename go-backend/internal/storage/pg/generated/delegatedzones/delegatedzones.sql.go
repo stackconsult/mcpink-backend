@@ -154,6 +154,44 @@ func (q *Queries) GetByID(ctx context.Context, id string) (DelegatedZone, error)
 	return i, err
 }
 
+const getByIDs = `-- name: GetByIDs :many
+SELECT id, user_id, zone, status, verification_token, wildcard_cert_secret, cert_issued_at, verified_at, delegated_at, expires_at, last_error, created_at, updated_at FROM delegated_zones WHERE id = ANY($1::text[])
+`
+
+func (q *Queries) GetByIDs(ctx context.Context, dollar_1 []string) ([]DelegatedZone, error) {
+	rows, err := q.db.Query(ctx, getByIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DelegatedZone{}
+	for rows.Next() {
+		var i DelegatedZone
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Zone,
+			&i.Status,
+			&i.VerificationToken,
+			&i.WildcardCertSecret,
+			&i.CertIssuedAt,
+			&i.VerifiedAt,
+			&i.DelegatedAt,
+			&i.ExpiresAt,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getByZone = `-- name: GetByZone :one
 SELECT id, user_id, zone, status, verification_token, wildcard_cert_secret, cert_issued_at, verified_at, delegated_at, expires_at, last_error, created_at, updated_at FROM delegated_zones WHERE lower(zone) = lower($1)
 `

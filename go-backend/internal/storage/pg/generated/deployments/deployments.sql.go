@@ -255,6 +255,54 @@ func (q *Queries) GetLatestDeploymentByServiceID(ctx context.Context, serviceID 
 	return i, err
 }
 
+const getLatestDeploymentsByServiceIDs = `-- name: GetLatestDeploymentsByServiceIDs :many
+SELECT DISTINCT ON (service_id) id, service_id, workflow_id, workflow_run_id, commit_hash, image_ref, build_pack, build_config, env_vars_snapshot, memory, vcpus, port, status, error_message, build_progress, trigger, trigger_ref, started_at, finished_at, created_at, updated_at FROM deployments
+WHERE service_id = ANY($1::text[])
+ORDER BY service_id, created_at DESC
+`
+
+func (q *Queries) GetLatestDeploymentsByServiceIDs(ctx context.Context, dollar_1 []string) ([]Deployment, error) {
+	rows, err := q.db.Query(ctx, getLatestDeploymentsByServiceIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Deployment{}
+	for rows.Next() {
+		var i Deployment
+		if err := rows.Scan(
+			&i.ID,
+			&i.ServiceID,
+			&i.WorkflowID,
+			&i.WorkflowRunID,
+			&i.CommitHash,
+			&i.ImageRef,
+			&i.BuildPack,
+			&i.BuildConfig,
+			&i.EnvVarsSnapshot,
+			&i.Memory,
+			&i.Vcpus,
+			&i.Port,
+			&i.Status,
+			&i.ErrorMessage,
+			&i.BuildProgress,
+			&i.Trigger,
+			&i.TriggerRef,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDeploymentsByServiceID = `-- name: ListDeploymentsByServiceID :many
 SELECT id, service_id, workflow_id, workflow_run_id, commit_hash, image_ref, build_pack, build_config, env_vars_snapshot, memory, vcpus, port, status, error_message, build_progress, trigger, trigger_ref, started_at, finished_at, created_at, updated_at FROM deployments
 WHERE service_id = $1

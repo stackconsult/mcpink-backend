@@ -16,9 +16,11 @@ type Querier interface {
 	GetServiceByID(ctx context.Context, id string) (Service, error)
 	GetServiceByNameAndProject(ctx context.Context, arg GetServiceByNameAndProjectParams) (Service, error)
 	GetServiceByNameAndUserProject(ctx context.Context, arg GetServiceByNameAndUserProjectParams) (Service, error)
+	GetServiceMetricsContext(ctx context.Context, arg GetServiceMetricsContextParams) (GetServiceMetricsContextRow, error)
 	GetServicesByRepoBranch(ctx context.Context, arg GetServicesByRepoBranchParams) ([]Service, error)
 	GetServicesByRepoBranchProvider(ctx context.Context, arg GetServicesByRepoBranchProviderParams) ([]Service, error)
 	ListServicesByProjectID(ctx context.Context, arg ListServicesByProjectIDParams) ([]Service, error)
+	ListServicesByProjectIDs(ctx context.Context, dollar_1 []string) ([]Service, error)
 	ListServicesByUserID(ctx context.Context, arg ListServicesByUserIDParams) ([]Service, error)
 	SetCurrentDeploymentID(ctx context.Context, arg SetCurrentDeploymentIDParams) error
 	SetServiceFQDN(ctx context.Context, arg SetServiceFQDNParams) error
