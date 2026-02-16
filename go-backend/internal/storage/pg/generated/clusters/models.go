@@ -108,6 +108,7 @@ type InternalRepo struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 	BarePath  *string            `json:"bare_path"`
+	ProjectID string             `json:"project_id"`
 }
 
 type Project struct {

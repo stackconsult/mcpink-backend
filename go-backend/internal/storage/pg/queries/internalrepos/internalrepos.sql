@@ -1,6 +1,6 @@
 -- name: CreateInternalRepo :one
-INSERT INTO internal_repos (user_id, name, clone_url, provider, repo_id, full_name, bare_path)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO internal_repos (user_id, project_id, name, clone_url, provider, repo_id, full_name, bare_path)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: GetInternalRepoByID :one
@@ -8,6 +8,9 @@ SELECT * FROM internal_repos WHERE id = $1;
 
 -- name: GetInternalRepoByFullName :one
 SELECT * FROM internal_repos WHERE full_name = $1;
+
+-- name: GetInternalRepoByProjectAndName :one
+SELECT * FROM internal_repos WHERE project_id = $1 AND name = $2;
 
 -- name: ListInternalReposByUserID :many
 SELECT * FROM internal_repos

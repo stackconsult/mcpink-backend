@@ -209,30 +209,15 @@
     - temporal_address | default('') | length > 0
     - temporal_namespace | default('') | length > 0
 
-- name: Create Gitea database secret when provided
+- name: Create git-server-config secret when provided
   shell: |
     set -euo pipefail
-    k3s kubectl -n dp-system create secret generic gitea-db \
-      --from-literal=password={{ gitea_db_password | quote }} \
-      --from-literal=secret-key={{ gitea_secret_key | quote }} \
+    k3s kubectl -n dp-system create secret generic git-server-config \
+      --from-literal=admin-token={{ git_server_admin_token | quote }} \
       --dry-run=client -o yaml | k3s kubectl apply -f -
   args:
     executable: /bin/bash
-  when: gitea_db_password | default('') | length > 0
-
-- name: Create Gitea credentials secret when provided
-  shell: |
-    set -euo pipefail
-    k3s kubectl -n dp-system create secret generic gitea-creds \
-      --from-literal=base-url={{ gitea_base_url | quote }} \
-      --from-literal=admin-token={{ gitea_admin_token | quote }} \
-      --from-literal=webhook-secret={{ gitea_webhook_secret | quote }} \
-      --dry-run=client -o yaml | k3s kubectl apply -f -
-  args:
-    executable: /bin/bash
-  when:
-    - gitea_admin_token | default('') | length > 0
-    - gitea_webhook_secret | default('') | length > 0
+  when: git_server_admin_token | default('') | length > 0
 
 - name: Create Cloudflare token secret when provided
   shell: |

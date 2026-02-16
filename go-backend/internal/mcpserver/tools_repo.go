@@ -40,7 +40,17 @@ func (s *Server) handleCreateRepo(ctx context.Context, req *mcp.CallToolRequest,
 }
 
 func (s *Server) createPrivateRepo(ctx context.Context, userID string, input CreateRepoInput) (*mcp.CallToolResult, CreateRepoOutput, error) {
-	result, err := s.internalGitSvc.CreateRepo(ctx, userID, input.Name, input.Description, true)
+	projectRef := input.Project
+	if projectRef == "" {
+		projectRef = "default"
+	}
+
+	project, err := s.deployService.GetProjectByRef(ctx, userID, projectRef)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("project not found: %s", projectRef)}}}, CreateRepoOutput{}, nil
+	}
+
+	result, err := s.internalGitSvc.CreateRepo(ctx, userID, project.ID, input.Name, input.Description, true)
 	if err != nil {
 		s.logger.Error("failed to create internal repo", "error", err, "name", input.Name)
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to create repository: %v", err)}}}, CreateRepoOutput{}, nil
@@ -162,7 +172,7 @@ func (s *Server) handleGetGitToken(ctx context.Context, req *mcp.CallToolRequest
 
 	switch host {
 	case "ml.ink":
-		return s.getPrivateGitToken(ctx, user, input.Name)
+		return s.getPrivateGitToken(ctx, user, input)
 	case "github.com":
 		return s.getGitHubGitToken(ctx, user, input.Name)
 	default:
@@ -170,16 +180,25 @@ func (s *Server) handleGetGitToken(ctx context.Context, req *mcp.CallToolRequest
 	}
 }
 
-func (s *Server) getPrivateGitToken(ctx context.Context, user *users.User, repoName string) (*mcp.CallToolResult, GetGitTokenOutput, error) {
-	fullName, err := s.internalGitSvc.ResolveRepoFullName(ctx, user.ID, repoName)
-	if err != nil {
-		s.logger.Error("failed to resolve repo name", "error", err, "repo", repoName)
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to resolve repo name: %v", err)}}}, GetGitTokenOutput{}, nil
+func (s *Server) getPrivateGitToken(ctx context.Context, user *users.User, input GetGitTokenInput) (*mcp.CallToolResult, GetGitTokenOutput, error) {
+	projectRef := input.Project
+	if projectRef == "" {
+		projectRef = "default"
 	}
 
-	result, err := s.internalGitSvc.GetPushToken(ctx, user.ID, fullName)
+	project, err := s.deployService.GetProjectByRef(ctx, user.ID, projectRef)
 	if err != nil {
-		s.logger.Error("failed to get git token", "error", err, "repo", fullName)
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("project not found: %s", projectRef)}}}, GetGitTokenOutput{}, nil
+	}
+
+	repo, err := s.internalGitSvc.GetRepoByProjectAndName(ctx, project.ID, input.Name)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("repo '%s' not found in project '%s'. Create it first with create_repo", input.Name, projectRef)}}}, GetGitTokenOutput{}, nil
+	}
+
+	result, err := s.internalGitSvc.GetPushToken(ctx, user.ID, repo.FullName)
+	if err != nil {
+		s.logger.Error("failed to get git token", "error", err, "repo", repo.FullName)
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to get git token: %v", err)}}}, GetGitTokenOutput{}, nil
 	}
 

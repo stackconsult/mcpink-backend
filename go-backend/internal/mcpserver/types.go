@@ -207,6 +207,7 @@ type CreateRepoInput struct {
 	Name        string `json:"name" jsonschema:"description=Repository name (e.g. 'myapp' not 'username/myapp')"`
 	Host        string `json:"host,omitempty" jsonschema:"description=Git host,enum=ml.ink,enum=github.com,default=ml.ink"`
 	Description string `json:"description,omitempty" jsonschema:"description=Repository description"`
+	Project     string `json:"project,omitempty" jsonschema:"description=Project name,default=default"`
 }
 
 type CreateRepoOutput struct {
@@ -217,8 +218,9 @@ type CreateRepoOutput struct {
 }
 
 type GetGitTokenInput struct {
-	Name string `json:"name" jsonschema:"description=Repository name (e.g. 'myapp' not 'username/myapp')"`
-	Host string `json:"host,omitempty" jsonschema:"description=Git host,enum=ml.ink,enum=github.com,default=ml.ink"`
+	Name    string `json:"name" jsonschema:"description=Repository name (e.g. 'myapp' not 'username/myapp')"`
+	Host    string `json:"host,omitempty" jsonschema:"description=Git host,enum=ml.ink,enum=github.com,default=ml.ink"`
+	Project string `json:"project,omitempty" jsonschema:"description=Project name,default=default"`
 }
 
 type GetGitTokenOutput struct {

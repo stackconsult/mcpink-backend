@@ -55,20 +55,6 @@ func (s *Service) ResolveUsername(ctx context.Context, user users.User) (string,
 	return "", fmt.Errorf("failed to find unique username after %d attempts", maxUsernameAttempts)
 }
 
-// ResolveRepoFullName resolves the user's username and returns "{username}/{repoName}".
-func (s *Service) ResolveRepoFullName(ctx context.Context, userID, repoName string) (string, error) {
-	user, err := s.userQueries.GetUserByID(ctx, userID)
-	if err != nil {
-		return "", fmt.Errorf("get user: %w", err)
-	}
-
-	username, err := s.ResolveUsername(ctx, user)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%s/%s", username, repoName), nil
-}
 
 func randomSuffix() (string, error) {
 	b := make([]byte, suffixLen)

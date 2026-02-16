@@ -198,11 +198,22 @@ func (s *Server) normalizeServiceRepo(ctx context.Context, user *users.User, inp
 	}
 
 	if host == "ml.ink" {
-		fullName, resolveErr := s.internalGitSvc.ResolveRepoFullName(ctx, user.ID, repo)
-		if resolveErr != nil {
-			return "", "", fmt.Errorf("resolve repo name: %w", resolveErr)
+		projectRef := input.Project
+		if projectRef == "" {
+			projectRef = "default"
 		}
-		return host, fmt.Sprintf("ml.ink/%s", fullName), nil
+		project, projErr := s.deployService.GetProjectByRef(ctx, user.ID, projectRef)
+		if projErr != nil {
+			return "", "", fmt.Errorf("project not found: %s", projectRef)
+		}
+		internalRepo, repoErr := s.internalGitSvc.GetRepoByProjectAndName(ctx, project.ID, repo)
+		if repoErr != nil {
+			return "", "", fmt.Errorf("repo '%s' not found in project '%s'. Create it first with create_repo", repo, projectRef)
+		}
+		if internalRepo.UserID != user.ID {
+			return "", "", fmt.Errorf("repo belongs to another user")
+		}
+		return host, fmt.Sprintf("ml.ink/%s", internalRepo.FullName), nil
 	}
 
 	// github.com path — requires GithubUsername

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"net/url"
 	"time"
 
@@ -17,7 +18,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const tokenPrefix = "mlg_"
+const (
+	tokenPrefix    = "mlg_"
+	slugCharset    = "abcdefghijklmnopqrstuvwxyz0123456789"
+	slugLen        = 4
+	maxSlugRetries = 5
+)
 
 type Service struct {
 	config      Config
@@ -40,8 +46,8 @@ func NewService(config Config, db *pg.DB) (*Service, error) {
 }
 
 // CreateRepo creates a new internal git repository record and returns a push token.
-// Idempotent: if repo already exists for this user, returns a new token.
-func (s *Service) CreateRepo(ctx context.Context, userID, repoName, description string, private bool) (*CreateRepoResult, error) {
+// If repo with same name already exists in the same project, returns a new token for it.
+func (s *Service) CreateRepo(ctx context.Context, userID, projectID, repoName, description string, private bool) (*CreateRepoResult, error) {
 	user, err := s.userQueries.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
@@ -52,43 +58,59 @@ func (s *Service) CreateRepo(ctx context.Context, userID, repoName, description 
 		return nil, fmt.Errorf("resolve username: %w", err)
 	}
 
-	fullName := fmt.Sprintf("%s/%s", gitUsername, repoName)
-
-	existingRepo, err := s.repoQueries.GetInternalRepoByFullName(ctx, fullName)
+	// Check if repo already exists in this project
+	existingRepo, err := s.repoQueries.GetInternalRepoByProjectAndName(ctx, internalrepos.GetInternalRepoByProjectAndNameParams{
+		ProjectID: projectID,
+		Name:      repoName,
+	})
 	if err == nil {
 		if existingRepo.UserID != userID {
 			return nil, fmt.Errorf("repo belongs to another user")
 		}
+		owner, gitName := splitFullName(existingRepo.FullName)
 		rawToken, err := s.createToken(ctx, userID, &existingRepo.ID, nil)
 		if err != nil {
 			return nil, fmt.Errorf("create token: %w", err)
 		}
 		return &CreateRepoResult{
-			Repo:      s.repoPath(gitUsername, repoName),
-			GitRemote: s.cloneURL(gitUsername, repoName, rawToken),
+			Repo:      s.repoPath(owner, gitName),
+			GitRemote: s.cloneURL(owner, gitName, rawToken),
 			ExpiresAt: time.Now().Add(365 * 24 * time.Hour).Format(time.RFC3339),
 			Message:   "Repo already exists. Push your code, then call create_app to deploy",
 		}, nil
 	}
 
-	// Create DB record (bare repo is created on first push by git-server)
-	barePath := fmt.Sprintf("%s/%s.git", gitUsername, repoName)
-	_, err = s.repoQueries.CreateInternalRepo(ctx, internalrepos.CreateInternalRepoParams{
-		UserID:   userID,
-		Name:     repoName,
-		CloneUrl: s.cloneURLWithoutAuth(gitUsername, repoName),
-		Provider: "internal",
-		FullName: fullName,
-		BarePath: &barePath,
+	// Generate full_name with random suffix for global uniqueness: {username}/{name}-{slug}
+	var fullName, gitName string
+	for attempt := 0; attempt < maxSlugRetries; attempt++ {
+		slug, err := randomSlug()
+		if err != nil {
+			return nil, fmt.Errorf("generate slug: %w", err)
+		}
+		gitName = fmt.Sprintf("%s-%s", repoName, slug)
+		fullName = fmt.Sprintf("%s/%s", gitUsername, gitName)
+		// Check if full_name is already taken (extremely unlikely)
+		_, err = s.repoQueries.GetInternalRepoByFullName(ctx, fullName)
+		if err != nil {
+			break // not found = available
+		}
+		if attempt == maxSlugRetries-1 {
+			return nil, fmt.Errorf("failed to generate unique repo path after %d attempts", maxSlugRetries)
+		}
+	}
+
+	barePath := fmt.Sprintf("%s/%s.git", gitUsername, gitName)
+	repo, err := s.repoQueries.CreateInternalRepo(ctx, internalrepos.CreateInternalRepoParams{
+		UserID:    userID,
+		ProjectID: projectID,
+		Name:      repoName,
+		CloneUrl:  s.cloneURLWithoutAuth(gitUsername, gitName),
+		Provider:  "internal",
+		FullName:  fullName,
+		BarePath:  &barePath,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to store repo in database: %w", err)
-	}
-
-	// Re-fetch to get the repo ID for token creation
-	repo, err := s.repoQueries.GetInternalRepoByFullName(ctx, fullName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch created repo: %w", err)
 	}
 
 	rawToken, err := s.createToken(ctx, userID, &repo.ID, nil)
@@ -97,8 +119,8 @@ func (s *Service) CreateRepo(ctx context.Context, userID, repoName, description 
 	}
 
 	return &CreateRepoResult{
-		Repo:      s.repoPath(gitUsername, repoName),
-		GitRemote: s.cloneURL(gitUsername, repoName, rawToken),
+		Repo:      s.repoPath(gitUsername, gitName),
+		GitRemote: s.cloneURL(gitUsername, gitName, rawToken),
 		ExpiresAt: time.Now().Add(365 * 24 * time.Hour).Format(time.RFC3339),
 		Message:   "Push your code, then call create_app to deploy",
 	}, nil
@@ -131,7 +153,6 @@ func (s *Service) GetPushToken(ctx context.Context, userID, repoFullName string)
 }
 
 // DeleteRepo deletes an internal git repository from the database.
-// Bare repo cleanup on disk should be handled separately.
 func (s *Service) DeleteRepo(ctx context.Context, userID, repoFullName string) error {
 	repo, err := s.repoQueries.GetInternalRepoByFullName(ctx, repoFullName)
 	if err != nil {
@@ -153,12 +174,17 @@ func (s *Service) DeleteRepo(ctx context.Context, userID, repoFullName string) e
 	return nil
 }
 
-// GetRepoByFullName retrieves an internal repo by its full name.
 func (s *Service) GetRepoByFullName(ctx context.Context, fullName string) (internalrepos.InternalRepo, error) {
 	return s.repoQueries.GetInternalRepoByFullName(ctx, fullName)
 }
 
-// createToken generates a new random token, stores its hash, and returns the raw token.
+func (s *Service) GetRepoByProjectAndName(ctx context.Context, projectID, name string) (internalrepos.InternalRepo, error) {
+	return s.repoQueries.GetInternalRepoByProjectAndName(ctx, internalrepos.GetInternalRepoByProjectAndNameParams{
+		ProjectID: projectID,
+		Name:      name,
+	})
+}
+
 func (s *Service) createToken(ctx context.Context, userID string, repoID *string, expiresAt *time.Time) (string, error) {
 	rawBytes := make([]byte, 32)
 	if _, err := rand.Read(rawBytes); err != nil {
@@ -191,7 +217,6 @@ func (s *Service) createToken(ctx context.Context, userID string, repoID *string
 	return rawToken, nil
 }
 
-// cloneURL builds https://x-git-token:{token}@git.ml.ink/{owner}/{repo}.git
 func (s *Service) cloneURL(owner, repoName, token string) string {
 	u, _ := url.Parse(s.config.PublicGitURL)
 	u.User = url.UserPassword("x-git-token", token)
@@ -199,14 +224,12 @@ func (s *Service) cloneURL(owner, repoName, token string) string {
 	return u.String()
 }
 
-// cloneURLWithoutAuth builds https://git.ml.ink/{owner}/{repo}.git
 func (s *Service) cloneURLWithoutAuth(owner, repoName string) string {
 	u, _ := url.Parse(s.config.PublicGitURL)
 	u.Path = fmt.Sprintf("/%s/%s.git", owner, repoName)
 	return u.String()
 }
 
-// repoPath returns "ml.ink/{owner}/{repo}" (strips "git." prefix).
 func (s *Service) repoPath(owner, repoName string) string {
 	u, _ := url.Parse(s.config.PublicGitURL)
 	host := u.Hostname()
@@ -223,4 +246,16 @@ func splitFullName(fullName string) (owner, repo string) {
 		}
 	}
 	return "", ""
+}
+
+func randomSlug() (string, error) {
+	b := make([]byte, slugLen)
+	for i := range b {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(slugCharset))))
+		if err != nil {
+			return "", err
+		}
+		b[i] = slugCharset[n.Int64()]
+	}
+	return string(b), nil
 }

@@ -14,6 +14,7 @@ type Querier interface {
 	DeleteInternalRepoByFullName(ctx context.Context, fullName string) error
 	GetInternalRepoByFullName(ctx context.Context, fullName string) (InternalRepo, error)
 	GetInternalRepoByID(ctx context.Context, id string) (InternalRepo, error)
+	GetInternalRepoByProjectAndName(ctx context.Context, arg GetInternalRepoByProjectAndNameParams) (InternalRepo, error)
 	ListInternalReposByUserID(ctx context.Context, userID string) ([]InternalRepo, error)
 }
 

@@ -10,24 +10,26 @@ import (
 )
 
 const createInternalRepo = `-- name: CreateInternalRepo :one
-INSERT INTO internal_repos (user_id, name, clone_url, provider, repo_id, full_name, bare_path)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, user_id, name, clone_url, provider, repo_id, full_name, created_at, updated_at, bare_path
+INSERT INTO internal_repos (user_id, project_id, name, clone_url, provider, repo_id, full_name, bare_path)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, user_id, name, clone_url, provider, repo_id, full_name, created_at, updated_at, bare_path, project_id
 `
 
 type CreateInternalRepoParams struct {
-	UserID   string  `json:"user_id"`
-	Name     string  `json:"name"`
-	CloneUrl string  `json:"clone_url"`
-	Provider string  `json:"provider"`
-	RepoID   *string `json:"repo_id"`
-	FullName string  `json:"full_name"`
-	BarePath *string `json:"bare_path"`
+	UserID    string  `json:"user_id"`
+	ProjectID string  `json:"project_id"`
+	Name      string  `json:"name"`
+	CloneUrl  string  `json:"clone_url"`
+	Provider  string  `json:"provider"`
+	RepoID    *string `json:"repo_id"`
+	FullName  string  `json:"full_name"`
+	BarePath  *string `json:"bare_path"`
 }
 
 func (q *Queries) CreateInternalRepo(ctx context.Context, arg CreateInternalRepoParams) (InternalRepo, error) {
 	row := q.db.QueryRow(ctx, createInternalRepo,
 		arg.UserID,
+		arg.ProjectID,
 		arg.Name,
 		arg.CloneUrl,
 		arg.Provider,
@@ -47,6 +49,7 @@ func (q *Queries) CreateInternalRepo(ctx context.Context, arg CreateInternalRepo
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BarePath,
+		&i.ProjectID,
 	)
 	return i, err
 }
@@ -70,7 +73,7 @@ func (q *Queries) DeleteInternalRepoByFullName(ctx context.Context, fullName str
 }
 
 const getInternalRepoByFullName = `-- name: GetInternalRepoByFullName :one
-SELECT id, user_id, name, clone_url, provider, repo_id, full_name, created_at, updated_at, bare_path FROM internal_repos WHERE full_name = $1
+SELECT id, user_id, name, clone_url, provider, repo_id, full_name, created_at, updated_at, bare_path, project_id FROM internal_repos WHERE full_name = $1
 `
 
 func (q *Queries) GetInternalRepoByFullName(ctx context.Context, fullName string) (InternalRepo, error) {
@@ -87,12 +90,13 @@ func (q *Queries) GetInternalRepoByFullName(ctx context.Context, fullName string
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BarePath,
+		&i.ProjectID,
 	)
 	return i, err
 }
 
 const getInternalRepoByID = `-- name: GetInternalRepoByID :one
-SELECT id, user_id, name, clone_url, provider, repo_id, full_name, created_at, updated_at, bare_path FROM internal_repos WHERE id = $1
+SELECT id, user_id, name, clone_url, provider, repo_id, full_name, created_at, updated_at, bare_path, project_id FROM internal_repos WHERE id = $1
 `
 
 func (q *Queries) GetInternalRepoByID(ctx context.Context, id string) (InternalRepo, error) {
@@ -109,12 +113,41 @@ func (q *Queries) GetInternalRepoByID(ctx context.Context, id string) (InternalR
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BarePath,
+		&i.ProjectID,
+	)
+	return i, err
+}
+
+const getInternalRepoByProjectAndName = `-- name: GetInternalRepoByProjectAndName :one
+SELECT id, user_id, name, clone_url, provider, repo_id, full_name, created_at, updated_at, bare_path, project_id FROM internal_repos WHERE project_id = $1 AND name = $2
+`
+
+type GetInternalRepoByProjectAndNameParams struct {
+	ProjectID string `json:"project_id"`
+	Name      string `json:"name"`
+}
+
+func (q *Queries) GetInternalRepoByProjectAndName(ctx context.Context, arg GetInternalRepoByProjectAndNameParams) (InternalRepo, error) {
+	row := q.db.QueryRow(ctx, getInternalRepoByProjectAndName, arg.ProjectID, arg.Name)
+	var i InternalRepo
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.CloneUrl,
+		&i.Provider,
+		&i.RepoID,
+		&i.FullName,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BarePath,
+		&i.ProjectID,
 	)
 	return i, err
 }
 
 const listInternalReposByUserID = `-- name: ListInternalReposByUserID :many
-SELECT id, user_id, name, clone_url, provider, repo_id, full_name, created_at, updated_at, bare_path FROM internal_repos
+SELECT id, user_id, name, clone_url, provider, repo_id, full_name, created_at, updated_at, bare_path, project_id FROM internal_repos
 WHERE user_id = $1
 ORDER BY created_at DESC
 `
@@ -139,6 +172,7 @@ func (q *Queries) ListInternalReposByUserID(ctx context.Context, userID string) 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.BarePath,
+			&i.ProjectID,
 		); err != nil {
 			return nil, err
 		}

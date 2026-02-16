@@ -27,8 +27,7 @@ k8s_manifest_apply_order:
   - observability/loki-ingress.yml
   - observability/prometheus-ingress.yml
   - observability/grafana-ingress.yml
-  - workloads/gitea.yml
-  - workloads/gitea-ingress.yml
+  - workloads/git-server.yml
 
 # Customer namespace quota enforcement (cluster-side, not app deploy code)
 customer_quota_namespace_selector: "dp.ml.ink/tenant"
