@@ -23,6 +23,21 @@ type CreateAPIKeyResult struct {
 	Secret string  `json:"secret"`
 }
 
+type DelegateZoneResult struct {
+	ZoneID       string `json:"zoneId"`
+	Zone         string `json:"zone"`
+	Status       string `json:"status"`
+	Instructions string `json:"instructions"`
+}
+
+type DelegatedZone struct {
+	ID        string    `json:"id"`
+	Zone      string    `json:"zone"`
+	Status    string    `json:"status"`
+	Error     *string   `json:"error,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
 type DeleteServiceResult struct {
 	ServiceID string `json:"serviceId"`
 	Name      string `json:"name"`
@@ -70,6 +85,11 @@ type ProjectConnection struct {
 }
 
 type Query struct {
+}
+
+type RemoveDelegationResult struct {
+	ZoneID  string `json:"zoneId"`
+	Message string `json:"message"`
 }
 
 type Resource struct {
@@ -149,6 +169,14 @@ type User struct {
 	CreatedAt               time.Time `json:"createdAt"`
 	GithubAppInstallationID *string   `json:"githubAppInstallationId,omitempty"`
 	GithubScopes            []string  `json:"githubScopes"`
+}
+
+type VerifyDelegationResult struct {
+	ZoneID       string  `json:"zoneId"`
+	Zone         string  `json:"zone"`
+	Status       string  `json:"status"`
+	Message      string  `json:"message"`
+	Instructions *string `json:"instructions,omitempty"`
 }
 
 type MetricTimeRange string

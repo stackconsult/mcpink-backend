@@ -1,0 +1,37 @@
+extend type Query {
+  listDelegatedZones: [DelegatedZone!]! @isAuthenticated
+}
+
+extend type Mutation {
+  delegateZone(zone: String!): DelegateZoneResult! @isAuthenticated
+  verifyDelegation(zone: String!): VerifyDelegationResult! @isAuthenticated
+  removeDelegation(zone: String!): RemoveDelegationResult! @isAuthenticated
+}
+
+type DelegatedZone {
+  id: ID!
+  zone: String!
+  status: String!
+  error: String
+  createdAt: Time!
+}
+
+type DelegateZoneResult {
+  zoneId: ID!
+  zone: String!
+  status: String!
+  instructions: String!
+}
+
+type VerifyDelegationResult {
+  zoneId: ID!
+  zone: String!
+  status: String!
+  message: String!
+  instructions: String
+}
+
+type RemoveDelegationResult {
+  zoneId: ID!
+  message: String!
+}

@@ -67,6 +67,21 @@ type ComplexityRoot struct {
 		Secret func(childComplexity int) int
 	}
 
+	DelegateZoneResult struct {
+		Instructions func(childComplexity int) int
+		Status       func(childComplexity int) int
+		Zone         func(childComplexity int) int
+		ZoneID       func(childComplexity int) int
+	}
+
+	DelegatedZone struct {
+		CreatedAt func(childComplexity int) int
+		Error     func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Status    func(childComplexity int) int
+		Zone      func(childComplexity int) int
+	}
+
 	DeleteServiceResult struct {
 		Message   func(childComplexity int) int
 		Name      func(childComplexity int) int
@@ -90,9 +105,12 @@ type ComplexityRoot struct {
 
 	Mutation struct {
 		CreateAPIKey                 func(childComplexity int, name string) int
+		DelegateZone                 func(childComplexity int, zone string) int
 		DeleteService                func(childComplexity int, name string, project *string) int
 		RecheckGithubAppInstallation func(childComplexity int) int
+		RemoveDelegation             func(childComplexity int, zone string) int
 		RevokeAPIKey                 func(childComplexity int, id string) int
+		VerifyDelegation             func(childComplexity int, zone string) int
 	}
 
 	PageInfo struct {
@@ -118,15 +136,21 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		ListProjects    func(childComplexity int, first *int32, after *string) int
-		ListResources   func(childComplexity int, first *int32, after *string) int
-		ListServices    func(childComplexity int, first *int32, after *string) int
-		Me              func(childComplexity int) int
-		MyAPIKeys       func(childComplexity int) int
-		ProjectDetails  func(childComplexity int, id string) int
-		ResourceDetails func(childComplexity int, id string) int
-		ServiceDetails  func(childComplexity int, id string) int
-		ServiceMetrics  func(childComplexity int, serviceID string, timeRange model.MetricTimeRange) int
+		ListDelegatedZones func(childComplexity int) int
+		ListProjects       func(childComplexity int, first *int32, after *string) int
+		ListResources      func(childComplexity int, first *int32, after *string) int
+		ListServices       func(childComplexity int, first *int32, after *string) int
+		Me                 func(childComplexity int) int
+		MyAPIKeys          func(childComplexity int) int
+		ProjectDetails     func(childComplexity int, id string) int
+		ResourceDetails    func(childComplexity int, id string) int
+		ServiceDetails     func(childComplexity int, id string) int
+		ServiceMetrics     func(childComplexity int, serviceID string, timeRange model.MetricTimeRange) int
+	}
+
+	RemoveDelegationResult struct {
+		Message func(childComplexity int) int
+		ZoneID  func(childComplexity int) int
 	}
 
 	Resource struct {
@@ -207,12 +231,23 @@ type ComplexityRoot struct {
 		GithubUsername          func(childComplexity int) int
 		ID                      func(childComplexity int) int
 	}
+
+	VerifyDelegationResult struct {
+		Instructions func(childComplexity int) int
+		Message      func(childComplexity int) int
+		Status       func(childComplexity int) int
+		Zone         func(childComplexity int) int
+		ZoneID       func(childComplexity int) int
+	}
 }
 
 type MutationResolver interface {
 	CreateAPIKey(ctx context.Context, name string) (*model.CreateAPIKeyResult, error)
 	RevokeAPIKey(ctx context.Context, id string) (bool, error)
 	RecheckGithubAppInstallation(ctx context.Context) (*string, error)
+	DelegateZone(ctx context.Context, zone string) (*model.DelegateZoneResult, error)
+	VerifyDelegation(ctx context.Context, zone string) (*model.VerifyDelegationResult, error)
+	RemoveDelegation(ctx context.Context, zone string) (*model.RemoveDelegationResult, error)
 	DeleteService(ctx context.Context, name string, project *string) (*model.DeleteServiceResult, error)
 }
 type ProjectResolver interface {
@@ -221,6 +256,7 @@ type ProjectResolver interface {
 type QueryResolver interface {
 	Me(ctx context.Context) (*model.User, error)
 	MyAPIKeys(ctx context.Context) ([]*model.APIKey, error)
+	ListDelegatedZones(ctx context.Context) ([]*model.DelegatedZone, error)
 	ServiceMetrics(ctx context.Context, serviceID string, timeRange model.MetricTimeRange) (*model.ServiceMetrics, error)
 	ListProjects(ctx context.Context, first *int32, after *string) (*model.ProjectConnection, error)
 	ProjectDetails(ctx context.Context, id string) (*model.Project, error)
@@ -299,6 +335,62 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.CreateAPIKeyResult.Secret(childComplexity), true
 
+	case "DelegateZoneResult.instructions":
+		if e.complexity.DelegateZoneResult.Instructions == nil {
+			break
+		}
+
+		return e.complexity.DelegateZoneResult.Instructions(childComplexity), true
+	case "DelegateZoneResult.status":
+		if e.complexity.DelegateZoneResult.Status == nil {
+			break
+		}
+
+		return e.complexity.DelegateZoneResult.Status(childComplexity), true
+	case "DelegateZoneResult.zone":
+		if e.complexity.DelegateZoneResult.Zone == nil {
+			break
+		}
+
+		return e.complexity.DelegateZoneResult.Zone(childComplexity), true
+	case "DelegateZoneResult.zoneId":
+		if e.complexity.DelegateZoneResult.ZoneID == nil {
+			break
+		}
+
+		return e.complexity.DelegateZoneResult.ZoneID(childComplexity), true
+
+	case "DelegatedZone.createdAt":
+		if e.complexity.DelegatedZone.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.DelegatedZone.CreatedAt(childComplexity), true
+	case "DelegatedZone.error":
+		if e.complexity.DelegatedZone.Error == nil {
+			break
+		}
+
+		return e.complexity.DelegatedZone.Error(childComplexity), true
+	case "DelegatedZone.id":
+		if e.complexity.DelegatedZone.ID == nil {
+			break
+		}
+
+		return e.complexity.DelegatedZone.ID(childComplexity), true
+	case "DelegatedZone.status":
+		if e.complexity.DelegatedZone.Status == nil {
+			break
+		}
+
+		return e.complexity.DelegatedZone.Status(childComplexity), true
+	case "DelegatedZone.zone":
+		if e.complexity.DelegatedZone.Zone == nil {
+			break
+		}
+
+		return e.complexity.DelegatedZone.Zone(childComplexity), true
+
 	case "DeleteServiceResult.message":
 		if e.complexity.DeleteServiceResult.Message == nil {
 			break
@@ -368,6 +460,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.CreateAPIKey(childComplexity, args["name"].(string)), true
+	case "Mutation.delegateZone":
+		if e.complexity.Mutation.DelegateZone == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_delegateZone_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DelegateZone(childComplexity, args["zone"].(string)), true
 	case "Mutation.deleteService":
 		if e.complexity.Mutation.DeleteService == nil {
 			break
@@ -385,6 +488,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.RecheckGithubAppInstallation(childComplexity), true
+	case "Mutation.removeDelegation":
+		if e.complexity.Mutation.RemoveDelegation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_removeDelegation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.RemoveDelegation(childComplexity, args["zone"].(string)), true
 	case "Mutation.revokeAPIKey":
 		if e.complexity.Mutation.RevokeAPIKey == nil {
 			break
@@ -396,6 +510,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.RevokeAPIKey(childComplexity, args["id"].(string)), true
+	case "Mutation.verifyDelegation":
+		if e.complexity.Mutation.VerifyDelegation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_verifyDelegation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.VerifyDelegation(childComplexity, args["zone"].(string)), true
 
 	case "PageInfo.endCursor":
 		if e.complexity.PageInfo.EndCursor == nil {
@@ -478,6 +603,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.ProjectConnection.TotalCount(childComplexity), true
 
+	case "Query.listDelegatedZones":
+		if e.complexity.Query.ListDelegatedZones == nil {
+			break
+		}
+
+		return e.complexity.Query.ListDelegatedZones(childComplexity), true
 	case "Query.listProjects":
 		if e.complexity.Query.ListProjects == nil {
 			break
@@ -567,6 +698,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.ServiceMetrics(childComplexity, args["serviceId"].(string), args["timeRange"].(model.MetricTimeRange)), true
+
+	case "RemoveDelegationResult.message":
+		if e.complexity.RemoveDelegationResult.Message == nil {
+			break
+		}
+
+		return e.complexity.RemoveDelegationResult.Message(childComplexity), true
+	case "RemoveDelegationResult.zoneId":
+		if e.complexity.RemoveDelegationResult.ZoneID == nil {
+			break
+		}
+
+		return e.complexity.RemoveDelegationResult.ZoneID(childComplexity), true
 
 	case "Resource.createdAt":
 		if e.complexity.Resource.CreatedAt == nil {
@@ -906,6 +1050,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.User.ID(childComplexity), true
 
+	case "VerifyDelegationResult.instructions":
+		if e.complexity.VerifyDelegationResult.Instructions == nil {
+			break
+		}
+
+		return e.complexity.VerifyDelegationResult.Instructions(childComplexity), true
+	case "VerifyDelegationResult.message":
+		if e.complexity.VerifyDelegationResult.Message == nil {
+			break
+		}
+
+		return e.complexity.VerifyDelegationResult.Message(childComplexity), true
+	case "VerifyDelegationResult.status":
+		if e.complexity.VerifyDelegationResult.Status == nil {
+			break
+		}
+
+		return e.complexity.VerifyDelegationResult.Status(childComplexity), true
+	case "VerifyDelegationResult.zone":
+		if e.complexity.VerifyDelegationResult.Zone == nil {
+			break
+		}
+
+		return e.complexity.VerifyDelegationResult.Zone(childComplexity), true
+	case "VerifyDelegationResult.zoneId":
+		if e.complexity.VerifyDelegationResult.ZoneID == nil {
+			break
+		}
+
+		return e.complexity.VerifyDelegationResult.ZoneID(childComplexity), true
+
 	}
 	return 0, false
 }
@@ -1009,7 +1184,7 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 	return introspection.WrapTypeFromDef(ec.Schema(), ec.Schema().Types[name]), nil
 }
 
-//go:embed "metrics.graphqls" "projects.graphqls" "resources.graphqls" "schema.graphqls" "services.graphqls"
+//go:embed "dns.graphqls" "metrics.graphqls" "projects.graphqls" "resources.graphqls" "schema.graphqls" "services.graphqls"
 var sourcesFS embed.FS
 
 func sourceData(filename string) string {
@@ -1021,6 +1196,7 @@ func sourceData(filename string) string {
 }
 
 var sources = []*ast.Source{
+	{Name: "dns.graphqls", Input: sourceData("dns.graphqls"), BuiltIn: false},
 	{Name: "metrics.graphqls", Input: sourceData("metrics.graphqls"), BuiltIn: false},
 	{Name: "projects.graphqls", Input: sourceData("projects.graphqls"), BuiltIn: false},
 	{Name: "resources.graphqls", Input: sourceData("resources.graphqls"), BuiltIn: false},
@@ -1071,6 +1247,17 @@ func (ec *executionContext) field_Mutation_createAPIKey_args(ctx context.Context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_delegateZone_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "zone", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["zone"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteService_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1087,6 +1274,17 @@ func (ec *executionContext) field_Mutation_deleteService_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_removeDelegation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "zone", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["zone"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_revokeAPIKey_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1095,6 +1293,17 @@ func (ec *executionContext) field_Mutation_revokeAPIKey_args(ctx context.Context
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_verifyDelegation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "zone", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["zone"] = arg0
 	return args, nil
 }
 
@@ -1468,6 +1677,267 @@ func (ec *executionContext) fieldContext_CreateAPIKeyResult_secret(_ context.Con
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DelegateZoneResult_zoneId(ctx context.Context, field graphql.CollectedField, obj *model.DelegateZoneResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DelegateZoneResult_zoneId,
+		func(ctx context.Context) (any, error) {
+			return obj.ZoneID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DelegateZoneResult_zoneId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DelegateZoneResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DelegateZoneResult_zone(ctx context.Context, field graphql.CollectedField, obj *model.DelegateZoneResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DelegateZoneResult_zone,
+		func(ctx context.Context) (any, error) {
+			return obj.Zone, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DelegateZoneResult_zone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DelegateZoneResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DelegateZoneResult_status(ctx context.Context, field graphql.CollectedField, obj *model.DelegateZoneResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DelegateZoneResult_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DelegateZoneResult_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DelegateZoneResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DelegateZoneResult_instructions(ctx context.Context, field graphql.CollectedField, obj *model.DelegateZoneResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DelegateZoneResult_instructions,
+		func(ctx context.Context) (any, error) {
+			return obj.Instructions, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DelegateZoneResult_instructions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DelegateZoneResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DelegatedZone_id(ctx context.Context, field graphql.CollectedField, obj *model.DelegatedZone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DelegatedZone_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DelegatedZone_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DelegatedZone",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DelegatedZone_zone(ctx context.Context, field graphql.CollectedField, obj *model.DelegatedZone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DelegatedZone_zone,
+		func(ctx context.Context) (any, error) {
+			return obj.Zone, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DelegatedZone_zone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DelegatedZone",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DelegatedZone_status(ctx context.Context, field graphql.CollectedField, obj *model.DelegatedZone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DelegatedZone_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DelegatedZone_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DelegatedZone",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DelegatedZone_error(ctx context.Context, field graphql.CollectedField, obj *model.DelegatedZone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DelegatedZone_error,
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_DelegatedZone_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DelegatedZone",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DelegatedZone_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.DelegatedZone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DelegatedZone_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DelegatedZone_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DelegatedZone",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -1892,6 +2362,196 @@ func (ec *executionContext) fieldContext_Mutation_recheckGithubAppInstallation(_
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_delegateZone(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_delegateZone,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().DelegateZone(ctx, fc.Args["zone"].(string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.directives.IsAuthenticated == nil {
+					var zeroVal *model.DelegateZoneResult
+					return zeroVal, errors.New("directive isAuthenticated is not implemented")
+				}
+				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		ec.marshalNDelegateZoneResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegateZoneResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_delegateZone(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "zoneId":
+				return ec.fieldContext_DelegateZoneResult_zoneId(ctx, field)
+			case "zone":
+				return ec.fieldContext_DelegateZoneResult_zone(ctx, field)
+			case "status":
+				return ec.fieldContext_DelegateZoneResult_status(ctx, field)
+			case "instructions":
+				return ec.fieldContext_DelegateZoneResult_instructions(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DelegateZoneResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_delegateZone_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_verifyDelegation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_verifyDelegation,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().VerifyDelegation(ctx, fc.Args["zone"].(string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.directives.IsAuthenticated == nil {
+					var zeroVal *model.VerifyDelegationResult
+					return zeroVal, errors.New("directive isAuthenticated is not implemented")
+				}
+				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		ec.marshalNVerifyDelegationResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐVerifyDelegationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_verifyDelegation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "zoneId":
+				return ec.fieldContext_VerifyDelegationResult_zoneId(ctx, field)
+			case "zone":
+				return ec.fieldContext_VerifyDelegationResult_zone(ctx, field)
+			case "status":
+				return ec.fieldContext_VerifyDelegationResult_status(ctx, field)
+			case "message":
+				return ec.fieldContext_VerifyDelegationResult_message(ctx, field)
+			case "instructions":
+				return ec.fieldContext_VerifyDelegationResult_instructions(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type VerifyDelegationResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_verifyDelegation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_removeDelegation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_removeDelegation,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().RemoveDelegation(ctx, fc.Args["zone"].(string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.directives.IsAuthenticated == nil {
+					var zeroVal *model.RemoveDelegationResult
+					return zeroVal, errors.New("directive isAuthenticated is not implemented")
+				}
+				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		ec.marshalNRemoveDelegationResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐRemoveDelegationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_removeDelegation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "zoneId":
+				return ec.fieldContext_RemoveDelegationResult_zoneId(ctx, field)
+			case "message":
+				return ec.fieldContext_RemoveDelegationResult_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type RemoveDelegationResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_removeDelegation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -2513,6 +3173,60 @@ func (ec *executionContext) fieldContext_Query_myAPIKeys(_ context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_listDelegatedZones(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_listDelegatedZones,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().ListDelegatedZones(ctx)
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.directives.IsAuthenticated == nil {
+					var zeroVal []*model.DelegatedZone
+					return zeroVal, errors.New("directive isAuthenticated is not implemented")
+				}
+				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		ec.marshalNDelegatedZone2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegatedZoneᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_listDelegatedZones(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_DelegatedZone_id(ctx, field)
+			case "zone":
+				return ec.fieldContext_DelegatedZone_zone(ctx, field)
+			case "status":
+				return ec.fieldContext_DelegatedZone_status(ctx, field)
+			case "error":
+				return ec.fieldContext_DelegatedZone_error(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_DelegatedZone_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DelegatedZone", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_serviceMetrics(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3110,6 +3824,64 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 				return ec.fieldContext___Schema_directives(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type __Schema", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RemoveDelegationResult_zoneId(ctx context.Context, field graphql.CollectedField, obj *model.RemoveDelegationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RemoveDelegationResult_zoneId,
+		func(ctx context.Context) (any, error) {
+			return obj.ZoneID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RemoveDelegationResult_zoneId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RemoveDelegationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RemoveDelegationResult_message(ctx context.Context, field graphql.CollectedField, obj *model.RemoveDelegationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RemoveDelegationResult_message,
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RemoveDelegationResult_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RemoveDelegationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -4866,6 +5638,151 @@ func (ec *executionContext) fieldContext_User_githubScopes(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _VerifyDelegationResult_zoneId(ctx context.Context, field graphql.CollectedField, obj *model.VerifyDelegationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_VerifyDelegationResult_zoneId,
+		func(ctx context.Context) (any, error) {
+			return obj.ZoneID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_VerifyDelegationResult_zoneId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "VerifyDelegationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _VerifyDelegationResult_zone(ctx context.Context, field graphql.CollectedField, obj *model.VerifyDelegationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_VerifyDelegationResult_zone,
+		func(ctx context.Context) (any, error) {
+			return obj.Zone, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_VerifyDelegationResult_zone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "VerifyDelegationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _VerifyDelegationResult_status(ctx context.Context, field graphql.CollectedField, obj *model.VerifyDelegationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_VerifyDelegationResult_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_VerifyDelegationResult_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "VerifyDelegationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _VerifyDelegationResult_message(ctx context.Context, field graphql.CollectedField, obj *model.VerifyDelegationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_VerifyDelegationResult_message,
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_VerifyDelegationResult_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "VerifyDelegationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _VerifyDelegationResult_instructions(ctx context.Context, field graphql.CollectedField, obj *model.VerifyDelegationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_VerifyDelegationResult_instructions,
+		func(ctx context.Context) (any, error) {
+			return obj.Instructions, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_VerifyDelegationResult_instructions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "VerifyDelegationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) ___Directive_name(ctx context.Context, field graphql.CollectedField, obj *introspection.Directive) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -6420,6 +7337,116 @@ func (ec *executionContext) _CreateAPIKeyResult(ctx context.Context, sel ast.Sel
 	return out
 }
 
+var delegateZoneResultImplementors = []string{"DelegateZoneResult"}
+
+func (ec *executionContext) _DelegateZoneResult(ctx context.Context, sel ast.SelectionSet, obj *model.DelegateZoneResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, delegateZoneResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DelegateZoneResult")
+		case "zoneId":
+			out.Values[i] = ec._DelegateZoneResult_zoneId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "zone":
+			out.Values[i] = ec._DelegateZoneResult_zone(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._DelegateZoneResult_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "instructions":
+			out.Values[i] = ec._DelegateZoneResult_instructions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var delegatedZoneImplementors = []string{"DelegatedZone"}
+
+func (ec *executionContext) _DelegatedZone(ctx context.Context, sel ast.SelectionSet, obj *model.DelegatedZone) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, delegatedZoneImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DelegatedZone")
+		case "id":
+			out.Values[i] = ec._DelegatedZone_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "zone":
+			out.Values[i] = ec._DelegatedZone_zone(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._DelegatedZone_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._DelegatedZone_error(ctx, field, obj)
+		case "createdAt":
+			out.Values[i] = ec._DelegatedZone_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var deleteServiceResultImplementors = []string{"DeleteServiceResult"}
 
 func (ec *executionContext) _DeleteServiceResult(ctx context.Context, sel ast.SelectionSet, obj *model.DeleteServiceResult) graphql.Marshaler {
@@ -6638,6 +7665,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_recheckGithubAppInstallation(ctx, field)
 			})
+		case "delegateZone":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_delegateZone(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "verifyDelegation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_verifyDelegation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removeDelegation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_removeDelegation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "deleteService":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteService(ctx, field)
@@ -6920,6 +7968,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "listDelegatedZones":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_listDelegatedZones(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "serviceMetrics":
 			field := field
 
@@ -7073,6 +8143,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___schema(ctx, field)
 			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var removeDelegationResultImplementors = []string{"RemoveDelegationResult"}
+
+func (ec *executionContext) _RemoveDelegationResult(ctx context.Context, sel ast.SelectionSet, obj *model.RemoveDelegationResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, removeDelegationResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RemoveDelegationResult")
+		case "zoneId":
+			out.Values[i] = ec._RemoveDelegationResult_zoneId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._RemoveDelegationResult_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -7651,6 +8765,62 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
+var verifyDelegationResultImplementors = []string{"VerifyDelegationResult"}
+
+func (ec *executionContext) _VerifyDelegationResult(ctx context.Context, sel ast.SelectionSet, obj *model.VerifyDelegationResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, verifyDelegationResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("VerifyDelegationResult")
+		case "zoneId":
+			out.Values[i] = ec._VerifyDelegationResult_zoneId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "zone":
+			out.Values[i] = ec._VerifyDelegationResult_zone(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._VerifyDelegationResult_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._VerifyDelegationResult_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "instructions":
+			out.Values[i] = ec._VerifyDelegationResult_instructions(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var __DirectiveImplementors = []string{"__Directive"}
 
 func (ec *executionContext) ___Directive(ctx context.Context, sel ast.SelectionSet, obj *introspection.Directive) graphql.Marshaler {
@@ -8070,6 +9240,74 @@ func (ec *executionContext) marshalNCreateAPIKeyResult2ᚖgithubᚗcomᚋaugustd
 	return ec._CreateAPIKeyResult(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNDelegateZoneResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegateZoneResult(ctx context.Context, sel ast.SelectionSet, v model.DelegateZoneResult) graphql.Marshaler {
+	return ec._DelegateZoneResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNDelegateZoneResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegateZoneResult(ctx context.Context, sel ast.SelectionSet, v *model.DelegateZoneResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DelegateZoneResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDelegatedZone2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegatedZoneᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DelegatedZone) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNDelegatedZone2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegatedZone(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDelegatedZone2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegatedZone(ctx context.Context, sel ast.SelectionSet, v *model.DelegatedZone) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DelegatedZone(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNDeleteServiceResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDeleteServiceResult(ctx context.Context, sel ast.SelectionSet, v model.DeleteServiceResult) graphql.Marshaler {
 	return ec._DeleteServiceResult(ctx, sel, &v)
 }
@@ -8338,6 +9576,20 @@ func (ec *executionContext) marshalNProjectConnection2ᚖgithubᚗcomᚋaugustde
 	return ec._ProjectConnection(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNRemoveDelegationResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐRemoveDelegationResult(ctx context.Context, sel ast.SelectionSet, v model.RemoveDelegationResult) graphql.Marshaler {
+	return ec._RemoveDelegationResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNRemoveDelegationResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐRemoveDelegationResult(ctx context.Context, sel ast.SelectionSet, v *model.RemoveDelegationResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RemoveDelegationResult(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNResource2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐResourceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Resource) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -8568,6 +9820,20 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNVerifyDelegationResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐVerifyDelegationResult(ctx context.Context, sel ast.SelectionSet, v model.VerifyDelegationResult) graphql.Marshaler {
+	return ec._VerifyDelegationResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNVerifyDelegationResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐVerifyDelegationResult(ctx context.Context, sel ast.SelectionSet, v *model.VerifyDelegationResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._VerifyDelegationResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
