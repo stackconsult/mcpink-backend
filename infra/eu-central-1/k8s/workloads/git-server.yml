@@ -29,7 +29,7 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: git-server
-          image: ghcr.io/gluonfield/git-server:49961c4
+          image: ghcr.io/gluonfield/git-server:effe6bd
           ports:
             - containerPort: 3000
           env:

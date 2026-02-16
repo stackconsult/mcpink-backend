@@ -68,7 +68,7 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: worker
-          image: ghcr.io/gluonfield/deployer-worker:initial
+          image: ghcr.io/gluonfield/deployer-worker:effe6bd
           lifecycle:
             preStop:
               exec:
