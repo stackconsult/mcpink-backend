@@ -82,7 +82,7 @@ func (a *Activities) resolveCloneURL(ctx context.Context, input CloneRepoInput) 
 		if len(parts) != 2 {
 			return "", fmt.Errorf("invalid internal repo format: %s", input.Repo)
 		}
-		return fmt.Sprintf("https://x-admin-token:%s@%s/%s/%s.git",
+		return fmt.Sprintf("http://x-admin-token:%s@%s/%s/%s.git",
 			a.config.GitServerAdminToken, a.config.GitServerCloneHost, parts[0], parts[1]), nil
 
 	default:
@@ -91,11 +91,13 @@ func (a *Activities) resolveCloneURL(ctx context.Context, input CloneRepoInput) 
 }
 
 func redactToken(s string) string {
-	// Redact tokens from git output (e.g., x-access-token:ghs_xxx@)
-	if idx := strings.Index(s, "x-access-token:"); idx >= 0 {
-		end := strings.Index(s[idx:], "@")
-		if end > 0 {
-			s = s[:idx] + "x-access-token:***@" + s[idx+end+1:]
+	// Redact tokens from git output (e.g., x-access-token:ghs_xxx@ or x-admin-token:xxx@)
+	for _, prefix := range []string{"x-access-token:", "x-admin-token:", "x-git-token:"} {
+		if idx := strings.Index(s, prefix); idx >= 0 {
+			end := strings.Index(s[idx:], "@")
+			if end > 0 {
+				s = s[:idx] + prefix + "***@" + s[idx+end+1:]
+			}
 		}
 	}
 	return s
