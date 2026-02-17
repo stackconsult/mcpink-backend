@@ -8,6 +8,7 @@ package graph
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/augustdev/autoclip/internal/authz"
 	"github.com/augustdev/autoclip/internal/dns"
@@ -85,6 +86,8 @@ func (r *queryResolver) ListDelegatedZones(ctx context.Context) ([]*model.Delega
 	nameservers := r.DNSService.Nameservers()
 
 	result := make([]*model.DelegatedZone, len(zones))
+
+	var wg sync.WaitGroup
 	for i, z := range zones {
 		dz := &model.DelegatedZone{
 			ID:        z.ID,
@@ -93,38 +96,40 @@ func (r *queryResolver) ListDelegatedZones(ctx context.Context) ([]*model.Delega
 			Error:     z.LastError,
 			CreatedAt: z.CreatedAt.Time,
 		}
+		result[i] = dz
 
 		if z.Status != "active" {
-			txtVerified := z.VerifiedAt.Valid
-			if !txtVerified {
-				ok, _ := dns.VerifyTXT(z.Zone, z.VerificationToken)
-				txtVerified = ok
-			}
+			wg.Go(func() {
+				txtVerified := z.VerifiedAt.Valid
+				if !txtVerified {
+					ok, _ := dns.VerifyTXT(z.Zone, z.VerificationToken)
+					txtVerified = ok
+				}
 
-			nsStatus := dns.VerifyNSRecords(z.Zone, nameservers)
+				nsStatus := dns.VerifyNSRecords(z.Zone, nameservers)
 
-			var records []*model.DNSRecord
-			if z.Status == "pending_verification" {
-				records = append(records, &model.DNSRecord{
-					Host:     "_dp-verify." + z.Zone,
-					Type:     "TXT",
-					Value:    "dp-verify=" + z.VerificationToken,
-					Verified: txtVerified,
-				})
-			}
-			for _, ns := range nameservers {
-				records = append(records, &model.DNSRecord{
-					Host:     z.Zone,
-					Type:     "NS",
-					Value:    ns,
-					Verified: nsStatus[dns.NormalizeDomain(ns)],
-				})
-			}
-			dz.DNSRecords = records
+				var records []*model.DNSRecord
+				if z.Status == "pending_verification" {
+					records = append(records, &model.DNSRecord{
+						Host:     "_dp-verify." + z.Zone,
+						Type:     "TXT",
+						Value:    "dp-verify=" + z.VerificationToken,
+						Verified: txtVerified,
+					})
+				}
+				for _, ns := range nameservers {
+					records = append(records, &model.DNSRecord{
+						Host:     z.Zone,
+						Type:     "NS",
+						Value:    ns,
+						Verified: nsStatus[dns.NormalizeDomain(ns)],
+					})
+				}
+				dz.DNSRecords = records
+			})
 		}
-
-		result[i] = dz
 	}
+	wg.Wait()
 
 	return result, nil
 }
