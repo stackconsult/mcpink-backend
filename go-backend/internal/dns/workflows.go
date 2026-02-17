@@ -53,6 +53,15 @@ func ActivateZoneWorkflow(ctx workflow.Context, input ActivateZoneInput) (Activa
 		return markFailed(fmt.Sprintf("failed to create zone: %v", err))
 	}
 
+	// Wait for NS delegation to propagate before requesting the wildcard cert.
+	// cert-manager's DNS-01 solver needs to find the authoritative nameservers.
+	if err := workflow.ExecuteActivity(waitCtx, a.WaitForNS, WaitForNSInput{
+		Zone:       input.Zone,
+		ExpectedNS: input.Nameservers,
+	}).Get(ctx, nil); err != nil {
+		return markFailed(fmt.Sprintf("NS delegation not detected within timeout: %v", err))
+	}
+
 	certNamespace := "dp-system"
 	if err := workflow.ExecuteActivity(shortCtx, a.ApplyWildcardCert, ApplyWildcardCertInput{
 		Zone:      input.Zone,
