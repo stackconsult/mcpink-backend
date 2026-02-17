@@ -3,6 +3,7 @@ package dns
 import "go.temporal.io/sdk/worker"
 
 func RegisterWorkflowsAndActivities(w worker.Worker, activities *Activities) {
+	w.RegisterWorkflow(PreCreateZoneWorkflow)
 	w.RegisterWorkflow(ActivateZoneWorkflow)
 	w.RegisterWorkflow(DeactivateZoneWorkflow)
 	w.RegisterWorkflow(AttachSubdomainWorkflow)

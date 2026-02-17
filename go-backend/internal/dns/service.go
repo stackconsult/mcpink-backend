@@ -212,6 +212,21 @@ func (s *Service) VerifyDelegation(ctx context.Context, params VerifyDelegationP
 			}, nil
 		}
 		s.delegatedZonesQ.UpdateTXTVerified(ctx, dz.ID)
+
+		// Pre-create zone on PowerDNS so NS lookups don't REFUSED when the
+		// user adds delegation records at their registrar.
+		if cluster, ok := s.activeCluster(); ok {
+			workflowID := fmt.Sprintf("precreate-zone-%s", dz.ID)
+			_, _ = s.temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+				ID:        workflowID,
+				TaskQueue: TaskQueue,
+			}, PreCreateZoneWorkflow, CreateZoneInput{
+				Zone:        dz.Zone,
+				Nameservers: s.nameservers,
+				IngressIP:   cluster.IngressIp,
+			})
+		}
+
 		return &VerifyDelegationResult{
 			ZoneID:  dz.ID,
 			Zone:    dz.Zone,
@@ -256,20 +271,23 @@ func (s *Service) VerifyDelegation(ctx context.Context, params VerifyDelegationP
 	}, nil
 }
 
+func (s *Service) activeCluster() (clusters.Cluster, bool) {
+	for _, c := range s.clusters {
+		if c.Status == "active" {
+			return c, true
+		}
+	}
+	return clusters.Cluster{}, false
+}
+
 func (s *Service) startActivation(ctx context.Context, dz delegatedzones.DelegatedZone, records []DNSRecord) (*VerifyDelegationResult, error) {
 	dz, err := s.delegatedZonesQ.UpdateProvisioning(ctx, dz.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update zone status: %w", err)
 	}
 
-	var cluster clusters.Cluster
-	for _, c := range s.clusters {
-		if c.Status == "active" {
-			cluster = c
-			break
-		}
-	}
-	if cluster.Region == "" {
+	cluster, ok := s.activeCluster()
+	if !ok {
 		return nil, fmt.Errorf("no active cluster available")
 	}
 
@@ -318,7 +336,7 @@ func (s *Service) RemoveDelegation(ctx context.Context, params RemoveDelegationP
 		return nil, fmt.Errorf("delegation not found for zone %s", zone)
 	}
 
-	if dz.Status == "active" || dz.Status == "provisioning" {
+	if dz.Status == "active" || dz.Status == "provisioning" || dz.Status == "pending_delegation" {
 		workflowID := fmt.Sprintf("deactivate-zone-%s", dz.ID)
 		_, _ = s.temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 			ID:        workflowID,

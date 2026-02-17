@@ -8,6 +8,24 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
+// PreCreateZoneWorkflow creates the zone on PowerDNS right after TXT ownership
+// verification so that recursive NS lookups don't REFUSED/SERVFAIL when the user
+// later adds NS records at their registrar.
+func PreCreateZoneWorkflow(ctx workflow.Context, input CreateZoneInput) error {
+	actCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+		StartToCloseTimeout: 30 * time.Second,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:    time.Second,
+			BackoffCoefficient: 2.0,
+			MaximumInterval:    30 * time.Second,
+			MaximumAttempts:    3,
+		},
+	})
+
+	var a *Activities
+	return workflow.ExecuteActivity(actCtx, a.CreateZone, input).Get(ctx, nil)
+}
+
 func ActivateZoneWorkflow(ctx workflow.Context, input ActivateZoneInput) (ActivateZoneResult, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Starting zone activation", "zoneID", input.ZoneID, "zone", input.Zone)
