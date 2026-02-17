@@ -23,19 +23,27 @@ type CreateAPIKeyResult struct {
 	Secret string  `json:"secret"`
 }
 
+type DNSRecord struct {
+	Host     string `json:"host"`
+	Type     string `json:"type"`
+	Value    string `json:"value"`
+	Verified bool   `json:"verified"`
+}
+
 type DelegateZoneResult struct {
-	ZoneID       string `json:"zoneId"`
-	Zone         string `json:"zone"`
-	Status       string `json:"status"`
-	Instructions string `json:"instructions"`
+	ZoneID     string       `json:"zoneId"`
+	Zone       string       `json:"zone"`
+	Status     string       `json:"status"`
+	DNSRecords []*DNSRecord `json:"dnsRecords"`
 }
 
 type DelegatedZone struct {
-	ID        string    `json:"id"`
-	Zone      string    `json:"zone"`
-	Status    string    `json:"status"`
-	Error     *string   `json:"error,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID         string       `json:"id"`
+	Zone       string       `json:"zone"`
+	Status     string       `json:"status"`
+	Error      *string      `json:"error,omitempty"`
+	DNSRecords []*DNSRecord `json:"dnsRecords,omitempty"`
+	CreatedAt  time.Time    `json:"createdAt"`
 }
 
 type DeleteServiceResult struct {
@@ -172,11 +180,11 @@ type User struct {
 }
 
 type VerifyDelegationResult struct {
-	ZoneID       string  `json:"zoneId"`
-	Zone         string  `json:"zone"`
-	Status       string  `json:"status"`
-	Message      string  `json:"message"`
-	Instructions *string `json:"instructions,omitempty"`
+	ZoneID     string       `json:"zoneId"`
+	Zone       string       `json:"zone"`
+	Status     string       `json:"status"`
+	Message    string       `json:"message"`
+	DNSRecords []*DNSRecord `json:"dnsRecords"`
 }
 
 type MetricTimeRange string

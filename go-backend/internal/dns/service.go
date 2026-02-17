@@ -53,16 +53,27 @@ func NewService(
 	}
 }
 
+func (s *Service) Nameservers() []string {
+	return s.nameservers
+}
+
 type DelegateZoneParams struct {
 	UserID string
 	Zone   string
 }
 
+type DNSRecord struct {
+	Host     string
+	Type     string
+	Value    string
+	Verified bool
+}
+
 type DelegateZoneResult struct {
-	ZoneID       string
-	Zone         string
-	Status       string
-	Instructions string
+	ZoneID  string
+	Zone    string
+	Status  string
+	Records []DNSRecord
 }
 
 func (s *Service) DelegateZone(ctx context.Context, params DelegateZoneParams) (*DelegateZoneResult, error) {
@@ -98,13 +109,18 @@ func (s *Service) DelegateZone(ctx context.Context, params DelegateZoneParams) (
 		return nil, fmt.Errorf("failed to create delegated zone: %w", err)
 	}
 
-	instructions := DelegationInstructions(zone, token, s.nameservers)
+	records := []DNSRecord{
+		{Host: txtVerifyHost(zone), Type: "TXT", Value: "dp-verify=" + token},
+	}
+	for _, ns := range s.nameservers {
+		records = append(records, DNSRecord{Host: zone, Type: "NS", Value: ns})
+	}
 
 	return &DelegateZoneResult{
-		ZoneID:       dz.ID,
-		Zone:         zone,
-		Status:       dz.Status,
-		Instructions: instructions,
+		ZoneID:  dz.ID,
+		Zone:    zone,
+		Status:  dz.Status,
+		Records: records,
 	}, nil
 }
 
@@ -114,11 +130,11 @@ type VerifyDelegationParams struct {
 }
 
 type VerifyDelegationResult struct {
-	ZoneID       string
-	Zone         string
-	Status       string
-	Message      string
-	Instructions string
+	ZoneID  string
+	Zone    string
+	Status  string
+	Message string
+	Records []DNSRecord
 }
 
 func (s *Service) VerifyDelegation(ctx context.Context, params VerifyDelegationParams) (*VerifyDelegationResult, error) {
@@ -133,12 +149,39 @@ func (s *Service) VerifyDelegation(ctx context.Context, params VerifyDelegationP
 		return nil, fmt.Errorf("delegation not found for zone %s", zone)
 	}
 
+	// Check TXT and NS status for any non-terminal state
+	txtVerified := dz.VerifiedAt.Valid // already passed TXT
+	if !txtVerified && dz.Status != "active" {
+		ok, _ := VerifyTXT(dz.Zone, dz.VerificationToken)
+		txtVerified = ok
+	}
+
+	nsStatus := VerifyNSRecords(dz.Zone, s.nameservers)
+
+	records := []DNSRecord{
+		{
+			Host:     txtVerifyHost(dz.Zone),
+			Type:     "TXT",
+			Value:    "dp-verify=" + dz.VerificationToken,
+			Verified: txtVerified,
+		},
+	}
+	for _, ns := range s.nameservers {
+		records = append(records, DNSRecord{
+			Host:     dz.Zone,
+			Type:     "NS",
+			Value:    ns,
+			Verified: nsStatus[NormalizeDomain(ns)],
+		})
+	}
+
 	if dz.Status == "active" {
 		return &VerifyDelegationResult{
 			ZoneID:  dz.ID,
 			Zone:    dz.Zone,
 			Status:  "active",
 			Message: "Zone is already active",
+			Records: records,
 		}, nil
 	}
 
@@ -148,19 +191,15 @@ func (s *Service) VerifyDelegation(ctx context.Context, params VerifyDelegationP
 			Zone:    dz.Zone,
 			Status:  "provisioning",
 			Message: "Zone is being provisioned; please wait",
+			Records: records,
 		}, nil
 	}
 
 	// TXT verification → provisioning (zone created in PowerDNS, waits for NS)
 	if dz.Status == "pending_verification" || dz.Status == "pending_delegation" {
 		if dz.Status == "pending_verification" {
-			txtOK, txtErr := VerifyTXT(dz.Zone, dz.VerificationToken)
-			if txtErr != nil || !txtOK {
-				txtHost := txtVerifyHost(dz.Zone)
-				errMsg := fmt.Sprintf("TXT verification failed. Add TXT record: %s with value dp-verify=%s", txtHost, dz.VerificationToken)
-				if txtErr != nil {
-					errMsg = txtErr.Error()
-				}
+			if !txtVerified {
+				errMsg := fmt.Sprintf("TXT verification pending. Add TXT record: %s with value dp-verify=%s", txtVerifyHost(dz.Zone), dz.VerificationToken)
 				s.delegatedZonesQ.UpdateError(ctx, delegatedzones.UpdateErrorParams{
 					ID:        dz.ID,
 					LastError: &errMsg,
@@ -170,18 +209,18 @@ func (s *Service) VerifyDelegation(ctx context.Context, params VerifyDelegationP
 					Zone:    dz.Zone,
 					Status:  dz.Status,
 					Message: errMsg,
+					Records: records,
 				}, nil
 			}
-
 			s.delegatedZonesQ.UpdateTXTVerified(ctx, dz.ID)
 		}
 
-		return s.startActivation(ctx, dz)
+		return s.startActivation(ctx, dz, records)
 	}
 
 	// Retry failed zones
 	if dz.Status == "failed" {
-		return s.startActivation(ctx, dz)
+		return s.startActivation(ctx, dz, records)
 	}
 
 	return &VerifyDelegationResult{
@@ -189,10 +228,11 @@ func (s *Service) VerifyDelegation(ctx context.Context, params VerifyDelegationP
 		Zone:    dz.Zone,
 		Status:  dz.Status,
 		Message: fmt.Sprintf("Zone is in unexpected status: %s", dz.Status),
+		Records: records,
 	}, nil
 }
 
-func (s *Service) startActivation(ctx context.Context, dz delegatedzones.DelegatedZone) (*VerifyDelegationResult, error) {
+func (s *Service) startActivation(ctx context.Context, dz delegatedzones.DelegatedZone, records []DNSRecord) (*VerifyDelegationResult, error) {
 	dz, err := s.delegatedZonesQ.UpdateProvisioning(ctx, dz.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update zone status: %w", err)
@@ -223,17 +263,12 @@ func (s *Service) startActivation(ctx context.Context, dz delegatedzones.Delegat
 		return nil, fmt.Errorf("failed to start zone activation workflow: %w", err)
 	}
 
-	nsList := ""
-	for _, ns := range s.nameservers {
-		nsList += fmt.Sprintf("   %s  NS  %s\n", dz.Zone, ns)
-	}
-
 	return &VerifyDelegationResult{
-		ZoneID:       dz.ID,
-		Zone:         dz.Zone,
-		Status:       "provisioning",
-		Message:      "TXT verified! Provisioning started. Add NS records to complete activation.",
-		Instructions: fmt.Sprintf("Add the following NS records at your registrar:\n\n%s\nThe system will detect them automatically and complete provisioning.", nsList),
+		ZoneID:  dz.ID,
+		Zone:    dz.Zone,
+		Status:  "provisioning",
+		Message: "TXT verified! Provisioning started. Add NS records to complete activation.",
+		Records: records,
 	}, nil
 }
 

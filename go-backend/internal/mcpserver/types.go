@@ -15,7 +15,7 @@ type EnvVar struct {
 }
 
 type CreateServiceInput struct {
-	Repo   string `json:"repo" jsonschema:"description=Repository name (e.g. 'myapp')"`
+	Repo   string `json:"repo" jsonschema:"description=Repository name as returned by create_repo (e.g. 'myapp-xkcd'). For ml.ink repos this includes a random slug — use the exact 'repo' value from create_repo response."`
 	Host   string `json:"host,omitempty" jsonschema:"description=Git host,enum=ml.ink,enum=github.com,default=ml.ink"`
 	Branch string `json:"branch,omitempty" jsonschema:"description=Branch to deploy,default=main"`
 	Name   string `json:"name" jsonschema:"description=Name for the deployment"`
@@ -259,11 +259,18 @@ type DelegateZoneInput struct {
 	Zone string `json:"zone" jsonschema:"description=Subdomain zone to delegate (e.g. 'apps.example.com')"`
 }
 
+type MCPDNSRecord struct {
+	Host     string `json:"host"`
+	Type     string `json:"type"`
+	Value    string `json:"value"`
+	Verified bool   `json:"verified"`
+}
+
 type DelegateZoneOutput struct {
-	ZoneID       string `json:"zone_id"`
-	Zone         string `json:"zone"`
-	Status       string `json:"status"`
-	Instructions string `json:"instructions"`
+	ZoneID     string         `json:"zone_id"`
+	Zone       string         `json:"zone"`
+	Status     string         `json:"status"`
+	DNSRecords []MCPDNSRecord `json:"dns_records"`
 }
 
 type VerifyDelegationInput struct {
@@ -271,11 +278,11 @@ type VerifyDelegationInput struct {
 }
 
 type VerifyDelegationOutput struct {
-	ZoneID       string `json:"zone_id"`
-	Zone         string `json:"zone"`
-	Status       string `json:"status"`
-	Message      string `json:"message"`
-	Instructions string `json:"instructions,omitempty"`
+	ZoneID     string         `json:"zone_id"`
+	Zone       string         `json:"zone"`
+	Status     string         `json:"status"`
+	Message    string         `json:"message"`
+	DNSRecords []MCPDNSRecord `json:"dns_records,omitempty"`
 }
 
 type RemoveDelegationInput struct {

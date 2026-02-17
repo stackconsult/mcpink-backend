@@ -27,10 +27,10 @@ func (r *mutationResolver) DelegateZone(ctx context.Context, zone string) (*mode
 	}
 
 	return &model.DelegateZoneResult{
-		ZoneID:       result.ZoneID,
-		Zone:         result.Zone,
-		Status:       result.Status,
-		Instructions: result.Instructions,
+		ZoneID:     result.ZoneID,
+		Zone:       result.Zone,
+		Status:     result.Status,
+		DNSRecords: toGQLDNSRecords(result.Records),
 	}, nil
 }
 
@@ -46,17 +46,12 @@ func (r *mutationResolver) VerifyDelegation(ctx context.Context, zone string) (*
 		return nil, err
 	}
 
-	var instructions *string
-	if result.Instructions != "" {
-		instructions = &result.Instructions
-	}
-
 	return &model.VerifyDelegationResult{
-		ZoneID:       result.ZoneID,
-		Zone:         result.Zone,
-		Status:       result.Status,
-		Message:      result.Message,
-		Instructions: instructions,
+		ZoneID:     result.ZoneID,
+		Zone:       result.Zone,
+		Status:     result.Status,
+		Message:    result.Message,
+		DNSRecords: toGQLDNSRecords(result.Records),
 	}, nil
 }
 
@@ -87,19 +82,40 @@ func (r *queryResolver) ListDelegatedZones(ctx context.Context) ([]*model.Delega
 		return nil, fmt.Errorf("failed to list delegated zones: %w", err)
 	}
 
+	nameservers := r.DNSService.Nameservers()
+
 	result := make([]*model.DelegatedZone, len(zones))
 	for i, z := range zones {
-		var errStr *string
-		if z.LastError != nil {
-			errStr = z.LastError
-		}
-		result[i] = &model.DelegatedZone{
+		dz := &model.DelegatedZone{
 			ID:        z.ID,
 			Zone:      z.Zone,
 			Status:    z.Status,
-			Error:     errStr,
+			Error:     z.LastError,
 			CreatedAt: z.CreatedAt.Time,
 		}
+
+		var records []*model.DNSRecord
+		if z.Status == "pending_verification" {
+			records = append(records, &model.DNSRecord{
+				Host:     "_dp-verify." + z.Zone,
+				Type:     "TXT",
+				Value:    "dp-verify=" + z.VerificationToken,
+				Verified: false,
+			})
+		}
+		if z.Status != "active" {
+			for _, ns := range nameservers {
+				records = append(records, &model.DNSRecord{
+					Host:     z.Zone,
+					Type:     "NS",
+					Value:    ns,
+					Verified: false,
+				})
+			}
+		}
+		dz.DNSRecords = records
+
+		result[i] = dz
 	}
 
 	return result, nil

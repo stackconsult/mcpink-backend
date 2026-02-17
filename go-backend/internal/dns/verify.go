@@ -33,14 +33,17 @@ func VerifyTXT(zone, expectedToken string) (bool, error) {
 	return false, nil
 }
 
-// VerifyNS checks that the zone's NS records resolve to our nameservers.
-// This relies on the zone already existing in PowerDNS (created before
-// NS verification) so that recursive resolvers can follow the delegation
-// chain without getting REFUSED.
-func VerifyNS(zone string, expectedNS []string) (bool, error) {
+// VerifyNSRecords checks each expected NS record individually and returns
+// a map of normalized NS hostname → verified status.
+func VerifyNSRecords(zone string, expectedNS []string) map[string]bool {
+	result := make(map[string]bool, len(expectedNS))
+	for _, ns := range expectedNS {
+		result[NormalizeDomain(ns)] = false
+	}
+
 	nsRecords, err := net.LookupNS(NormalizeDomain(zone))
 	if err != nil {
-		return false, fmt.Errorf("NS lookup failed for %s: %w", zone, err)
+		return result
 	}
 
 	found := make(map[string]bool)
@@ -49,11 +52,9 @@ func VerifyNS(zone string, expectedNS []string) (bool, error) {
 	}
 
 	for _, expected := range expectedNS {
-		if !found[NormalizeDomain(expected)] {
-			return false, nil
-		}
+		result[NormalizeDomain(expected)] = found[NormalizeDomain(expected)]
 	}
-	return true, nil
+	return result
 }
 
 func GenerateVerificationToken() string {
@@ -96,23 +97,4 @@ func ValidateDelegatedZone(zone, platformDomain string) error {
 	}
 
 	return nil
-}
-
-func DelegationInstructions(zone, token string, nameservers []string) string {
-	txtHost := txtVerifyHost(zone)
-	nsList := ""
-	for _, ns := range nameservers {
-		nsList += fmt.Sprintf("   %s  NS  %s\n", zone, ns)
-	}
-
-	return fmt.Sprintf(
-		"Step 1 — Add this TXT record and call verify_delegation:\n\n"+
-			"   Host: %s\n"+
-			"   Type: TXT\n"+
-			"   Value: dp-verify=%s\n\n"+
-			"Step 2 — After TXT is verified, add NS records:\n\n"+
-			"%s\n"+
-			"Then call verify_delegation again.",
-		txtHost, token, nsList,
-	)
 }

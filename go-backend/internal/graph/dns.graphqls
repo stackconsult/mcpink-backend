@@ -13,14 +13,22 @@ type DelegatedZone {
   zone: String!
   status: String!
   error: String
+  dnsRecords: [DNSRecord!]
   createdAt: Time!
+}
+
+type DNSRecord {
+  host: String!
+  type: String!
+  value: String!
+  verified: Boolean!
 }
 
 type DelegateZoneResult {
   zoneId: ID!
   zone: String!
   status: String!
-  instructions: String!
+  dnsRecords: [DNSRecord!]!
 }
 
 type VerifyDelegationResult {
@@ -28,7 +36,7 @@ type VerifyDelegationResult {
   zone: String!
   status: String!
   message: String!
-  instructions: String
+  dnsRecords: [DNSRecord!]!
 }
 
 type RemoveDelegationResult {

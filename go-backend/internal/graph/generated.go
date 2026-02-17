@@ -67,19 +67,27 @@ type ComplexityRoot struct {
 		Secret func(childComplexity int) int
 	}
 
+	DNSRecord struct {
+		Host     func(childComplexity int) int
+		Type     func(childComplexity int) int
+		Value    func(childComplexity int) int
+		Verified func(childComplexity int) int
+	}
+
 	DelegateZoneResult struct {
-		Instructions func(childComplexity int) int
-		Status       func(childComplexity int) int
-		Zone         func(childComplexity int) int
-		ZoneID       func(childComplexity int) int
+		DNSRecords func(childComplexity int) int
+		Status     func(childComplexity int) int
+		Zone       func(childComplexity int) int
+		ZoneID     func(childComplexity int) int
 	}
 
 	DelegatedZone struct {
-		CreatedAt func(childComplexity int) int
-		Error     func(childComplexity int) int
-		ID        func(childComplexity int) int
-		Status    func(childComplexity int) int
-		Zone      func(childComplexity int) int
+		CreatedAt  func(childComplexity int) int
+		DNSRecords func(childComplexity int) int
+		Error      func(childComplexity int) int
+		ID         func(childComplexity int) int
+		Status     func(childComplexity int) int
+		Zone       func(childComplexity int) int
 	}
 
 	DeleteServiceResult struct {
@@ -233,11 +241,11 @@ type ComplexityRoot struct {
 	}
 
 	VerifyDelegationResult struct {
-		Instructions func(childComplexity int) int
-		Message      func(childComplexity int) int
-		Status       func(childComplexity int) int
-		Zone         func(childComplexity int) int
-		ZoneID       func(childComplexity int) int
+		DNSRecords func(childComplexity int) int
+		Message    func(childComplexity int) int
+		Status     func(childComplexity int) int
+		Zone       func(childComplexity int) int
+		ZoneID     func(childComplexity int) int
 	}
 }
 
@@ -335,12 +343,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.CreateAPIKeyResult.Secret(childComplexity), true
 
-	case "DelegateZoneResult.instructions":
-		if e.complexity.DelegateZoneResult.Instructions == nil {
+	case "DNSRecord.host":
+		if e.complexity.DNSRecord.Host == nil {
 			break
 		}
 
-		return e.complexity.DelegateZoneResult.Instructions(childComplexity), true
+		return e.complexity.DNSRecord.Host(childComplexity), true
+	case "DNSRecord.type":
+		if e.complexity.DNSRecord.Type == nil {
+			break
+		}
+
+		return e.complexity.DNSRecord.Type(childComplexity), true
+	case "DNSRecord.value":
+		if e.complexity.DNSRecord.Value == nil {
+			break
+		}
+
+		return e.complexity.DNSRecord.Value(childComplexity), true
+	case "DNSRecord.verified":
+		if e.complexity.DNSRecord.Verified == nil {
+			break
+		}
+
+		return e.complexity.DNSRecord.Verified(childComplexity), true
+
+	case "DelegateZoneResult.dnsRecords":
+		if e.complexity.DelegateZoneResult.DNSRecords == nil {
+			break
+		}
+
+		return e.complexity.DelegateZoneResult.DNSRecords(childComplexity), true
 	case "DelegateZoneResult.status":
 		if e.complexity.DelegateZoneResult.Status == nil {
 			break
@@ -366,6 +399,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.DelegatedZone.CreatedAt(childComplexity), true
+	case "DelegatedZone.dnsRecords":
+		if e.complexity.DelegatedZone.DNSRecords == nil {
+			break
+		}
+
+		return e.complexity.DelegatedZone.DNSRecords(childComplexity), true
 	case "DelegatedZone.error":
 		if e.complexity.DelegatedZone.Error == nil {
 			break
@@ -1050,12 +1089,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.User.ID(childComplexity), true
 
-	case "VerifyDelegationResult.instructions":
-		if e.complexity.VerifyDelegationResult.Instructions == nil {
+	case "VerifyDelegationResult.dnsRecords":
+		if e.complexity.VerifyDelegationResult.DNSRecords == nil {
 			break
 		}
 
-		return e.complexity.VerifyDelegationResult.Instructions(childComplexity), true
+		return e.complexity.VerifyDelegationResult.DNSRecords(childComplexity), true
 	case "VerifyDelegationResult.message":
 		if e.complexity.VerifyDelegationResult.Message == nil {
 			break
@@ -1682,6 +1721,122 @@ func (ec *executionContext) fieldContext_CreateAPIKeyResult_secret(_ context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _DNSRecord_host(ctx context.Context, field graphql.CollectedField, obj *model.DNSRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DNSRecord_host,
+		func(ctx context.Context) (any, error) {
+			return obj.Host, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DNSRecord_host(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DNSRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DNSRecord_type(ctx context.Context, field graphql.CollectedField, obj *model.DNSRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DNSRecord_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DNSRecord_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DNSRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DNSRecord_value(ctx context.Context, field graphql.CollectedField, obj *model.DNSRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DNSRecord_value,
+		func(ctx context.Context) (any, error) {
+			return obj.Value, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DNSRecord_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DNSRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DNSRecord_verified(ctx context.Context, field graphql.CollectedField, obj *model.DNSRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DNSRecord_verified,
+		func(ctx context.Context) (any, error) {
+			return obj.Verified, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DNSRecord_verified(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DNSRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _DelegateZoneResult_zoneId(ctx context.Context, field graphql.CollectedField, obj *model.DelegateZoneResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1769,30 +1924,40 @@ func (ec *executionContext) fieldContext_DelegateZoneResult_status(_ context.Con
 	return fc, nil
 }
 
-func (ec *executionContext) _DelegateZoneResult_instructions(ctx context.Context, field graphql.CollectedField, obj *model.DelegateZoneResult) (ret graphql.Marshaler) {
+func (ec *executionContext) _DelegateZoneResult_dnsRecords(ctx context.Context, field graphql.CollectedField, obj *model.DelegateZoneResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_DelegateZoneResult_instructions,
+		ec.fieldContext_DelegateZoneResult_dnsRecords,
 		func(ctx context.Context) (any, error) {
-			return obj.Instructions, nil
+			return obj.DNSRecords, nil
 		},
 		nil,
-		ec.marshalNString2string,
+		ec.marshalNDNSRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecordᚄ,
 		true,
 		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_DelegateZoneResult_instructions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_DelegateZoneResult_dnsRecords(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "DelegateZoneResult",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			switch field.Name {
+			case "host":
+				return ec.fieldContext_DNSRecord_host(ctx, field)
+			case "type":
+				return ec.fieldContext_DNSRecord_type(ctx, field)
+			case "value":
+				return ec.fieldContext_DNSRecord_value(ctx, field)
+			case "verified":
+				return ec.fieldContext_DNSRecord_verified(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DNSRecord", field.Name)
 		},
 	}
 	return fc, nil
@@ -1909,6 +2074,45 @@ func (ec *executionContext) fieldContext_DelegatedZone_error(_ context.Context, 
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DelegatedZone_dnsRecords(ctx context.Context, field graphql.CollectedField, obj *model.DelegatedZone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DelegatedZone_dnsRecords,
+		func(ctx context.Context) (any, error) {
+			return obj.DNSRecords, nil
+		},
+		nil,
+		ec.marshalODNSRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecordᚄ,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_DelegatedZone_dnsRecords(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DelegatedZone",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "host":
+				return ec.fieldContext_DNSRecord_host(ctx, field)
+			case "type":
+				return ec.fieldContext_DNSRecord_type(ctx, field)
+			case "value":
+				return ec.fieldContext_DNSRecord_value(ctx, field)
+			case "verified":
+				return ec.fieldContext_DNSRecord_verified(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DNSRecord", field.Name)
 		},
 	}
 	return fc, nil
@@ -2410,8 +2614,8 @@ func (ec *executionContext) fieldContext_Mutation_delegateZone(ctx context.Conte
 				return ec.fieldContext_DelegateZoneResult_zone(ctx, field)
 			case "status":
 				return ec.fieldContext_DelegateZoneResult_status(ctx, field)
-			case "instructions":
-				return ec.fieldContext_DelegateZoneResult_instructions(ctx, field)
+			case "dnsRecords":
+				return ec.fieldContext_DelegateZoneResult_dnsRecords(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type DelegateZoneResult", field.Name)
 		},
@@ -2476,8 +2680,8 @@ func (ec *executionContext) fieldContext_Mutation_verifyDelegation(ctx context.C
 				return ec.fieldContext_VerifyDelegationResult_status(ctx, field)
 			case "message":
 				return ec.fieldContext_VerifyDelegationResult_message(ctx, field)
-			case "instructions":
-				return ec.fieldContext_VerifyDelegationResult_instructions(ctx, field)
+			case "dnsRecords":
+				return ec.fieldContext_VerifyDelegationResult_dnsRecords(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type VerifyDelegationResult", field.Name)
 		},
@@ -3218,6 +3422,8 @@ func (ec *executionContext) fieldContext_Query_listDelegatedZones(_ context.Cont
 				return ec.fieldContext_DelegatedZone_status(ctx, field)
 			case "error":
 				return ec.fieldContext_DelegatedZone_error(ctx, field)
+			case "dnsRecords":
+				return ec.fieldContext_DelegatedZone_dnsRecords(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_DelegatedZone_createdAt(ctx, field)
 			}
@@ -5754,30 +5960,40 @@ func (ec *executionContext) fieldContext_VerifyDelegationResult_message(_ contex
 	return fc, nil
 }
 
-func (ec *executionContext) _VerifyDelegationResult_instructions(ctx context.Context, field graphql.CollectedField, obj *model.VerifyDelegationResult) (ret graphql.Marshaler) {
+func (ec *executionContext) _VerifyDelegationResult_dnsRecords(ctx context.Context, field graphql.CollectedField, obj *model.VerifyDelegationResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_VerifyDelegationResult_instructions,
+		ec.fieldContext_VerifyDelegationResult_dnsRecords,
 		func(ctx context.Context) (any, error) {
-			return obj.Instructions, nil
+			return obj.DNSRecords, nil
 		},
 		nil,
-		ec.marshalOString2ᚖstring,
+		ec.marshalNDNSRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecordᚄ,
 		true,
-		false,
+		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_VerifyDelegationResult_instructions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_VerifyDelegationResult_dnsRecords(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "VerifyDelegationResult",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			switch field.Name {
+			case "host":
+				return ec.fieldContext_DNSRecord_host(ctx, field)
+			case "type":
+				return ec.fieldContext_DNSRecord_type(ctx, field)
+			case "value":
+				return ec.fieldContext_DNSRecord_value(ctx, field)
+			case "verified":
+				return ec.fieldContext_DNSRecord_verified(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DNSRecord", field.Name)
 		},
 	}
 	return fc, nil
@@ -7337,6 +7553,60 @@ func (ec *executionContext) _CreateAPIKeyResult(ctx context.Context, sel ast.Sel
 	return out
 }
 
+var dNSRecordImplementors = []string{"DNSRecord"}
+
+func (ec *executionContext) _DNSRecord(ctx context.Context, sel ast.SelectionSet, obj *model.DNSRecord) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dNSRecordImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DNSRecord")
+		case "host":
+			out.Values[i] = ec._DNSRecord_host(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._DNSRecord_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "value":
+			out.Values[i] = ec._DNSRecord_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "verified":
+			out.Values[i] = ec._DNSRecord_verified(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var delegateZoneResultImplementors = []string{"DelegateZoneResult"}
 
 func (ec *executionContext) _DelegateZoneResult(ctx context.Context, sel ast.SelectionSet, obj *model.DelegateZoneResult) graphql.Marshaler {
@@ -7363,8 +7633,8 @@ func (ec *executionContext) _DelegateZoneResult(ctx context.Context, sel ast.Sel
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "instructions":
-			out.Values[i] = ec._DelegateZoneResult_instructions(ctx, field, obj)
+		case "dnsRecords":
+			out.Values[i] = ec._DelegateZoneResult_dnsRecords(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -7419,6 +7689,8 @@ func (ec *executionContext) _DelegatedZone(ctx context.Context, sel ast.Selectio
 			}
 		case "error":
 			out.Values[i] = ec._DelegatedZone_error(ctx, field, obj)
+		case "dnsRecords":
+			out.Values[i] = ec._DelegatedZone_dnsRecords(ctx, field, obj)
 		case "createdAt":
 			out.Values[i] = ec._DelegatedZone_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -8796,8 +9068,11 @@ func (ec *executionContext) _VerifyDelegationResult(ctx context.Context, sel ast
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "instructions":
-			out.Values[i] = ec._VerifyDelegationResult_instructions(ctx, field, obj)
+		case "dnsRecords":
+			out.Values[i] = ec._VerifyDelegationResult_dnsRecords(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -9238,6 +9513,60 @@ func (ec *executionContext) marshalNCreateAPIKeyResult2ᚖgithubᚗcomᚋaugustd
 		return graphql.Null
 	}
 	return ec._CreateAPIKeyResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDNSRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecordᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DNSRecord) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNDNSRecord2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecord(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDNSRecord2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecord(ctx context.Context, sel ast.SelectionSet, v *model.DNSRecord) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DNSRecord(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNDelegateZoneResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegateZoneResult(ctx context.Context, sel ast.SelectionSet, v model.DelegateZoneResult) graphql.Marshaler {
@@ -10117,6 +10446,53 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
 	return res
+}
+
+func (ec *executionContext) marshalODNSRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecordᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DNSRecord) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNDNSRecord2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecord(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v any) (*string, error) {

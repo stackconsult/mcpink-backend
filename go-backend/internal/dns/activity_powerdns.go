@@ -45,15 +45,19 @@ func (a *Activities) WaitForNS(ctx context.Context, input WaitForNSInput) error 
 		case <-ticker.C:
 			recordHeartbeat(ctx, "waiting for NS delegation")
 
-			ok, err := VerifyNS(input.Zone, input.ExpectedNS)
-			if err != nil {
-				a.logger.Debug("NS lookup not ready yet", "zone", input.Zone, "error", err)
-				continue
+			nsStatus := VerifyNSRecords(input.Zone, input.ExpectedNS)
+			allVerified := true
+			for _, v := range nsStatus {
+				if !v {
+					allVerified = false
+					break
+				}
 			}
-			if ok {
+			if allVerified {
 				a.logger.Info("NS delegation verified", "zone", input.Zone)
 				return nil
 			}
+			a.logger.Debug("NS lookup not ready yet", "zone", input.Zone)
 		}
 	}
 }

@@ -757,10 +757,10 @@ func (s *Server) handleDelegateZone(ctx context.Context, req *mcp.CallToolReques
 	}
 
 	return nil, DelegateZoneOutput{
-		ZoneID:       result.ZoneID,
-		Zone:         result.Zone,
-		Status:       result.Status,
-		Instructions: result.Instructions,
+		ZoneID:     result.ZoneID,
+		Zone:       result.Zone,
+		Status:     result.Status,
+		DNSRecords: toMCPDNSRecords(result.Records),
 	}, nil
 }
 
@@ -783,11 +783,11 @@ func (s *Server) handleVerifyDelegation(ctx context.Context, req *mcp.CallToolRe
 	}
 
 	return nil, VerifyDelegationOutput{
-		ZoneID:       result.ZoneID,
-		Zone:         result.Zone,
-		Status:       result.Status,
-		Message:      result.Message,
-		Instructions: result.Instructions,
+		ZoneID:     result.ZoneID,
+		Zone:       result.Zone,
+		Status:     result.Status,
+		Message:    result.Message,
+		DNSRecords: toMCPDNSRecords(result.Records),
 	}, nil
 }
 
@@ -838,4 +838,17 @@ func (s *Server) handleListDelegations(ctx context.Context, req *mcp.CallToolReq
 	}
 
 	return nil, ListDelegationsOutput{Delegations: delegations}, nil
+}
+
+func toMCPDNSRecords(records []dns.DNSRecord) []MCPDNSRecord {
+	out := make([]MCPDNSRecord, len(records))
+	for i, r := range records {
+		out[i] = MCPDNSRecord{
+			Host:     r.Host,
+			Type:     r.Type,
+			Value:    r.Value,
+			Verified: r.Verified,
+		}
+	}
+	return out
 }

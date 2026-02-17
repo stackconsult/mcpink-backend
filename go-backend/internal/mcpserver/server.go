@@ -137,7 +137,7 @@ func (s *Server) registerTools() {
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "create_repo",
-		Description: "Create a git repository. Use host='ml.ink' (default) for instant private repos, or host='github.com' for GitHub.",
+		Description: "Create a git repository. Use host='ml.ink' (default) for instant private repos, or host='github.com' for GitHub. IMPORTANT: For ml.ink repos, the returned 'repo' field contains the actual repo name (with a random slug appended, e.g. 'myapp-xkcd'). Always use this returned repo name for create_service and other operations.",
 		InputSchema: schemaFor[CreateRepoInput](),
 	}, s.handleCreateRepo)
 
