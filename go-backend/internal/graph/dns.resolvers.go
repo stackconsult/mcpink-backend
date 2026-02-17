@@ -94,26 +94,34 @@ func (r *queryResolver) ListDelegatedZones(ctx context.Context) ([]*model.Delega
 			CreatedAt: z.CreatedAt.Time,
 		}
 
-		var records []*model.DNSRecord
-		if z.Status == "pending_verification" {
-			records = append(records, &model.DNSRecord{
-				Host:     "_dp-verify." + z.Zone,
-				Type:     "TXT",
-				Value:    "dp-verify=" + z.VerificationToken,
-				Verified: false,
-			})
-		}
 		if z.Status != "active" {
+			txtVerified := z.VerifiedAt.Valid
+			if !txtVerified {
+				ok, _ := dns.VerifyTXT(z.Zone, z.VerificationToken)
+				txtVerified = ok
+			}
+
+			nsStatus := dns.VerifyNSRecords(z.Zone, nameservers)
+
+			var records []*model.DNSRecord
+			if z.Status == "pending_verification" {
+				records = append(records, &model.DNSRecord{
+					Host:     "_dp-verify." + z.Zone,
+					Type:     "TXT",
+					Value:    "dp-verify=" + z.VerificationToken,
+					Verified: txtVerified,
+				})
+			}
 			for _, ns := range nameservers {
 				records = append(records, &model.DNSRecord{
 					Host:     z.Zone,
 					Type:     "NS",
 					Value:    ns,
-					Verified: false,
+					Verified: nsStatus[dns.NormalizeDomain(ns)],
 				})
 			}
+			dz.DNSRecords = records
 		}
-		dz.DNSRecords = records
 
 		result[i] = dz
 	}

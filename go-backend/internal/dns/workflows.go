@@ -53,23 +53,6 @@ func ActivateZoneWorkflow(ctx workflow.Context, input ActivateZoneInput) (Activa
 		return markFailed(fmt.Sprintf("failed to create zone: %v", err))
 	}
 
-	nsCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 1 * time.Hour,
-		HeartbeatTimeout:    30 * time.Second,
-		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval:    15 * time.Second,
-			BackoffCoefficient: 1.0,
-			MaximumAttempts:    1,
-		},
-	})
-
-	if err := workflow.ExecuteActivity(nsCtx, a.WaitForNS, WaitForNSInput{
-		Zone:       input.Zone,
-		ExpectedNS: input.Nameservers,
-	}).Get(ctx, nil); err != nil {
-		return markFailed(fmt.Sprintf("NS delegation not detected within timeout: %v", err))
-	}
-
 	certNamespace := "dp-system"
 	if err := workflow.ExecuteActivity(shortCtx, a.ApplyWildcardCert, ApplyWildcardCertInput{
 		Zone:      input.Zone,

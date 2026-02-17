@@ -195,26 +195,50 @@ func (s *Service) VerifyDelegation(ctx context.Context, params VerifyDelegationP
 		}, nil
 	}
 
-	// TXT verification → provisioning (zone created in PowerDNS, waits for NS)
-	if dz.Status == "pending_verification" || dz.Status == "pending_delegation" {
-		if dz.Status == "pending_verification" {
-			if !txtVerified {
-				errMsg := fmt.Sprintf("TXT verification pending. Add TXT record: %s with value dp-verify=%s", txtVerifyHost(dz.Zone), dz.VerificationToken)
-				s.delegatedZonesQ.UpdateError(ctx, delegatedzones.UpdateErrorParams{
-					ID:        dz.ID,
-					LastError: &errMsg,
-				})
-				return &VerifyDelegationResult{
-					ZoneID:  dz.ID,
-					Zone:    dz.Zone,
-					Status:  dz.Status,
-					Message: errMsg,
-					Records: records,
-				}, nil
-			}
-			s.delegatedZonesQ.UpdateTXTVerified(ctx, dz.ID)
+	// Step 1: TXT verification → pending_delegation
+	if dz.Status == "pending_verification" {
+		if !txtVerified {
+			errMsg := fmt.Sprintf("TXT verification pending. Add TXT record: %s with value dp-verify=%s", txtVerifyHost(dz.Zone), dz.VerificationToken)
+			s.delegatedZonesQ.UpdateError(ctx, delegatedzones.UpdateErrorParams{
+				ID:        dz.ID,
+				LastError: &errMsg,
+			})
+			return &VerifyDelegationResult{
+				ZoneID:  dz.ID,
+				Zone:    dz.Zone,
+				Status:  dz.Status,
+				Message: errMsg,
+				Records: records,
+			}, nil
 		}
+		s.delegatedZonesQ.UpdateTXTVerified(ctx, dz.ID)
+		return &VerifyDelegationResult{
+			ZoneID:  dz.ID,
+			Zone:    dz.Zone,
+			Status:  "pending_delegation",
+			Message: "TXT verified! Now add the NS records at your registrar.",
+			Records: records,
+		}, nil
+	}
 
+	// Step 2: NS verification → provisioning
+	if dz.Status == "pending_delegation" {
+		allNS := true
+		for _, ns := range s.nameservers {
+			if !nsStatus[NormalizeDomain(ns)] {
+				allNS = false
+				break
+			}
+		}
+		if !allNS {
+			return &VerifyDelegationResult{
+				ZoneID:  dz.ID,
+				Zone:    dz.Zone,
+				Status:  dz.Status,
+				Message: "NS records not yet detected. Please add them at your registrar and try again.",
+				Records: records,
+			}, nil
+		}
 		return s.startActivation(ctx, dz, records)
 	}
 
