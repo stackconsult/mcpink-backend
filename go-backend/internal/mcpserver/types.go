@@ -253,47 +253,6 @@ type RemoveCustomDomainOutput struct {
 	Message   string `json:"message"`
 }
 
-// Delegation tools
-
-type DelegateZoneInput struct {
-	Zone string `json:"zone" jsonschema:"description=Subdomain zone to delegate (e.g. 'apps.example.com')"`
-}
-
-type MCPDNSRecord struct {
-	Host     string `json:"host"`
-	Type     string `json:"type"`
-	Value    string `json:"value"`
-	Verified bool   `json:"verified"`
-}
-
-type DelegateZoneOutput struct {
-	ZoneID     string         `json:"zone_id"`
-	Zone       string         `json:"zone"`
-	Status     string         `json:"status"`
-	DNSRecords []MCPDNSRecord `json:"dns_records"`
-}
-
-type VerifyDelegationInput struct {
-	Zone string `json:"zone" jsonschema:"description=Zone to verify (e.g. 'apps.example.com')"`
-}
-
-type VerifyDelegationOutput struct {
-	ZoneID     string         `json:"zone_id"`
-	Zone       string         `json:"zone"`
-	Status     string         `json:"status"`
-	Message    string         `json:"message"`
-	DNSRecords []MCPDNSRecord `json:"dns_records,omitempty"`
-}
-
-type RemoveDelegationInput struct {
-	Zone string `json:"zone" jsonschema:"description=Zone to remove (e.g. 'apps.example.com')"`
-}
-
-type RemoveDelegationOutput struct {
-	ZoneID  string `json:"zone_id"`
-	Message string `json:"message"`
-}
-
 type ListProjectsInput struct{}
 
 type ProjectInfo struct {

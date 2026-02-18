@@ -166,26 +166,8 @@ func (s *Server) registerTools() {
 	}, s.handleRemoveCustomDomain)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "delegate_zone",
-		Description: "Delegate a subdomain zone to the platform. Returns TXT verification instructions.",
-		InputSchema: schemaFor[DelegateZoneInput](),
-	}, s.handleDelegateZone)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "verify_delegation",
-		Description: "Verify zone delegation (phase 1: TXT ownership, phase 2: NS records). Call after configuring DNS records.",
-		InputSchema: schemaFor[VerifyDelegationInput](),
-	}, s.handleVerifyDelegation)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "remove_delegation",
-		Description: "Remove a delegated zone and all its subdomains.",
-		InputSchema: schemaFor[RemoveDelegationInput](),
-	}, s.handleRemoveDelegation)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "list_delegations",
-		Description: "List all delegated zones with their status.",
+		Description: "List all delegated zones with their status. Zone delegation can be set up at https://ml.ink/dns",
 		InputSchema: schemaFor[ListDelegationsInput](),
 	}, s.handleListDelegations)
 }
