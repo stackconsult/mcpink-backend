@@ -11,6 +11,7 @@ import (
 
 	"github.com/augustdev/autoclip/internal/authz"
 	"github.com/augustdev/autoclip/internal/deployments"
+	"github.com/augustdev/autoclip/internal/graph/dataloader"
 	"github.com/augustdev/autoclip/internal/graph/model"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 )
@@ -44,11 +45,6 @@ func (r *mutationResolver) DeleteService(ctx context.Context, name string, proje
 func (r *queryResolver) ListServices(ctx context.Context, first *int32, after *string) (*model.ServiceConnection, error) {
 	userID := authz.For(ctx).GetUserID()
 
-	totalCount, err := r.ServiceQueries.CountServicesByUserID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to count services: %w", err)
-	}
-
 	// For now, return all items (ignore pagination params)
 	limit := int32(1000)
 	offset := int32(0)
@@ -62,9 +58,9 @@ func (r *queryResolver) ListServices(ctx context.Context, first *int32, after *s
 		return nil, fmt.Errorf("failed to list services: %w", err)
 	}
 
-	nodes, err := enrichServices(ctx, dbServices)
-	if err != nil {
-		return nil, fmt.Errorf("failed to enrich services: %w", err)
+	nodes := make([]*model.Service, len(dbServices))
+	for i := range dbServices {
+		nodes[i] = dbServiceToModel(&dbServices[i])
 	}
 
 	var startCursor, endCursor *string
@@ -81,7 +77,7 @@ func (r *queryResolver) ListServices(ctx context.Context, first *int32, after *s
 			StartCursor:     startCursor,
 			EndCursor:       endCursor,
 		},
-		TotalCount: int32(totalCount),
+		TotalCount: int32(len(nodes)),
 	}, nil
 }
 
@@ -98,11 +94,7 @@ func (r *queryResolver) ServiceDetails(ctx context.Context, id string) (*model.S
 		return nil, fmt.Errorf("service not found")
 	}
 
-	svcs, err := enrichServices(ctx, []services.Service{dbSvc})
-	if err != nil {
-		return nil, fmt.Errorf("failed to enrich service: %w", err)
-	}
-	return svcs[0], nil
+	return dbServiceToModel(&dbSvc), nil
 }
 
 // Project is the resolver for the project field.
@@ -113,6 +105,51 @@ func (r *serviceResolver) Project(ctx context.Context, obj *model.Service) (*mod
 	}
 
 	return dbProjectToModel(&dbProject), nil
+}
+
+// Status is the resolver for the status field.
+func (r *serviceResolver) Status(ctx context.Context, obj *model.Service) (*model.ServiceStatus, error) {
+	dep, err := dataloader.For(ctx).LatestDeploymentByServiceID.Load(ctx, obj.ID)
+	if err != nil || dep == nil {
+		return &model.ServiceStatus{Build: "none", Runtime: "pending"}, nil
+	}
+	return deploymentStatusToServiceStatus(dep.Status), nil
+}
+
+// ErrorMessage is the resolver for the errorMessage field.
+func (r *serviceResolver) ErrorMessage(ctx context.Context, obj *model.Service) (*string, error) {
+	dep, err := dataloader.For(ctx).LatestDeploymentByServiceID.Load(ctx, obj.ID)
+	if err != nil || dep == nil {
+		return nil, nil
+	}
+	return dep.ErrorMessage, nil
+}
+
+// CommitHash is the resolver for the commitHash field.
+func (r *serviceResolver) CommitHash(ctx context.Context, obj *model.Service) (*string, error) {
+	dep, err := dataloader.For(ctx).LatestDeploymentByServiceID.Load(ctx, obj.ID)
+	if err != nil || dep == nil {
+		return nil, nil
+	}
+	return dep.CommitHash, nil
+}
+
+// CustomDomain is the resolver for the customDomain field.
+func (r *serviceResolver) CustomDomain(ctx context.Context, obj *model.Service) (*string, error) {
+	domain, err := dataloader.For(ctx).CustomDomainByServiceID.Load(ctx, obj.ID)
+	if err != nil || domain == nil {
+		return nil, nil
+	}
+	return &domain.Domain, nil
+}
+
+// CustomDomainStatus is the resolver for the customDomainStatus field.
+func (r *serviceResolver) CustomDomainStatus(ctx context.Context, obj *model.Service) (*string, error) {
+	domain, err := dataloader.For(ctx).CustomDomainByServiceID.Load(ctx, obj.ID)
+	if err != nil || domain == nil {
+		return nil, nil
+	}
+	return &domain.Status, nil
 }
 
 // Service returns ServiceResolver implementation.

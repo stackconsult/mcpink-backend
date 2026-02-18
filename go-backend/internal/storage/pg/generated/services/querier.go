@@ -9,8 +9,6 @@ import (
 )
 
 type Querier interface {
-	CountServicesByProjectID(ctx context.Context, projectID string) (int64, error)
-	CountServicesByUserID(ctx context.Context, userID string) (int64, error)
 	CreateService(ctx context.Context, arg CreateServiceParams) (Service, error)
 	DeleteService(ctx context.Context, id string) error
 	GetServiceByID(ctx context.Context, id string) (Service, error)

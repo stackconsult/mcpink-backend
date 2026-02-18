@@ -9,28 +9,6 @@ import (
 	"context"
 )
 
-const countServicesByProjectID = `-- name: CountServicesByProjectID :one
-SELECT COUNT(*) FROM services WHERE project_id = $1 AND is_deleted = false
-`
-
-func (q *Queries) CountServicesByProjectID(ctx context.Context, projectID string) (int64, error) {
-	row := q.db.QueryRow(ctx, countServicesByProjectID, projectID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countServicesByUserID = `-- name: CountServicesByUserID :one
-SELECT COUNT(*) FROM services WHERE user_id = $1 AND is_deleted = false
-`
-
-func (q *Queries) CountServicesByUserID(ctx context.Context, userID string) (int64, error) {
-	row := q.db.QueryRow(ctx, countServicesByUserID, userID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createService = `-- name: CreateService :one
 INSERT INTO services (
     id, user_id, project_id, repo, branch, server_uuid, name, build_pack, port, env_vars, git_provider, build_config, memory, vcpus, region

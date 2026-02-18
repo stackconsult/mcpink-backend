@@ -278,6 +278,14 @@ type ResourceResolver interface {
 }
 type ServiceResolver interface {
 	Project(ctx context.Context, obj *model.Service) (*model.Project, error)
+
+	Status(ctx context.Context, obj *model.Service) (*model.ServiceStatus, error)
+	ErrorMessage(ctx context.Context, obj *model.Service) (*string, error)
+
+	CommitHash(ctx context.Context, obj *model.Service) (*string, error)
+
+	CustomDomain(ctx context.Context, obj *model.Service) (*string, error)
+	CustomDomainStatus(ctx context.Context, obj *model.Service) (*string, error)
 }
 
 type executableSchema struct {
@@ -4837,7 +4845,7 @@ func (ec *executionContext) _Service_status(ctx context.Context, field graphql.C
 		field,
 		ec.fieldContext_Service_status,
 		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
+			return ec.resolvers.Service().Status(ctx, obj)
 		},
 		nil,
 		ec.marshalNServiceStatus2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐServiceStatus,
@@ -4850,8 +4858,8 @@ func (ec *executionContext) fieldContext_Service_status(_ context.Context, field
 	fc = &graphql.FieldContext{
 		Object:     "Service",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "build":
@@ -4872,7 +4880,7 @@ func (ec *executionContext) _Service_errorMessage(ctx context.Context, field gra
 		field,
 		ec.fieldContext_Service_errorMessage,
 		func(ctx context.Context) (any, error) {
-			return obj.ErrorMessage, nil
+			return ec.resolvers.Service().ErrorMessage(ctx, obj)
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -4885,8 +4893,8 @@ func (ec *executionContext) fieldContext_Service_errorMessage(_ context.Context,
 	fc = &graphql.FieldContext{
 		Object:     "Service",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
 		},
@@ -5023,7 +5031,7 @@ func (ec *executionContext) _Service_commitHash(ctx context.Context, field graph
 		field,
 		ec.fieldContext_Service_commitHash,
 		func(ctx context.Context) (any, error) {
-			return obj.CommitHash, nil
+			return ec.resolvers.Service().CommitHash(ctx, obj)
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -5036,8 +5044,8 @@ func (ec *executionContext) fieldContext_Service_commitHash(_ context.Context, f
 	fc = &graphql.FieldContext{
 		Object:     "Service",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
 		},
@@ -5110,7 +5118,7 @@ func (ec *executionContext) _Service_customDomain(ctx context.Context, field gra
 		field,
 		ec.fieldContext_Service_customDomain,
 		func(ctx context.Context) (any, error) {
-			return obj.CustomDomain, nil
+			return ec.resolvers.Service().CustomDomain(ctx, obj)
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -5123,8 +5131,8 @@ func (ec *executionContext) fieldContext_Service_customDomain(_ context.Context,
 	fc = &graphql.FieldContext{
 		Object:     "Service",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
 		},
@@ -5139,7 +5147,7 @@ func (ec *executionContext) _Service_customDomainStatus(ctx context.Context, fie
 		field,
 		ec.fieldContext_Service_customDomainStatus,
 		func(ctx context.Context) (any, error) {
-			return obj.CustomDomainStatus, nil
+			return ec.resolvers.Service().CustomDomainStatus(ctx, obj)
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -5152,8 +5160,8 @@ func (ec *executionContext) fieldContext_Service_customDomainStatus(_ context.Co
 	fc = &graphql.FieldContext{
 		Object:     "Service",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
 		},
@@ -8749,12 +8757,74 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "status":
-			out.Values[i] = ec._Service_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Service_status(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "errorMessage":
-			out.Values[i] = ec._Service_errorMessage(ctx, field, obj)
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Service_errorMessage(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "envVars":
 			out.Values[i] = ec._Service_envVars(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -8773,7 +8843,38 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "commitHash":
-			out.Values[i] = ec._Service_commitHash(ctx, field, obj)
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Service_commitHash(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "memory":
 			out.Values[i] = ec._Service_memory(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -8785,9 +8886,71 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "customDomain":
-			out.Values[i] = ec._Service_customDomain(ctx, field, obj)
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Service_customDomain(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "customDomainStatus":
-			out.Values[i] = ec._Service_customDomainStatus(ctx, field, obj)
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Service_customDomainStatus(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "createdAt":
 			out.Values[i] = ec._Service_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -10077,6 +10240,10 @@ func (ec *executionContext) marshalNServiceMetrics2ᚖgithubᚗcomᚋaugustdev�
 		return graphql.Null
 	}
 	return ec._ServiceMetrics(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNServiceStatus2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐServiceStatus(ctx context.Context, sel ast.SelectionSet, v model.ServiceStatus) graphql.Marshaler {
+	return ec._ServiceStatus(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNServiceStatus2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐServiceStatus(ctx context.Context, sel ast.SelectionSet, v *model.ServiceStatus) graphql.Marshaler {

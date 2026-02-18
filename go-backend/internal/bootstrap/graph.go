@@ -23,7 +23,6 @@ import (
 	"github.com/augustdev/autoclip/internal/prometheus"
 	"github.com/augustdev/autoclip/internal/storage/pg"
 	deploymentsdb "github.com/augustdev/autoclip/internal/storage/pg/generated/deployments"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/delegatedzones"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/resources"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
@@ -73,13 +72,11 @@ func NewLoaderDeps(
 	serviceQueries services.Querier,
 	deploymentQueries deploymentsdb.Querier,
 	zoneRecordQueries zonerecords.Querier,
-	delegatedZoneQueries delegatedzones.Querier,
 ) *dataloader.LoaderDeps {
 	return &dataloader.LoaderDeps{
-		ServiceQueries:       serviceQueries,
-		DeploymentQueries:    deploymentQueries,
-		ZoneRecordQueries:    zoneRecordQueries,
-		DelegatedZoneQueries: delegatedZoneQueries,
+		ServiceQueries:    serviceQueries,
+		DeploymentQueries: deploymentQueries,
+		ZoneRecordQueries: zoneRecordQueries,
 	}
 }
 

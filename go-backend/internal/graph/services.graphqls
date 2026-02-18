@@ -38,17 +38,17 @@ type Service {
   name: String
   repo: String!
   branch: String!
-  status: ServiceStatus!
-  errorMessage: String
+  status: ServiceStatus! @goField(forceResolver: true)
+  errorMessage: String @goField(forceResolver: true)
   envVars: [EnvVar!]!
   fqdn: String
   port: String!
   gitProvider: String!
-  commitHash: String
+  commitHash: String @goField(forceResolver: true)
   memory: String!
   vcpus: String!
-  customDomain: String
-  customDomainStatus: String
+  customDomain: String @goField(forceResolver: true)
+  customDomainStatus: String @goField(forceResolver: true)
   createdAt: Time!
   updatedAt: Time!
 }

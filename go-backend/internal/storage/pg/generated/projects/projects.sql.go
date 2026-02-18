@@ -9,17 +9,6 @@ import (
 	"context"
 )
 
-const countProjectsByUserID = `-- name: CountProjectsByUserID :one
-SELECT COUNT(*) FROM projects WHERE user_id = $1
-`
-
-func (q *Queries) CountProjectsByUserID(ctx context.Context, userID string) (int64, error) {
-	row := q.db.QueryRow(ctx, countProjectsByUserID, userID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createDefaultProject = `-- name: CreateDefaultProject :one
 INSERT INTO projects (user_id, name, ref, is_default)
 VALUES ($1, 'default', 'default', TRUE)

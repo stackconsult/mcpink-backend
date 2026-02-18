@@ -16,6 +16,7 @@ type Querier interface {
 	ListByServiceID(ctx context.Context, serviceID string) ([]ZoneRecord, error)
 	ListByServiceIDs(ctx context.Context, dollar_1 []string) ([]ZoneRecord, error)
 	ListByZoneID(ctx context.Context, zoneID string) ([]ZoneRecord, error)
+	ListCustomDomainsByServiceIDs(ctx context.Context, dollar_1 []string) ([]ListCustomDomainsByServiceIDsRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -169,3 +169,42 @@ func (q *Queries) ListByZoneID(ctx context.Context, zoneID string) ([]ZoneRecord
 	}
 	return items, nil
 }
+
+const listCustomDomainsByServiceIDs = `-- name: ListCustomDomainsByServiceIDs :many
+SELECT zr.service_id, zr.name, dz.zone, dz.status
+FROM zone_records zr
+JOIN delegated_zones dz ON zr.zone_id = dz.id
+WHERE zr.service_id = ANY($1::text[])
+`
+
+type ListCustomDomainsByServiceIDsRow struct {
+	ServiceID string `json:"service_id"`
+	Name      string `json:"name"`
+	Zone      string `json:"zone"`
+	Status    string `json:"status"`
+}
+
+func (q *Queries) ListCustomDomainsByServiceIDs(ctx context.Context, dollar_1 []string) ([]ListCustomDomainsByServiceIDsRow, error) {
+	rows, err := q.db.Query(ctx, listCustomDomainsByServiceIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCustomDomainsByServiceIDsRow{}
+	for rows.Next() {
+		var i ListCustomDomainsByServiceIDsRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.Name,
+			&i.Zone,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

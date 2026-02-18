@@ -9,7 +9,6 @@ import (
 )
 
 type Querier interface {
-	CountProjectsByUserID(ctx context.Context, userID string) (int64, error)
 	CreateDefaultProject(ctx context.Context, userID string) (Project, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	DeleteProject(ctx context.Context, id string) error

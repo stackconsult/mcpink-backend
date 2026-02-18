@@ -26,3 +26,9 @@ DELETE FROM zone_records WHERE service_id = $1;
 SELECT * FROM zone_records
 WHERE service_id = ANY($1::text[])
 ORDER BY created_at DESC;
+
+-- name: ListCustomDomainsByServiceIDs :many
+SELECT zr.service_id, zr.name, dz.zone, dz.status
+FROM zone_records zr
+JOIN delegated_zones dz ON zr.zone_id = dz.id
+WHERE zr.service_id = ANY($1::text[]);

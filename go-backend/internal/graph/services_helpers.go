@@ -3,7 +3,6 @@ package graph
 import (
 	"encoding/json"
 
-	deploymentsdb "github.com/augustdev/autoclip/internal/storage/pg/generated/deployments"
 	"github.com/augustdev/autoclip/internal/graph/model"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 )
@@ -30,15 +29,11 @@ func dbServiceToModel(dbService *services.Service) *model.Service {
 	}
 
 	return &model.Service{
-		ID:        dbService.ID,
-		ProjectID: dbService.ProjectID,
-		Name:      dbService.Name,
-		Repo:      dbService.Repo,
-		Branch:    dbService.Branch,
-		Status: &model.ServiceStatus{
-			Build:   "none",
-			Runtime: "pending",
-		},
+		ID:          dbService.ID,
+		ProjectID:   dbService.ProjectID,
+		Name:        dbService.Name,
+		Repo:        dbService.Repo,
+		Branch:      dbService.Branch,
 		EnvVars:     envVars,
 		Fqdn:        dbService.Fqdn,
 		Port:        dbService.Port,
@@ -69,13 +64,4 @@ func deploymentStatusToServiceStatus(depStatus string) *model.ServiceStatus {
 	default:
 		return &model.ServiceStatus{Build: depStatus, Runtime: "unknown"}
 	}
-}
-
-func enrichServiceWithDeployment(svc *model.Service, dep *deploymentsdb.Deployment) {
-	if dep == nil {
-		return
-	}
-	svc.Status = deploymentStatusToServiceStatus(dep.Status)
-	svc.CommitHash = dep.CommitHash
-	svc.ErrorMessage = dep.ErrorMessage
 }

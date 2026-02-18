@@ -21,12 +21,6 @@ WHERE project_id = $1 AND is_deleted = false
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
--- name: CountServicesByUserID :one
-SELECT COUNT(*) FROM services WHERE user_id = $1 AND is_deleted = false;
-
--- name: CountServicesByProjectID :one
-SELECT COUNT(*) FROM services WHERE project_id = $1 AND is_deleted = false;
-
 -- name: DeleteService :exec
 DELETE FROM services WHERE id = $1;
 

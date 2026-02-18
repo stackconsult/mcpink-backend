@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	deploymentsdb "github.com/augustdev/autoclip/internal/storage/pg/generated/deployments"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/delegatedzones"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/zonerecords"
 	"github.com/vikstrous/dataloadgen"
@@ -20,16 +19,15 @@ type CustomDomainInfo struct {
 }
 
 type LoaderDeps struct {
-	ServiceQueries       services.Querier
-	DeploymentQueries    deploymentsdb.Querier
-	ZoneRecordQueries    zonerecords.Querier
-	DelegatedZoneQueries delegatedzones.Querier
+	ServiceQueries    services.Querier
+	DeploymentQueries deploymentsdb.Querier
+	ZoneRecordQueries zonerecords.Querier
 }
 
 type Loaders struct {
-	ServicesByProjectID          *dataloadgen.Loader[string, []services.Service]
-	LatestDeploymentByServiceID  *dataloadgen.Loader[string, *deploymentsdb.Deployment]
-	CustomDomainByServiceID      *dataloadgen.Loader[string, *CustomDomainInfo]
+	ServicesByProjectID         *dataloadgen.Loader[string, []services.Service]
+	LatestDeploymentByServiceID *dataloadgen.Loader[string, *deploymentsdb.Deployment]
+	CustomDomainByServiceID     *dataloadgen.Loader[string, *CustomDomainInfo]
 }
 
 func NewLoaders(deps *LoaderDeps) *Loaders {
@@ -102,58 +100,25 @@ func newLatestDeploymentFn(deps *LoaderDeps) func(ctx context.Context, keys []st
 
 func newCustomDomainFn(deps *LoaderDeps) func(ctx context.Context, keys []string) ([]*CustomDomainInfo, []error) {
 	return func(ctx context.Context, keys []string) ([]*CustomDomainInfo, []error) {
-		zoneRecords, err := deps.ZoneRecordQueries.ListByServiceIDs(ctx, keys)
+		rows, err := deps.ZoneRecordQueries.ListCustomDomainsByServiceIDs(ctx, keys)
 		if err != nil {
-			return nil, []error{fmt.Errorf("ListByServiceIDs: %w", err)}
+			return nil, []error{fmt.Errorf("ListCustomDomainsByServiceIDs: %w", err)}
 		}
 
-		if len(zoneRecords) == 0 {
-			return make([]*CustomDomainInfo, len(keys)), nil
-		}
-
-		// Collect unique zone IDs and pick the first zone record per service
-		type zrInfo struct {
-			Name   string
-			ZoneID string
-		}
-		firstByService := make(map[string]zrInfo, len(zoneRecords))
-		zoneIDSet := make(map[string]struct{})
-		for _, zr := range zoneRecords {
-			if _, ok := firstByService[zr.ServiceID]; !ok {
-				firstByService[zr.ServiceID] = zrInfo{Name: zr.Name, ZoneID: zr.ZoneID}
-				zoneIDSet[zr.ZoneID] = struct{}{}
+		// Pick first record per service
+		firstByService := make(map[string]*CustomDomainInfo, len(rows))
+		for _, row := range rows {
+			if _, ok := firstByService[row.ServiceID]; !ok {
+				firstByService[row.ServiceID] = &CustomDomainInfo{
+					Domain: row.Name + "." + row.Zone,
+					Status: row.Status,
+				}
 			}
-		}
-
-		zoneIDs := make([]string, 0, len(zoneIDSet))
-		for id := range zoneIDSet {
-			zoneIDs = append(zoneIDs, id)
-		}
-
-		zones, err := deps.DelegatedZoneQueries.GetByIDs(ctx, zoneIDs)
-		if err != nil {
-			return nil, []error{fmt.Errorf("GetByIDs: %w", err)}
-		}
-
-		zoneByID := make(map[string]*delegatedzones.DelegatedZone, len(zones))
-		for i := range zones {
-			zoneByID[zones[i].ID] = &zones[i]
 		}
 
 		results := make([]*CustomDomainInfo, len(keys))
 		for i, k := range keys {
-			info, ok := firstByService[k]
-			if !ok {
-				continue
-			}
-			dz, ok := zoneByID[info.ZoneID]
-			if !ok {
-				continue
-			}
-			results[i] = &CustomDomainInfo{
-				Domain: info.Name + "." + dz.Zone,
-				Status: dz.Status,
-			}
+			results[i] = firstByService[k]
 		}
 		return results, nil
 	}

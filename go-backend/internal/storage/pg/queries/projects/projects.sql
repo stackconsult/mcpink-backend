@@ -23,9 +23,6 @@ WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
--- name: CountProjectsByUserID :one
-SELECT COUNT(*) FROM projects WHERE user_id = $1;
-
 -- name: UpdateProjectName :one
 UPDATE projects
 SET name = $2, ref = $3, updated_at = NOW()

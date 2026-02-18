@@ -21,17 +21,16 @@ func (r *projectResolver) Services(ctx context.Context, obj *model.Project) ([]*
 	if err != nil {
 		return nil, err
 	}
-	return enrichServices(ctx, dbServices)
+	result := make([]*model.Service, len(dbServices))
+	for i := range dbServices {
+		result[i] = dbServiceToModel(&dbServices[i])
+	}
+	return result, nil
 }
 
 // ListProjects is the resolver for the listProjects field.
 func (r *queryResolver) ListProjects(ctx context.Context, first *int32, after *string) (*model.ProjectConnection, error) {
 	userID := authz.For(ctx).GetUserID()
-
-	totalCount, err := r.ProjectQueries.CountProjectsByUserID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to count projects: %w", err)
-	}
 
 	// For now, return all items
 	limit := int32(1000)
@@ -65,7 +64,7 @@ func (r *queryResolver) ListProjects(ctx context.Context, first *int32, after *s
 			StartCursor:     startCursor,
 			EndCursor:       endCursor,
 		},
-		TotalCount: int32(totalCount),
+		TotalCount: int32(len(nodes)),
 	}, nil
 }
 
