@@ -82,6 +82,12 @@ func (s *Server) registerTools() {
 	}, s.handleWhoami)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "list_projects",
+		Description: "List all projects for the authenticated user",
+		InputSchema: schemaFor[ListProjectsInput](),
+	}, s.handleListProjects)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "create_service",
 		Description: "Create and deploy a service. Use host='ml.ink' (default) for private repos or host='github.com' for GitHub.",
 		InputSchema: schemaFor[CreateServiceInput](),

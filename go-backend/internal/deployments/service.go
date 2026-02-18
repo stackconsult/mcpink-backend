@@ -250,6 +250,14 @@ func (s *Service) ListServices(ctx context.Context, userID string, limit, offset
 	return svcList, nil
 }
 
+func (s *Service) ListProjects(ctx context.Context, userID string, limit, offset int32) ([]projects.Project, error) {
+	return s.projectsQ.ListProjectsByUserID(ctx, projects.ListProjectsByUserIDParams{
+		UserID: userID,
+		Limit:  limit,
+		Offset: offset,
+	})
+}
+
 func (s *Service) GetProjectByRef(ctx context.Context, userID, ref string) (*projects.Project, error) {
 	return s.getOrCreateProject(ctx, userID, ref)
 }

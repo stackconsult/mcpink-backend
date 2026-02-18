@@ -294,6 +294,20 @@ type RemoveDelegationOutput struct {
 	Message string `json:"message"`
 }
 
+type ListProjectsInput struct{}
+
+type ProjectInfo struct {
+	ProjectID string `json:"project_id"`
+	Name      string `json:"name"`
+	Ref       string `json:"ref"`
+	IsDefault bool   `json:"is_default"`
+	CreatedAt string `json:"created_at"`
+}
+
+type ListProjectsOutput struct {
+	Projects []ProjectInfo `json:"projects"`
+}
+
 type ListDelegationsInput struct{}
 
 type DelegationInfo struct {

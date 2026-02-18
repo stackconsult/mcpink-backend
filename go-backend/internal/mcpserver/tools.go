@@ -58,6 +58,32 @@ func (s *Server) handleWhoami(ctx context.Context, req *mcp.CallToolRequest, inp
 	return nil, output, nil
 }
 
+func (s *Server) handleListProjects(ctx context.Context, req *mcp.CallToolRequest, input ListProjectsInput) (*mcp.CallToolResult, ListProjectsOutput, error) {
+	user := UserFromContext(ctx)
+	if user == nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, ListProjectsOutput{}, nil
+	}
+
+	projs, err := s.deployService.ListProjects(ctx, user.ID, 100, 0)
+	if err != nil {
+		s.logger.Error("failed to list projects", "error", err)
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to list projects: %v", err)}}}, ListProjectsOutput{}, nil
+	}
+
+	projects := make([]ProjectInfo, len(projs))
+	for i, p := range projs {
+		projects[i] = ProjectInfo{
+			ProjectID: p.ID,
+			Name:      p.Name,
+			Ref:       p.Ref,
+			IsDefault: p.IsDefault,
+			CreatedAt: p.CreatedAt.Time.Format(time.RFC3339),
+		}
+	}
+
+	return nil, ListProjectsOutput{Projects: projects}, nil
+}
+
 func (s *Server) handleCreateService(ctx context.Context, req *mcp.CallToolRequest, input CreateServiceInput) (*mcp.CallToolResult, CreateServiceOutput, error) {
 	user := UserFromContext(ctx)
 	if user == nil {
