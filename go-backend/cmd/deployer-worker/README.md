@@ -1,6 +1,6 @@
 # k8s-worker
 
-Temporal worker that handles service builds and deployments on k3s. Runs on the `k8s-native` task queue.
+Temporal worker that handles service builds and deployments on k3s. Task queue is read from the `clusters` table (e.g. `deployer-eu-central-1`).
 
 ## Prerequisites
 
@@ -68,7 +68,7 @@ Use Temporal UI or `tctl`:
 
 ```bash
 temporal workflow start \
-  --task-queue k8s-native \
+  --task-queue deployer-eu-central-1 \
   --type CreateServiceWorkflow \
   --input '{"ServiceID":"<app-id>","Repo":"owner/repo","Branch":"main","GitProvider":"github","InstallationID":12345,"CommitSHA":"","AppsDomain":"ml.ink"}'
 ```

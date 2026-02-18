@@ -21,10 +21,10 @@ The system is split across two runtimes connected by Temporal workflows:
 ├─────────────────────────────────────────────────────┤
 │  k3s cluster (execution plane)                      │
 │                                                     │
-│  deployer-server   Webhook receiver (GitHub/Gitea)  │
-│  deployer-worker   Build + deploy (queue: k8s-native)│
+│  deployer-server   Webhook receiver (GitHub)         │
+│  deployer-worker   Build + deploy (queue: per-cluster)│
 │  BuildKit          Container image builds           │
-│  Gitea             Internal Git mirror              │
+│  git-server        Internal Git (git.ml.ink)        │
 │  Registry          Container image storage          │
 │  Traefik           Customer ingress                 │
 │  Prometheus/Loki   Observability                    │
@@ -41,11 +41,11 @@ The `deployer-server` is NOT the product server — it only receives webhooks an
 
 ```
 1. Customer pushes code
-   ├── GitHub repo → GitHub webhook → Railway graphql → Temporal workflow
-   └── Gitea repo  → Gitea webhook  → deployer-server → Temporal workflow
+   ├── GitHub repo    → GitHub webhook    → Railway graphql → Temporal workflow
+   └── Internal repo  → git-server post-receive → Temporal workflow directly
 
-2. deployer-worker executes activities (queue: k8s-native)
-   clone       → Pull source from GitHub/Gitea
+2. deployer-worker executes activities (queue: deployer-eu-central-1)
+   clone       → Pull source from GitHub or internal git
    build       → BuildKit builds image (build-pool node)
    push        → Image → internal registry (registry.internal:5000)
    deploy      → Apply K8s resources: namespace, secret, deployment, service, ingress
@@ -80,7 +80,7 @@ Each customer project is a K8s namespace (`dp-{user_id}-{project}`). Network pol
 Customer pods CANNOT reach:
 
 - Other customer namespaces
-- Cluster-internal services (registry, Gitea, K8s API)
+- Cluster-internal services (registry, git-server, K8s API)
 - Cloud metadata endpoint (169.254.169.254)
 
 ## External dependencies
@@ -89,7 +89,7 @@ Customer pods CANNOT reach:
 | -------------- | ----------------------------------------------------------------------------- | -------- |
 | Temporal Cloud | No new deployments, deletes, or domain operations. Running pods unaffected.   | Yes      |
 | Cloudflare     | `*.ml.ink` traffic stops. Custom domains unaffected (they bypass CF).         | Yes      |
-| GitHub         | No OAuth login, no webhook deploys from GitHub repos. Gitea repos unaffected. | Yes      |
+| GitHub         | No OAuth login, no webhook deploys from GitHub repos. Internal git repos unaffected. | Yes      |
 | Let's Encrypt  | New custom domain certs can't be issued. Existing certs work until expiry.    | Yes      |
 | Railway        | API, MCP server, and product DB offline. Running customer pods unaffected.    | Yes      |
 | Firebase       | Token validation fails for Firebase-auth users.                               | Optional |
@@ -106,7 +106,7 @@ Understanding what's stateful is critical for disaster recovery.
 | BuildKit cache (build-pool) | Cache only | Slower rebuilds                                 | Rebuilds from scratch                                           |
 | K3s etcd (ctrl)             | Yes        | All K8s state (deployments, secrets, ingresses) | Restore from etcd snapshot or re-run `site.yml` + redeploy apps |
 | Registry (ops)              | Yes        | All built container images                      | Rebuild from source (slow but possible)                         |
-| Gitea (ops)                 | Yes        | Internal Git mirrors, webhook config            | Re-mirror from GitHub                                           |
+| git-server (ops)            | Yes        | Internal Git repos, bare repos on disk          | Repos are source of truth for `host=ml.ink` — back up `/mnt/git-repos` |
 | Observability (ops)         | Yes        | Metrics (30d) + logs (30d) + dashboards         | Redeploy with empty state                                       |
 
 **ops node is the stateful heart.** It has RAID1 for redundancy but no off-node backups yet.

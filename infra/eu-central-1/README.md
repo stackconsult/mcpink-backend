@@ -10,7 +10,7 @@ Source of truth for all hosts. IPs also live in `inventory/hosts.yml` for Ansibl
 | ----------------------- | --------------- | ---------- | ----------------------------- | ----------------------------- | -------------------------- |
 | k3s-1                   | 46.225.100.234  | 10.0.0.4   | Cloud VPS CX33 (8GB)          | K3s control plane             | `ssh root@46.225.100.234`  |
 | build-1                 | 46.225.92.127   | 10.0.0.3   | Cloud VPS (4 vCPU, 16GB)      | BuildKit image builds         | `ssh root@46.225.92.127`   |
-| ops-1                   | 116.202.163.209 | 10.0.1.4   | Dedicated (Xeon E-2176G)      | Registry, Gitea, monitoring   | `ssh root@116.202.163.209` |
+| ops-1                   | 116.202.163.209 | 10.0.1.4   | Dedicated (Xeon E-2176G)      | Registry, git-server, monitoring | `ssh root@116.202.163.209` |
 | run-1                   | 157.90.130.187  | 10.0.1.3   | Dedicated (EPYC 7502P, 256GB) | Customer workloads            | `ssh root@157.90.130.187`  |
 | dns-eu-1                | 46.225.65.56    | 10.0.0.2   | Cloud VPS CX22 (4GB)          | PowerDNS authoritative DNS    | `ssh root@46.225.65.56`    |
 | load-balancer-central-1 | 46.225.35.234   | 10.0.0.5   | Hetzner LB (lb11)             | Custom domain TCP passthrough | Hetzner Console only       |
@@ -19,7 +19,7 @@ Source of truth for all hosts. IPs also live in `inventory/hosts.yml` for Ansibl
 
 **run-1**: 256GB ECC RAM, 2x 1.92TB NVMe. Handles all customer pods — sized for density.
 
-**ops-1**: 2x 960GB NVMe (RAID1 → `/` + `/data`) + 2x 2TB HDD (RAID1 → `/backups`). Hosts registry + Gitea with built-in redundancy.
+**ops-1**: 2x 960GB NVMe (RAID1 → `/` + `/data`) + 2x 2TB HDD (RAID1 → `/backups`). Hosts registry + git-server with built-in redundancy.
 
 **k3s-1**: Only 8GB — control plane only. Customer pods MUST NOT land here (gVisor RuntimeClass prevents this via nodeSelector).
 
@@ -44,11 +44,11 @@ Four node pools isolated by taints. This prevents build jobs or platform service
 | Pool  | Node    | Taint                   | What runs here                                    |
 | ----- | ------- | ----------------------- | ------------------------------------------------- |
 | ctrl  | k3s-1   | —                       | K3s API, Helm controllers, cert-manager           |
-| ops   | ops-1   | `pool=ops:NoSchedule`   | Docker Registry, Gitea, Grafana, Prometheus, Loki |
+| ops   | ops-1   | `pool=ops:NoSchedule`   | Docker Registry, git-server, Grafana, Prometheus, Loki |
 | build | build-1 | `pool=build:NoSchedule` | BuildKit builders                                 |
 | run   | run-1   | —                       | Customer pods (gVisor sandboxed), Traefik ingress |
 
-**Why dedicated for run/ops**: Run needs 256GB RAM for pod density. Ops needs RAID storage for registry + Gitea data durability. Cloud VPS is fine for control plane and builds.
+**Why dedicated for run/ops**: Run needs 256GB RAM for pod density. Ops needs RAID storage for registry + git repo durability. Cloud VPS is fine for control plane and builds.
 
 ## Traffic flow
 
@@ -171,7 +171,7 @@ Chart versions are pinned in `inventory/group_vars/all/main.yml`. Helm values in
 
 **Add build capacity** (rare): Same process but under `build` group with `pool=build:NoSchedule` taint. Enables parallel BuildKit builders.
 
-**Scaling ops is complex**: Registry, Gitea, and observability are stateful hostPath workloads on ops-1. Scaling would require migrating to shared storage or running replicated services. Not needed at current scale.
+**Scaling ops is complex**: Registry, git-server, and observability are stateful hostPath workloads on ops-1. Scaling would require migrating to shared storage or running replicated services. Not needed at current scale.
 
 **No auto-scaling**: All nodes managed manually via Ansible.
 
@@ -180,7 +180,7 @@ Chart versions are pinned in `inventory/group_vars/all/main.yml`. Helm values in
 ```
 k8s/
 ├── system/          Namespaces, RBAC, cert-manager issuers, wildcard cert, TLS store
-├── workloads/       BuildKit, deployer-server, deployer-worker, Gitea, registry
+├── workloads/       BuildKit, deployer-server, deployer-worker, git-server, registry
 ├── observability/   Grafana, Loki, Prometheus ingresses
 ├── values/          Helm chart value overrides (Traefik, cert-manager, Loki, etc.)
 └── templates/       Customer resource design specs
@@ -215,5 +215,5 @@ Platform-wide decisions (gVisor, firewall, SMTP blocking, etc.) are in `infra/RE
 
 | Decision                             | Rationale                                                                                                                                    |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dedicated servers for run + ops      | Run needs 256GB RAM for pod density. Ops needs RAID storage for registry + Gitea durability. Cloud VPS is fine for control plane and builds. |
+| Dedicated servers for run + ops      | Run needs 256GB RAM for pod density. Ops needs RAID storage for registry + git repo durability. Cloud VPS is fine for control plane and builds. |
 | Hetzner LB for custom domain traffic | Region-specific implementation of the global TCP passthrough requirement. Other regions will use their provider's equivalent.                |

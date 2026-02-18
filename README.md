@@ -72,11 +72,11 @@ Deploy MCP supports two git providers, each with its own auth model:
 | Provider                           | Identity      | Repo Access                             | Webhooks           |
 | ---------------------------------- | ------------- | --------------------------------------- | ------------------ |
 | **GitHub** (`host=github.com`)     | GitHub OAuth  | GitHub App (installation tokens)        | GitHub App webhook |
-| **Gitea** (`host=ml.ink`, default) | Firebase Auth | Admin-issued HTTPS tokens via Gitea API | Gitea push webhook |
+| **Internal git** (`host=ml.ink`, default) | Firebase Auth | Per-repo HTTPS tokens (`mlg_...`) via git-server | git-server push hook |
 
 **GitHub flow:** User signs in via GitHub OAuth, installs the GitHub App for repo access, then deploys with `host=github.com`.
 
-**Gitea flow (default):** User signs in via Firebase, gets an auto-provisioned Gitea account (petname username like `awake-dassie`). Repos are created/cloned using admin-minted HTTPS tokens. No GitHub account needed.
+**Internal git flow (default):** User signs in via Firebase, gets an auto-provisioned internal git account (petname username like `awake-dassie`). Repos are created via the git-server API with per-repo HTTPS tokens (`mlg_...`). No GitHub account needed.
 
 ### MCP Authentication
 
@@ -127,7 +127,7 @@ The OAuth flow creates an API key behind the scenes — the `access_token` retur
 | Source     | Event                                  | Verification                 |
 | ---------- | -------------------------------------- | ---------------------------- |
 | GitHub App | `push`, `installation.created/deleted` | HMAC-SHA256 (webhook secret) |
-| Gitea      | `push`                                 | HMAC-SHA256 (webhook secret) |
+| git-server | `push` (post-receive)                  | Direct Temporal trigger (no webhook) |
 
 Both trigger the same Temporal redeploy workflow with deterministic workflow IDs for deduplication.
 
@@ -143,7 +143,7 @@ Both trigger the same Temporal redeploy workflow with deterministic workflow IDs
 - **Container Orchestration**: k3s
 - **Build**: BuildKit + Railpack
 - **Ingress**: Traefik + Cloudflare LB
-- **Git**: Gitea (internal)
+- **Git**: Custom git-server (internal, `git.ml.ink`)
 - **IaC**: Ansible
 - **Compute**: Hetzner (dedicated + cloud)
 - **Database Provisioning**: Turso (SQLite)
@@ -190,8 +190,8 @@ There are 4 binaries split across two runtimes:
 | ----------------- | ----------------------------- | -------------- | --------------------------------------------------------------- | ------------ | ------------------------------- |
 | `server`          | `cmd/server/main.go`          | Railway        | Product API — GraphQL, MCP server, OAuth, Firebase auth        | —            | —                               |
 | `worker`          | `cmd/worker/main.go`          | Railway        | Product Temporal worker — account workflows                     | `default`    | —                               |
-| `deployer-server` | `cmd/deployer-server/main.go` | k3s (`dp-system`) | Webhook receiver (GitHub + Gitea), kicks off Temporal workflows | —            | `infra/eu-central-1/k8s/workloads/deployer-server.yml` |
-| `deployer-worker` | `cmd/deployer-worker/main.go` | k3s (`dp-system`) | K8s deployment worker — build, deploy, delete, status          | `k8s-native` | `infra/eu-central-1/k8s/workloads/deployer-worker.yml` |
+| `deployer-server` | `cmd/deployer-server/main.go` | k3s (`dp-system`) | Webhook receiver (GitHub), kicks off Temporal workflows | —            | `infra/eu-central-1/k8s/workloads/deployer-server.yml` |
+| `deployer-worker` | `cmd/deployer-worker/main.go` | k3s (`dp-system`) | K8s deployment worker — build, deploy, delete, status          | `deployer-eu-central-1` | `infra/eu-central-1/k8s/workloads/deployer-worker.yml` |
 
 Mapping note: conceptual `k8s-server` = `deployer-server`; conceptual `k8s-worker` = `deployer-worker`.
 
@@ -224,7 +224,7 @@ When an agent calls `create_service`, the following happens:
                          │                                  │
                          ▼                                  ▼
                    Mints token (GitHub App       Push image to
-                   or Gitea HTTPS token)         internal registry
+                   or internal git token)        internal registry
 
 3. DEPLOY TO K8S
    ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
@@ -233,19 +233,19 @@ When an agent calls `create_service`, the following happens:
    │          │     │ Svc, Ing │     │ Ready    │     │ Status   │
    └──────────┘     └──────────┘     └──────────┘     └──────────┘
 
-4. AUTO-REDEPLOY (Push to GitHub/Gitea)
-   ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
-   │ Git Push │────▶│ Webhook  │────▶│ Webhook  │────▶│ Temporal │
-   │          │     │ (GitHub  │     │ Handler  │     │ Redeploy │
-   └──────────┘     │ or Gitea)│     │          │     │ Workflow │
-                    └──────────┘     └──────────┘     └──────────┘
-                                     Deterministic workflow ID
-                                     from commit SHA (dedup)
+4. AUTO-REDEPLOY (Push to GitHub or internal git)
+   ┌──────────┐     ┌──────────────┐     ┌──────────┐     ┌──────────┐
+   │ Git Push │────▶│ GitHub:      │────▶│ Webhook  │────▶│ Temporal │
+   │          │     │  webhook     │     │ Handler  │     │ Redeploy │
+   └──────────┘     │ git-server:  │     │          │     │ Workflow │
+                    │  post-receive│     └──────────┘     └──────────┘
+                    └──────────────┘     Deterministic workflow ID
+                                        from commit SHA (dedup)
 ```
 
 ### Workflow Idempotency
 
-GitHub/Gitea webhook delivery is at-least-once, so the same push event may be delivered multiple times. The deployment service handles this by:
+GitHub webhook delivery is at-least-once, so the same push event may be delivered multiple times. Internal git pushes trigger deploys directly via post-receive hook. The deployment service handles duplicates by:
 
 1. Deriving a deterministic workflow ID from the commit SHA
 2. Using Temporal's `REJECT_DUPLICATE` policy
@@ -323,7 +323,7 @@ We separate control, ops, build, and run across dedicated node pools so CPU-heav
 │                                                              │
 │  Docker Registry v2 (NVMe-backed)                            │
 │  Loki, Prometheus, Grafana                                   │
-│  Gitea                                                       │
+│  git-server (custom, git.ml.ink)                             │
 │                                                              │
 │  Labels: pool=ops    Taint: pool=ops:NoSchedule              │
 └──────────────────────────────────────────────────────────────┘
@@ -350,7 +350,7 @@ We separate control, ops, build, and run across dedicated node pools so CPU-heav
 
 **ctrl (k3s-1)** — k3s server, Temporal worker, cert-manager, CoreDNS
 
-**ops (ops-1)** — Docker Registry, Loki, Prometheus, Grafana, Gitea
+**ops (ops-1)** — Docker Registry, git-server, Loki, Prometheus, Grafana
 
 **build (build-1)** — BuildKit daemon with persistent local cache + registry cache
 
@@ -481,7 +481,7 @@ K8s manifests live in `infra/eu-central-1/k8s/` and are applied by Ansible.
 
 2. **User Data (critical)** — Turso databases. Provider-native backups.
 
-3. **Gitea Repos (important)** — Hosted on ops-1 with NVMe RAID1 for built-in redundancy.
+3. **Internal Git Repos (important)** — Hosted on ops-1 (`/mnt/git-repos`) with NVMe RAID1 for built-in redundancy.
 
 4. **Registry Images (rebuildable)** — Treated as cache/artifacts. Can always be rebuilt from source.
 
@@ -503,7 +503,7 @@ K8s manifests live in `infra/eu-central-1/k8s/` and are applied by Ansible.
 
 ## Security Configuration
 
-### Pod Security (k8s-native)
+### Pod Security
 
 Customer pods run with defense-in-depth isolation:
 
@@ -523,7 +523,7 @@ See `infra/ansible/roles/firewall/` for iptables rules blocking metadata endpoin
 
 ## Non-goals (for sanity)
 
-- Replacing GitHub/Gitea (we integrate with both)
+- Replacing GitHub (we integrate with it alongside our internal git)
 - Building a full PaaS UI for users (MCP is the interface)
 - Solving arbitrary sandboxing perfectly on day 1 (ship baseline + iterate)
 

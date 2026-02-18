@@ -296,7 +296,7 @@ There are 5 binaries split across two runtimes:
 | `mcp` | `cmd/mcp/main.go` | Railway | MCP server, MCP OAuth (port 8082) | — |
 | `worker` | `cmd/worker/main.go` | Railway | Product Temporal worker (task queue: `default`) | — |
 | `deployer-server` | `cmd/deployer-server/main.go` | k3s (`dp-system`) | Webhook receiver (GitHub + Gitea), kicks off Temporal workflows | `infra/eu-central-1/k8s/workloads/deployer-server.yml` |
-| `deployer-worker` | `cmd/deployer-worker/main.go` | k3s (`dp-system`) | K8s deployment worker (build, deploy, delete) (task queue: `k8s-native`) | `infra/eu-central-1/k8s/workloads/deployer-worker.yml` |
+| `deployer-worker` | `cmd/deployer-worker/main.go` | k3s (`dp-system`) | K8s deployment worker (build, deploy, delete) (task queue: `deployer-eu-central-1`) | `infra/eu-central-1/k8s/workloads/deployer-worker.yml` |
 
 Mapping note: conceptual `k8s-server` = `deployer-server`; conceptual `k8s-worker` = `deployer-worker`.
 
@@ -336,7 +336,7 @@ kubectl rollout status deployment/deployer-worker -n dp-system --timeout=120s
 
 # 6. Verify correct task queue in logs
 kubectl logs deployment/deployer-worker -n dp-system --tail=5
-# Should show: TaskQueue k8s-native (NOT "default")
+# Should show: TaskQueue deployer-eu-central-1 (NOT "default")
 ```
 
 ### Deploying the deployer-server to the cluster
