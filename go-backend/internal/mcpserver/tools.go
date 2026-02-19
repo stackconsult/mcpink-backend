@@ -443,6 +443,12 @@ func (s *Server) handleCreateResource(ctx context.Context, req *mcp.CallToolRequ
 		region = input.Region
 	}
 
+	projectRef := "default"
+	project, err := s.deployService.GetProjectByRef(ctx, user.ID, projectRef)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("project not found: %s", projectRef)}}}, CreateResourceOutput{}, nil
+	}
+
 	s.logger.Info("creating resource",
 		"user_id", user.ID,
 		"name", input.Name,
@@ -453,7 +459,7 @@ func (s *Server) handleCreateResource(ctx context.Context, req *mcp.CallToolRequ
 
 	result, err := s.resourcesService.ProvisionDatabase(ctx, resources.ProvisionDatabaseInput{
 		UserID:    user.ID,
-		ProjectID: nil,
+		ProjectID: &project.ID,
 		Name:      input.Name,
 		Type:      dbType,
 		Size:      size,
