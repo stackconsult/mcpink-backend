@@ -136,6 +136,8 @@ spec:
             - name: CLUSTER_REGION
               value: "eu-central-1"
             # PowerDNS (viper: powerdns.*)
+            - name: POWERDNS_APIURL
+              value: "http://10.0.0.4:8081"
             - name: POWERDNS_APIKEY
               valueFrom:
                 secretKeyRef:
