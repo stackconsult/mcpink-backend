@@ -1,0 +1,59 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: raid-alerts
+  namespace: dp-system
+  labels:
+    release: prometheus
+spec:
+  groups:
+    - name: raid
+      rules:
+        - alert: RAIDDegraded
+          expr: (node_md_disks{state="active"}) < (node_md_disks_required)
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "RAID degraded on {{ $labels.instance }}"
+            description: >-
+              md device {{ $labels.device }} on {{ $labels.instance }} has
+              {{ $value }} active disk(s) but needs {{ with printf
+              `node_md_disks_required{instance="%s",device="%s"}`
+              $labels.instance $labels.device | query }}{{ . | first | value }}{{ end }}.
+              Contact Hetzner to replace the failed disk.
+
+        - alert: RAIDDiskFailed
+          expr: node_md_disks{state="failed"} > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "RAID disk failed on {{ $labels.instance }}"
+            description: >-
+              md device {{ $labels.device }} on {{ $labels.instance }} has
+              {{ $value }} failed disk(s). Contact Hetzner for replacement.
+
+    - name: disk-health
+      rules:
+        - alert: DiskSpaceLow
+          expr: (node_filesystem_avail_bytes{fstype=~"ext4|xfs"} / node_filesystem_size_bytes) < 0.1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Low disk space on {{ $labels.instance }}"
+            description: >-
+              {{ $labels.mountpoint }} on {{ $labels.instance }} has less than
+              10% free space ({{ $value | humanizePercentage }} remaining).
+
+        - alert: DiskSpaceCritical
+          expr: (node_filesystem_avail_bytes{fstype=~"ext4|xfs"} / node_filesystem_size_bytes) < 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Critical disk space on {{ $labels.instance }}"
+            description: >-
+              {{ $labels.mountpoint }} on {{ $labels.instance }} has less than
+              5% free space ({{ $value | humanizePercentage }} remaining).
