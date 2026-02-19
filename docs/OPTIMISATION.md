@@ -244,8 +244,9 @@ kubelet-arg:
 
 ```yaml
 kube-controller-manager-arg:
+  - "node-cidr-mask-size=22" # Default /24 (254 IPs); /22 = 1022 IPs per node
   - "node-monitor-grace-period=20s" # Default 40s; faster failure detection
-  - "pod-eviction-timeout=30s" # Default 5m; faster rescheduling
+  # NOTE: pod-eviction-timeout was removed in K8s 1.26+
 ```
 
 **Evidence for 800–2,500 pods/node ceiling:** Red Hat published results achieving 2,500 pods per node on OpenShift 4.13 (RHEL CoreOS, CRI-O runtime). They found all densities up to 2,500 worked, but 2,750 caused pod malfunction due to network stack saturation (OVS socket errors). Note: with gVisor, each pod carries ~64Mi overhead (Sentry), so the practical ceiling on our 256GB run-1 is lower than bare containerd. _Source: Red Hat Engineering Blog, "Running 2500 pods per node on OCP 4.13" (November 2025)._
