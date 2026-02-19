@@ -132,7 +132,7 @@ type Resource struct {
 	ExternalID    *string            `json:"external_id"`
 	ConnectionUrl *string            `json:"connection_url"`
 	AuthToken     *string            `json:"auth_token"`
-	Credentials   []byte             `json:"credentials"`
+	Credentials   *string            `json:"credentials"`
 	Metadata      []byte             `json:"metadata"`
 	Status        string             `json:"status"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`

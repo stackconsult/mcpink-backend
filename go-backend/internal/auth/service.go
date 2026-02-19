@@ -229,6 +229,7 @@ func (s *Service) GenerateAPIKey(ctx context.Context, userID string, name string
 	prefix := fullKey[:16]
 
 	apiKey, err := s.apiKeysQ.CreateAPIKey(ctx, apikeys.CreateAPIKeyParams{
+		ID:        shortuuid.New(),
 		UserID:    userID,
 		Name:      name,
 		KeyHash:   string(keyHash),

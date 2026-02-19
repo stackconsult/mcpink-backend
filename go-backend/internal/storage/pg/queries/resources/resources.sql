@@ -1,8 +1,8 @@
 -- name: CreateResource :one
 INSERT INTO resources (
-    user_id, project_id, name, type, provider, region, external_id, credentials, metadata, status
+    id, user_id, project_id, name, type, provider, region, external_id, credentials, metadata, status
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 )
 RETURNING *;
 

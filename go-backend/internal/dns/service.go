@@ -13,6 +13,7 @@ import (
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/users"
+	"github.com/lithammer/shortuuid/v4"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/zonerecords"
 	"go.temporal.io/sdk/client"
 )
@@ -101,6 +102,7 @@ func (s *Service) DelegateZone(ctx context.Context, params DelegateZoneParams) (
 	token := GenerateVerificationToken()
 
 	dz, err := s.delegatedZonesQ.Create(ctx, delegatedzones.CreateParams{
+		ID:                shortuuid.New(),
 		UserID:            params.UserID,
 		Zone:              zone,
 		VerificationToken: token,
@@ -419,6 +421,7 @@ func (s *Service) AddCustomDomain(ctx context.Context, params AddCustomDomainPar
 	}
 
 	zr, err := s.zoneRecordsQ.Create(ctx, zonerecords.CreateParams{
+		ID:        shortuuid.New(),
 		ZoneID:    dz.ID,
 		ServiceID: svc.ID,
 		Name:      name,

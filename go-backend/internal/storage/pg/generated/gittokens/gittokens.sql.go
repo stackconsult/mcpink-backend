@@ -21,12 +21,13 @@ func (q *Queries) CleanupExpired(ctx context.Context) error {
 }
 
 const createToken = `-- name: CreateToken :one
-INSERT INTO git_tokens (token_hash, token_prefix, user_id, repo_id, scopes, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO git_tokens (id, token_hash, token_prefix, user_id, repo_id, scopes, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id, token_hash, token_prefix, user_id, repo_id, scopes, expires_at, last_used_at, revoked_at, created_at
 `
 
 type CreateTokenParams struct {
+	ID          string             `json:"id"`
 	TokenHash   string             `json:"token_hash"`
 	TokenPrefix string             `json:"token_prefix"`
 	UserID      string             `json:"user_id"`
@@ -37,6 +38,7 @@ type CreateTokenParams struct {
 
 func (q *Queries) CreateToken(ctx context.Context, arg CreateTokenParams) (GitToken, error) {
 	row := q.db.QueryRow(ctx, createToken,
+		arg.ID,
 		arg.TokenHash,
 		arg.TokenPrefix,
 		arg.UserID,

@@ -10,13 +10,18 @@ import (
 )
 
 const createDefaultProject = `-- name: CreateDefaultProject :one
-INSERT INTO projects (user_id, name, ref, is_default)
-VALUES ($1, 'default', 'default', TRUE)
+INSERT INTO projects (id, user_id, name, ref, is_default)
+VALUES ($1, $2, 'default', 'default', TRUE)
 RETURNING id, user_id, name, ref, is_default, created_at, updated_at
 `
 
-func (q *Queries) CreateDefaultProject(ctx context.Context, userID string) (Project, error) {
-	row := q.db.QueryRow(ctx, createDefaultProject, userID)
+type CreateDefaultProjectParams struct {
+	ID     string `json:"id"`
+	UserID string `json:"user_id"`
+}
+
+func (q *Queries) CreateDefaultProject(ctx context.Context, arg CreateDefaultProjectParams) (Project, error) {
+	row := q.db.QueryRow(ctx, createDefaultProject, arg.ID, arg.UserID)
 	var i Project
 	err := row.Scan(
 		&i.ID,
@@ -31,19 +36,25 @@ func (q *Queries) CreateDefaultProject(ctx context.Context, userID string) (Proj
 }
 
 const createProject = `-- name: CreateProject :one
-INSERT INTO projects (user_id, name, ref)
-VALUES ($1, $2, $3)
+INSERT INTO projects (id, user_id, name, ref)
+VALUES ($1, $2, $3, $4)
 RETURNING id, user_id, name, ref, is_default, created_at, updated_at
 `
 
 type CreateProjectParams struct {
+	ID     string `json:"id"`
 	UserID string `json:"user_id"`
 	Name   string `json:"name"`
 	Ref    string `json:"ref"`
 }
 
 func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error) {
-	row := q.db.QueryRow(ctx, createProject, arg.UserID, arg.Name, arg.Ref)
+	row := q.db.QueryRow(ctx, createProject,
+		arg.ID,
+		arg.UserID,
+		arg.Name,
+		arg.Ref,
+	)
 	var i Project
 	err := row.Scan(
 		&i.ID,

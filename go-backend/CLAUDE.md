@@ -295,7 +295,7 @@ There are 5 binaries split across two runtimes:
 | `graphql` | `cmd/graphql/main.go` | Railway | GraphQL API, GitHub OAuth, webhooks, Firebase auth (port 8081) | — |
 | `mcp` | `cmd/mcp/main.go` | Railway | MCP server, MCP OAuth (port 8082) | — |
 | `worker` | `cmd/worker/main.go` | Railway | Product Temporal worker (task queue: `default`) | — |
-| `deployer-server` | `cmd/deployer-server/main.go` | k3s (`dp-system`) | Webhook receiver (GitHub + Gitea), kicks off Temporal workflows | `infra/eu-central-1/k8s/workloads/deployer-server.yml` |
+| `deployer-server` | `cmd/deployer-server/main.go` | k3s (`dp-system`) | Webhook receiver (GitHub), kicks off Temporal workflows | `infra/eu-central-1/k8s/workloads/deployer-server.yml` |
 | `deployer-worker` | `cmd/deployer-worker/main.go` | k3s (`dp-system`) | K8s deployment worker (build, deploy, delete) (task queue: `deployer-eu-central-1`) | `infra/eu-central-1/k8s/workloads/deployer-worker.yml` |
 
 Mapping note: conceptual `k8s-server` = `deployer-server`; conceptual `k8s-worker` = `deployer-worker`.
@@ -325,8 +325,8 @@ docker build --platform linux/amd64 --provenance=false --sbom=false \
 
 # 4. Save, SCP, import, push to internal registry
 docker save registry.internal:5000/dp-system/deployer-worker:latest -o /tmp/deployer-worker-image.tar
-scp /tmp/deployer-worker-image.tar root@46.225.100.234:/tmp/deployer-worker-image.tar
-ssh root@46.225.100.234 "k3s ctr images import /tmp/deployer-worker-image.tar && \
+scp /tmp/deployer-worker-image.tar root@46.224.206.46:/tmp/deployer-worker-image.tar
+ssh root@46.224.206.46 "k3s ctr images import /tmp/deployer-worker-image.tar && \
   k3s ctr images push --plain-http registry.internal:5000/dp-system/deployer-worker:latest && \
   rm /tmp/deployer-worker-image.tar"
 
@@ -356,8 +356,8 @@ docker build --platform linux/amd64 --provenance=false --sbom=false \
 
 # 4. Save, SCP, import, push to internal registry
 docker save registry.internal:5000/dp-system/deployer-server:latest -o /tmp/deployer-server-image.tar
-scp /tmp/deployer-server-image.tar root@46.225.100.234:/tmp/deployer-server-image.tar
-ssh root@46.225.100.234 "k3s ctr images import /tmp/deployer-server-image.tar && \
+scp /tmp/deployer-server-image.tar root@46.224.206.46:/tmp/deployer-server-image.tar
+ssh root@46.224.206.46 "k3s ctr images import /tmp/deployer-server-image.tar && \
   k3s ctr images push --plain-http registry.internal:5000/dp-system/deployer-server:latest && \
   rm /tmp/deployer-server-image.tar"
 

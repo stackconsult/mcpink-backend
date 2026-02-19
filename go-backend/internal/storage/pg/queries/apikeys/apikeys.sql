@@ -1,6 +1,6 @@
 -- name: CreateAPIKey :one
 INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix)
-VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: GetAPIKeyByPrefix :one

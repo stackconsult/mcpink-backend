@@ -10,18 +10,24 @@ import (
 )
 
 const create = `-- name: Create :one
-INSERT INTO delegated_zones (user_id, zone, verification_token)
-VALUES ($1, $2, $3) RETURNING id, user_id, zone, status, verification_token, wildcard_cert_secret, cert_issued_at, verified_at, delegated_at, expires_at, last_error, created_at, updated_at
+INSERT INTO delegated_zones (id, user_id, zone, verification_token)
+VALUES ($1, $2, $3, $4) RETURNING id, user_id, zone, status, verification_token, wildcard_cert_secret, cert_issued_at, verified_at, delegated_at, expires_at, last_error, created_at, updated_at
 `
 
 type CreateParams struct {
+	ID                string `json:"id"`
 	UserID            string `json:"user_id"`
 	Zone              string `json:"zone"`
 	VerificationToken string `json:"verification_token"`
 }
 
 func (q *Queries) Create(ctx context.Context, arg CreateParams) (DelegatedZone, error) {
-	row := q.db.QueryRow(ctx, create, arg.UserID, arg.Zone, arg.VerificationToken)
+	row := q.db.QueryRow(ctx, create,
+		arg.ID,
+		arg.UserID,
+		arg.Zone,
+		arg.VerificationToken,
+	)
 	var i DelegatedZone
 	err := row.Scan(
 		&i.ID,

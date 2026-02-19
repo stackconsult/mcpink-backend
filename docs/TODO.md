@@ -42,7 +42,7 @@
 - What is Ink logo?
 - Port conclifc error message within a namespace.
 - One design decision is that maybe agent doesn't need gitea, we can just send tarbal with some command like curl or wget
-- how to get internal IP names, does it work already within namespace (service-name.internal)?
+- how to get internal IP names, does it work already within project (k8s namespace) (service-name.internal)?
 - What's the right way to handle preview URLs?
 - Create stack inside a project (nextjs-postgres)?
 - Can I allow people to run things like postgres + mounted volume? Same as railway, no guarantees.

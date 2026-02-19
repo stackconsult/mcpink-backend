@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
+	"github.com/lithammer/shortuuid/v4"
 )
 
 type Activities struct {
@@ -31,7 +32,10 @@ type CreateDefaultProjectResult struct {
 func (a *Activities) CreateDefaultProject(ctx context.Context, input CreateDefaultProjectInput) (*CreateDefaultProjectResult, error) {
 	a.logger.Info("Creating default project", "userID", input.UserID)
 
-	project, err := a.projectsQ.CreateDefaultProject(ctx, input.UserID)
+	project, err := a.projectsQ.CreateDefaultProject(ctx, projects.CreateDefaultProjectParams{
+		ID:     shortuuid.New(),
+		UserID: input.UserID,
+	})
 	if err != nil {
 		a.logger.Error("Failed to create default project",
 			"userID", input.UserID,

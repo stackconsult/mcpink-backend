@@ -10,18 +10,24 @@ import (
 )
 
 const create = `-- name: Create :one
-INSERT INTO zone_records (zone_id, service_id, name)
-VALUES ($1, $2, $3) RETURNING id, zone_id, service_id, name, created_at
+INSERT INTO zone_records (id, zone_id, service_id, name)
+VALUES ($1, $2, $3, $4) RETURNING id, zone_id, service_id, name, created_at
 `
 
 type CreateParams struct {
+	ID        string `json:"id"`
 	ZoneID    string `json:"zone_id"`
 	ServiceID string `json:"service_id"`
 	Name      string `json:"name"`
 }
 
 func (q *Queries) Create(ctx context.Context, arg CreateParams) (ZoneRecord, error) {
-	row := q.db.QueryRow(ctx, create, arg.ZoneID, arg.ServiceID, arg.Name)
+	row := q.db.QueryRow(ctx, create,
+		arg.ID,
+		arg.ZoneID,
+		arg.ServiceID,
+		arg.Name,
+	)
 	var i ZoneRecord
 	err := row.Scan(
 		&i.ID,

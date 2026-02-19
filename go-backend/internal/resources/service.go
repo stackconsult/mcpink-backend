@@ -12,6 +12,7 @@ import (
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
 	dbresources "github.com/augustdev/autoclip/internal/storage/pg/generated/resources"
 	"github.com/augustdev/autoclip/internal/turso"
+	"github.com/lithammer/shortuuid/v4"
 )
 
 type Service struct {
@@ -113,6 +114,7 @@ func (s *Service) ProvisionDatabase(ctx context.Context, input ProvisionDatabase
 		projectID = *input.ProjectID
 	}
 	resource, err := s.resourcesQ.CreateResource(ctx, dbresources.CreateResourceParams{
+		ID:          shortuuid.New(),
 		UserID:      input.UserID,
 		ProjectID:   projectID,
 		Name:        input.Name,
@@ -120,7 +122,7 @@ func (s *Service) ProvisionDatabase(ctx context.Context, input ProvisionDatabase
 		Provider:    ProviderTurso,
 		Region:      input.Region,
 		ExternalID:  &db.DbID,
-		Credentials: []byte(encryptedCreds),
+		Credentials: &encryptedCreds,
 		Metadata:    metadataJSON,
 		Status:      StatusActive,
 	})
@@ -236,8 +238,8 @@ func (s *Service) dbResourceToResource(dbr *dbresources.Resource, decryptCreds b
 		}
 	}
 
-	if decryptCreds && len(dbr.Credentials) > 0 {
-		creds, err := decryptCredentials(string(dbr.Credentials), s.authConfig.APIKeyEncryptionKey)
+	if decryptCreds && dbr.Credentials != nil && *dbr.Credentials != "" {
+		creds, err := decryptCredentials(*dbr.Credentials, s.authConfig.APIKeyEncryptionKey)
 		if err != nil {
 			s.logger.Error("failed to decrypt credentials", "error", err)
 		} else {

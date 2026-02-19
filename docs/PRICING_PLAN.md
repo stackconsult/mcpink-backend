@@ -64,10 +64,10 @@ Discounts managed via Stripe:
 
 | Server | Role | Specs | Monthly Cost |
 |--------|------|-------|-------------|
-| k3s-1 (ctrl) | K3s control plane, Temporal | CX33: 4 shared vCPU, 8 GB | ~6 EUR |
-| ops-1 (ops) | Registry, Gitea, monitoring | Dedicated auction: Xeon E-2176G, 2x960GB NVMe, ECC | ~37 EUR |
-| build-1 (build) | BuildKit | CCX23: 4 dedicated vCPU, 16 GB + 200 GB vol | ~35 EUR |
-| run-1 (run) | Customer workloads | Dedicated auction: EPYC 7502P, 32C/64T, 256 GB, 2x1.92TB NVMe | ~110 EUR |
+| ctrl-1 (ctrl) | K3s control plane, Temporal | Cloud VPS, 8 GB | ~6 EUR |
+| ops-1 (ops) | git-server, monitoring | Dedicated: NVMe RAID1 | ~37 EUR |
+| build-1 (build) | BuildKit, Registry | Dedicated: NVMe RAID1 | ~35 EUR |
+| run-1 (run) | Customer workloads | Dedicated: EPYC 7502P, 32C/64T, 448 GB ECC, 1x960GB NVMe | ~110 EUR |
 | **Total Hetzner** | | | **~188 EUR (~$208)** |
 
 Additional platform costs (Railway for product server, Temporal, Supabase, Cloudflare, Turso): ~$50–100/mo.
@@ -78,12 +78,12 @@ Additional platform costs (Railway for product server, Temporal, Supabase, Cloud
 
 The run-1 node is the revenue-generating asset. Everything else is fixed overhead.
 
-**Raw cost per unit on run-1 ($122/mo for 64 vCPU, 256 GB RAM):**
+**Raw cost per unit on run-1 ($122/mo for 64 vCPU, 448 GB RAM):**
 
 | Resource | Calculation | Raw Cost |
 |----------|-------------|----------|
 | 1 vCPU | $122 / 64 threads | **$1.91/mo** |
-| 1 GB RAM | $122 / 256 GB | **$0.48/mo** |
+| 1 GB RAM | $122 / 448 GB | **$0.27/mo** |
 | 1 GB Disk | ~$0.03/mo (NVMe amortized) | **$0.03/mo** |
 
 **Sellable capacity** (after ~10 GB RAM + ~4 vCPU for Traefik, gVisor, kubelet):
@@ -91,14 +91,14 @@ The run-1 node is the revenue-generating asset. Everything else is fixed overhea
 | Resource | Total | Overhead | Sellable |
 |----------|-------|----------|----------|
 | vCPU | 64 | ~4 | **60** |
-| RAM | 256 GB | ~10 GB | **246 GB** |
+| RAM | 448 GB | ~10 GB | **438 GB** |
 
 ### Markup at Our Prices
 
 | Resource | Raw Cost | Our Price | Markup |
 |----------|----------|-----------|--------|
 | 1 vCPU | $1.91 | $12 | **6.3x** |
-| 1 GB RAM | $0.48 | $6 | **12.5x** |
+| 1 GB RAM | $0.27 | $6 | **22.2x** |
 | 1 GB Disk | $0.03 | $0.15 | **5x** |
 
 ### How We Chose These Numbers
@@ -113,8 +113,8 @@ The run-1 node is the revenue-generating asset. Everything else is fixed overhea
 **RAM at $6/mo:**
 - Railway: $10. Render: $12–22. Fly.io extra RAM: ~$5.
 - $6 is 40% below Railway, slightly above Fly.io's per-GB add-on rate.
-- At 12.5x markup, RAM is our highest-margin resource.
-- The EPYC 7502P has 256 GB — we're memory-rich, so aggressive RAM pricing attracts workloads that would otherwise pick Fly.io.
+- At 22.2x markup, RAM is our highest-margin resource.
+- The EPYC 7502P has 448 GB ECC — we're memory-rich, so aggressive RAM pricing attracts workloads that would otherwise pick Fly.io.
 
 **Disk at $0.15/GB/mo:**
 - Railway: $0.16. Fly.io: $0.15. Render: $0.25.

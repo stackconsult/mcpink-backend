@@ -1,6 +1,6 @@
 -- name: CreateProject :one
-INSERT INTO projects (user_id, name, ref)
-VALUES ($1, $2, $3)
+INSERT INTO projects (id, user_id, name, ref)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: GetProjectByID :one
@@ -10,8 +10,8 @@ SELECT * FROM projects WHERE id = $1;
 SELECT * FROM projects WHERE user_id = $1 AND ref = $2;
 
 -- name: CreateDefaultProject :one
-INSERT INTO projects (user_id, name, ref, is_default)
-VALUES ($1, 'default', 'default', TRUE)
+INSERT INTO projects (id, user_id, name, ref, is_default)
+VALUES ($1, $2, 'default', 'default', TRUE)
 RETURNING *;
 
 -- name: GetDefaultProject :one

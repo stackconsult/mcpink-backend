@@ -16,6 +16,7 @@ import (
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/internalrepos"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/users"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/lithammer/shortuuid/v4"
 )
 
 const (
@@ -76,7 +77,7 @@ func (s *Service) CreateRepo(ctx context.Context, userID, projectID, repoName, d
 			Repo:      s.repoPath(owner, gitName),
 			GitRemote: s.cloneURL(owner, gitName, rawToken),
 			ExpiresAt: time.Now().Add(365 * 24 * time.Hour).Format(time.RFC3339),
-			Message:   "Repo already exists. Push your code, then call create_app to deploy",
+			Message:   "Repo already exists. Push your code, then call create_service to deploy",
 		}, nil
 	}
 
@@ -101,6 +102,7 @@ func (s *Service) CreateRepo(ctx context.Context, userID, projectID, repoName, d
 
 	barePath := fmt.Sprintf("%s/%s.git", gitUsername, gitName)
 	repo, err := s.repoQueries.CreateInternalRepo(ctx, internalrepos.CreateInternalRepoParams{
+		ID:        shortuuid.New(),
 		UserID:    userID,
 		ProjectID: projectID,
 		Name:      repoName,
@@ -122,7 +124,7 @@ func (s *Service) CreateRepo(ctx context.Context, userID, projectID, repoName, d
 		Repo:      s.repoPath(gitUsername, gitName),
 		GitRemote: s.cloneURL(gitUsername, gitName, rawToken),
 		ExpiresAt: time.Now().Add(365 * 24 * time.Hour).Format(time.RFC3339),
-		Message:   "Push your code, then call create_app to deploy",
+		Message:   "Push your code, then call create_service to deploy",
 	}, nil
 }
 
@@ -203,6 +205,7 @@ func (s *Service) createToken(ctx context.Context, userID string, repoID *string
 	}
 
 	_, err := s.tokenQ.CreateToken(ctx, gittokens.CreateTokenParams{
+		ID:          shortuuid.New(),
 		TokenHash:   hashStr,
 		TokenPrefix: prefix,
 		UserID:      userID,

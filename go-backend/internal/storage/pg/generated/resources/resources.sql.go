@@ -22,14 +22,15 @@ func (q *Queries) CountResourcesByUser(ctx context.Context, userID string) (int6
 
 const createResource = `-- name: CreateResource :one
 INSERT INTO resources (
-    user_id, project_id, name, type, provider, region, external_id, credentials, metadata, status
+    id, user_id, project_id, name, type, provider, region, external_id, credentials, metadata, status
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 )
 RETURNING id, user_id, project_id, name, type, provider, region, external_id, connection_url, auth_token, credentials, metadata, status, created_at, updated_at
 `
 
 type CreateResourceParams struct {
+	ID          string  `json:"id"`
 	UserID      string  `json:"user_id"`
 	ProjectID   string  `json:"project_id"`
 	Name        string  `json:"name"`
@@ -37,13 +38,14 @@ type CreateResourceParams struct {
 	Provider    string  `json:"provider"`
 	Region      string  `json:"region"`
 	ExternalID  *string `json:"external_id"`
-	Credentials []byte  `json:"credentials"`
+	Credentials *string `json:"credentials"`
 	Metadata    []byte  `json:"metadata"`
 	Status      string  `json:"status"`
 }
 
 func (q *Queries) CreateResource(ctx context.Context, arg CreateResourceParams) (Resource, error) {
 	row := q.db.QueryRow(ctx, createResource,
+		arg.ID,
 		arg.UserID,
 		arg.ProjectID,
 		arg.Name,
@@ -321,7 +323,7 @@ RETURNING id, user_id, project_id, name, type, provider, region, external_id, co
 type UpdateResourceAfterProvisioningParams struct {
 	ID          string  `json:"id"`
 	ExternalID  *string `json:"external_id"`
-	Credentials []byte  `json:"credentials"`
+	Credentials *string `json:"credentials"`
 	Metadata    []byte  `json:"metadata"`
 }
 
@@ -361,7 +363,7 @@ WHERE id = $1
 
 type UpdateResourceCredentialsParams struct {
 	ID          string  `json:"id"`
-	Credentials []byte  `json:"credentials"`
+	Credentials *string `json:"credentials"`
 	ExternalID  *string `json:"external_id"`
 	Metadata    []byte  `json:"metadata"`
 	Status      string  `json:"status"`

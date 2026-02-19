@@ -222,7 +222,7 @@ When an agent calls `create_service`, the following happens:
    │  Claude) │     │          │     │  Start   │
    └──────────┘     └──────────┘     └──────────┘
 
-2. TEMPORAL WORKER (on k3s-1) PICKS UP TASK
+2. TEMPORAL WORKER (on ctrl-1) PICKS UP TASK
    ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
    │ Create   │────▶│ Clone    │────▶│ Resolve  │────▶│ Build    │
    │ App in   │     │ Repo     │     │ Build    │     │ via      │
@@ -315,7 +315,7 @@ We separate control, ops, build, and run across dedicated node pools so CPU-heav
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  k3s-1 (ctrl) — k3s Server (Hetzner Cloud CX32)             │
+│  ctrl-1 (ctrl) — k3s Server (Hetzner Cloud VPS)               │
 │                                                              │
 │  k3s server process (etcd, API server, scheduler)            │
 │  Temporal Worker                                             │
@@ -326,9 +326,8 @@ We separate control, ops, build, and run across dedicated node pools so CPU-heav
          │ private network (Hetzner vSwitch, 10.0.0.0/16)
          │
 ┌────────┴─────────────────────────────────────────────────────┐
-│  ops-1 (ops) — Storage & Observability (Hetzner Dedicated)   │
+│  ops-1 (ops) — Observability & Git (Hetzner Dedicated)       │
 │                                                              │
-│  Docker Registry v2 (NVMe-backed)                            │
 │  Loki, Prometheus, Grafana                                   │
 │  git-server (custom, git.ml.ink)                             │
 │                                                              │
@@ -336,9 +335,10 @@ We separate control, ops, build, and run across dedicated node pools so CPU-heav
 └──────────────────────────────────────────────────────────────┘
          │
 ┌────────┴─────────────────────────────────────────────────────┐
-│  build-1 (build) — Builder (Hetzner Cloud CCX, dedicated CPU)│
+│  build-1 (build) — Builder + Registry (Hetzner Dedicated)    │
 │                                                              │
 │  BuildKit daemon (local cache + registry cache)              │
+│  Docker Registry v2 (NVMe-backed)                            │
 │                                                              │
 │  Labels: pool=build    Taint: pool=build:NoSchedule          │
 └──────────────────────────────────────────────────────────────┘
@@ -353,7 +353,7 @@ We separate control, ops, build, and run across dedicated node pools so CPU-heav
 └──────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────┐
-│  dns-eu-1 — PowerDNS (Hetzner Cloud CX22)                    │
+│  powerdns-1 — PowerDNS (Hetzner Cloud VPS)                     │
 │                                                              │
 │  Authoritative DNS for custom domains                        │
 │  Local PostgreSQL backend                                    │
@@ -365,15 +365,15 @@ We separate control, ops, build, and run across dedicated node pools so CPU-heav
 
 ### What runs where
 
-**ctrl (k3s-1)** — k3s server, Temporal worker, cert-manager, CoreDNS
+**ctrl (ctrl-1)** — k3s server, Temporal worker, cert-manager, CoreDNS
 
-**ops (ops-1)** — Docker Registry, git-server, Loki, Prometheus, Grafana
+**ops (ops-1)** — git-server, Loki, Prometheus, Grafana
 
-**build (build-1)** — BuildKit daemon with persistent local cache + registry cache
+**build (build-1)** — BuildKit daemon with persistent local cache + registry cache, Docker Registry
 
 **run (run-1+)** — Traefik DaemonSet (ingress), customer containers (kubelet tuned: max-pods=800, parallel image pulls)
 
-**dns-eu-1** — PowerDNS authoritative DNS (standalone VM, not a k3s node). Manages zones for custom domains.
+**powerdns-1** — PowerDNS authoritative DNS (standalone VM, not a k3s node). Manages zones for custom domains.
 
 ### Networking
 
@@ -463,7 +463,7 @@ Returns:
 
 ## Container Registry
 
-Internal Docker Registry v2 running on ops-1 (NVMe-backed), accessible only on the private network (`10.0.1.4:5000`). Host firewall blocks port 5000 from the public internet.
+Internal Docker Registry v2 running on build-1 (NVMe-backed), accessible only on the private network (`10.0.1.5:5000`). Host firewall blocks port 5000 from the public internet.
 
 A nightly GC CronJob keeps the last 2 tags per service via `registry garbage-collect --delete-untagged`.
 
@@ -498,15 +498,15 @@ Users can bring their own domain by delegating a subdomain zone. The platform th
 
 ```
 api.apps.example.com
-  → Recursive resolver → NS ns1.ml.ink → PowerDNS (dns-eu-1)
-    → A 46.225.35.234 (Hetzner LB)
+  → Recursive resolver → NS ns1.ml.ink → PowerDNS (powerdns-1)
+    → A 49.12.19.38 (Hetzner LB)
   → Hetzner LB → TCP passthrough → Traefik (run-1)
   → Traefik routes by Host header → customer pod
 ```
 
 ### Infrastructure
 
-- **PowerDNS** runs on dns-eu-1 (46.225.65.56 / 10.0.0.2) — standalone VM, not a k3s node
+- **PowerDNS** runs on powerdns-1 (46.225.84.41 / 10.0.0.4) — standalone VM, not a k3s node
 - PostgreSQL backend (local), API on private network only (port 8081)
 - cert-manager uses RFC2136 with TSIG key to create DNS-01 challenge records in PowerDNS
 - Hetzner LB does TCP passthrough (no TLS termination) so Traefik can serve the wildcard certs
@@ -560,10 +560,10 @@ K8s manifests live in `infra/eu-central-1/k8s/` and are applied by Ansible.
 
 ### Restore procedure (disaster recovery)
 
-**Scenario: ctrl node (k3s-1) lost**
+**Scenario: ctrl node (ctrl-1) lost**
 
 1. Provision a fresh Cloud server
-2. Run `ansible-playbook site.yml --limit k3s-1`
+2. Run `ansible-playbook site.yml --limit ctrl`
 3. Restore etcd from backup or re-apply k8s manifests
 4. Redeploy Temporal worker
 

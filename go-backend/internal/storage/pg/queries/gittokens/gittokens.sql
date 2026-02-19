@@ -1,6 +1,6 @@
 -- name: CreateToken :one
-INSERT INTO git_tokens (token_hash, token_prefix, user_id, repo_id, scopes, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO git_tokens (id, token_hash, token_prefix, user_id, repo_id, scopes, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: GetTokenByHash :one

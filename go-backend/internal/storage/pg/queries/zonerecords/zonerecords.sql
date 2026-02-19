@@ -1,6 +1,6 @@
 -- name: Create :one
-INSERT INTO zone_records (zone_id, service_id, name)
-VALUES ($1, $2, $3) RETURNING *;
+INSERT INTO zone_records (id, zone_id, service_id, name)
+VALUES ($1, $2, $3, $4) RETURNING *;
 
 -- name: Delete :exec
 DELETE FROM zone_records WHERE id = $1;

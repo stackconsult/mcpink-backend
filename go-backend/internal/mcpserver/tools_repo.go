@@ -151,7 +151,7 @@ func (s *Server) createGitHubRepo(ctx context.Context, user *users.User, input C
 		Repo:      fmt.Sprintf("github.com/%s", repoResp.FullName),
 		GitRemote: fmt.Sprintf("https://x-access-token:%s@github.com/%s.git", installationToken.Token, repoResp.FullName),
 		ExpiresAt: installationToken.ExpiresAt.Format("2006-01-02T15:04:05Z"),
-		Message:   "Push your code, then call create_app to deploy",
+		Message:   "Push your code, then call create_service to deploy",
 	}, nil
 }
 

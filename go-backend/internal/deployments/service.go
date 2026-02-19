@@ -273,6 +273,7 @@ func (s *Service) getOrCreateProject(ctx context.Context, userID, ref string) (*
 
 	s.logger.Info("auto-creating project", "user_id", userID, "ref", ref)
 	newProject, err := s.projectsQ.CreateProject(ctx, projects.CreateProjectParams{
+		ID:     shortuuid.New(),
 		UserID: userID,
 		Name:   ref,
 		Ref:    ref,

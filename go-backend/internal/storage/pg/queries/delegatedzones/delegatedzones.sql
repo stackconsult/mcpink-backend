@@ -1,6 +1,6 @@
 -- name: Create :one
-INSERT INTO delegated_zones (user_id, zone, verification_token)
-VALUES ($1, $2, $3) RETURNING *;
+INSERT INTO delegated_zones (id, user_id, zone, verification_token)
+VALUES ($1, $2, $3, $4) RETURNING *;
 
 -- name: GetByID :one
 SELECT * FROM delegated_zones WHERE id = $1;

@@ -16,7 +16,6 @@ The k3s cluster needs several secrets (API tokens, TLS certs, private keys) to f
 | `loki_basic_auth_users` | Generate with `htpasswd` | Loki ingress auth (Railway → Loki) |
 | `cloudflare_origin_cert` | Cloudflare Origin CA (SSL/TLS → Origin Server) | Backup TLS cert for `*.ml.ink` (15-year validity) |
 | `cloudflare_origin_key` | Cloudflare Origin CA (same) | Private key for Origin CA cert |
-| `gitea_db_password` | Generate with `openssl rand -hex 16` | Gitea PostgreSQL database password |
 
 ### Plain vars — non-sensitive config
 
@@ -211,7 +210,7 @@ Map from `go-backend/.env` to Ansible variables:
 | _(not in .env)_ | `temporal_cloud_api_key` | Yes | Temporal Cloud → API Keys |
 | _(not in .env)_ | `loki_basic_auth_users` | Yes | Generate new with `htpasswd` |
 
-The remaining .env values (`GITHUB_CLIENTID`, `GITHUB_CLIENTSECRET`, `AUTH_*`, `GITEA_*`, `DB_URL`, etc.) are for the Go backend, not the k3s cluster.
+The remaining .env values (`GITHUB_CLIENTID`, `GITHUB_CLIENTSECRET`, `AUTH_*`, `DB_URL`, etc.) are for the Go backend, not the k3s cluster.
 
 ---
 

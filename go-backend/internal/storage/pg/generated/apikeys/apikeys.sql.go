@@ -13,11 +13,12 @@ import (
 
 const createAPIKey = `-- name: CreateAPIKey :one
 INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix)
-VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING id, user_id, name, key_hash, key_prefix, last_used_at, revoked_at, created_at, updated_at
 `
 
 type CreateAPIKeyParams struct {
+	ID        string `json:"id"`
 	UserID    string `json:"user_id"`
 	Name      string `json:"name"`
 	KeyHash   string `json:"key_hash"`
@@ -26,6 +27,7 @@ type CreateAPIKeyParams struct {
 
 func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error) {
 	row := q.db.QueryRow(ctx, createAPIKey,
+		arg.ID,
 		arg.UserID,
 		arg.Name,
 		arg.KeyHash,

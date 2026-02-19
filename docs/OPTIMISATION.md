@@ -264,7 +264,7 @@ Industry research confirms 600–800 pods per node is practical on well-tuned cl
 #### 3.2.1 Architecture
 
 ```
-k3s-1 (ctrl) — unchanged, sees run-1 as a virtual node
+ctrl-1 (ctrl) — unchanged, sees run-1 as a virtual node
 
 run-1 — NO real kubelet, NO kube-proxy
   ├── Virtual Kubelet (custom Go binary, ~2,000 lines)
@@ -491,7 +491,7 @@ What's actually running as of Feb 2026:
 - **Networking:** Flannel (k3s default) with per-namespace NetworkPolicy objects (ingress-isolation + egress-isolation). Works at current scale.
 - **Storage:** No distributed volumes. Customer pods are stateless. Stateful data on ops-1 (RAID1).
 - **Kubelet:** Default settings (max-pods=110).
-- **Nodes:** Single run node (run-1, 256GB EPYC). ~500 pods comfortable ceiling at current density.
+- **Nodes:** Single run node (run-1, 448GB EPYC). ~500 pods comfortable ceiling at current density.
 - **Load balancing:** Hetzner LB (TCP passthrough) → run-1 for custom domains. Cloudflare LB for `*.ml.ink`.
 
 ### Phase 1: Network & Density Optimization — PRE-LAUNCH INFRASTRUCTURE HARDENING
