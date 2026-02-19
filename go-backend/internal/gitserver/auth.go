@@ -5,12 +5,9 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
-	"log/slog"
 	"net/http"
-	"strings"
 )
 
-// AuthResult contains the authenticated token information.
 type AuthResult struct {
 	TokenID  string
 	UserID   string
@@ -20,8 +17,6 @@ type AuthResult struct {
 	RepoFull *string // full_name from joined internal_repos
 }
 
-// authenticateRequest extracts Basic Auth credentials and validates them.
-// Returns nil if authentication fails.
 func (s *Server) authenticateRequest(r *http.Request) *AuthResult {
 	_, password, ok := r.BasicAuth()
 	if !ok || password == "" {
@@ -49,7 +44,6 @@ func (s *Server) authenticateRequest(r *http.Request) *AuthResult {
 		return nil
 	}
 
-	// Update last_used_at asynchronously
 	go func() {
 		if err := s.gitTokensQ.UpdateLastUsed(context.Background(), token.ID); err != nil {
 			s.logger.Warn("failed to update token last_used_at", "error", err)
@@ -104,7 +98,6 @@ func (auth *AuthResult) matchesRepo(repoFullName string) bool {
 	return false
 }
 
-// requireAuth is middleware that authenticates requests and returns 401 on failure.
 func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) *AuthResult {
 	auth := s.authenticateRequest(r)
 	if auth == nil {
@@ -121,13 +114,6 @@ func hashToken(raw string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// writeUnauthorized sends a 401 with WWW-Authenticate header.
-func writeUnauthorized(w http.ResponseWriter, logger *slog.Logger, msg string) {
-	w.Header().Set("WWW-Authenticate", `Basic realm="git"`)
-	http.Error(w, msg, http.StatusUnauthorized)
-}
-
-// requireRepoAuth authenticates + authorizes for a specific repo and scope.
 func (s *Server) requireRepoAuth(w http.ResponseWriter, r *http.Request, repoFullName, scope string) *AuthResult {
 	auth := s.requireAuth(w, r)
 	if auth == nil {
@@ -142,21 +128,4 @@ func (s *Server) requireRepoAuth(w http.ResponseWriter, r *http.Request, repoFul
 		return nil
 	}
 	return auth
-}
-
-// extractOwnerRepo parses /{owner}/{repo}.git from the URL path.
-func extractOwnerRepo(path string) (owner, repo string, ok bool) {
-	path = strings.TrimPrefix(path, "/")
-	parts := strings.SplitN(path, "/", 3)
-	if len(parts) < 2 {
-		return "", "", false
-	}
-	owner = parts[0]
-	// The repo part may have .git suffix and further path components
-	repoWithSuffix := parts[1]
-	repo = strings.TrimSuffix(repoWithSuffix, ".git")
-	if owner == "" || repo == "" {
-		return "", "", false
-	}
-	return owner, repo, true
 }
