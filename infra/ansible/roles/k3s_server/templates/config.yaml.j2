@@ -2,6 +2,8 @@ write-kubeconfig-mode: "0644"
 cluster-init: true
 disable-default-registry-endpoint: {{ k3s_disable_default_registry_endpoint | default(true) | bool | lower }}
 flannel-iface: "{{ private_iface | default(k3s_flannel_iface_default) }}"
+cluster-cidr: "{{ k3s_cluster_cidr | default('10.42.0.0/16') }}"
+service-cidr: "{{ k3s_service_cidr | default('10.43.0.0/16') }}"
 node-label:
   - "pool={{ node_pool_name | default('ctrl') }}"
 
@@ -19,4 +21,11 @@ tls-san:
 {% if node_taint is defined and node_taint | length > 0 %}
 node-taint:
   - "{{ node_taint }}"
+{% endif %}
+
+{% if k3s_kube_controller_manager_args is defined and k3s_kube_controller_manager_args | length > 0 %}
+kube-controller-manager-arg:
+{% for arg in k3s_kube_controller_manager_args %}
+  - "{{ arg }}"
+{% endfor %}
 {% endif %}

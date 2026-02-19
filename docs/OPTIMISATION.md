@@ -94,7 +94,7 @@ We have identified four distinct approaches to increasing container density, eac
 
 ### 3.1 Strategy 1: Tuned k3s + Cilium + Longhorn
 
-> **Status (Feb 2026):** Not deployed. We currently use Flannel (k3s default) with per-namespace NetworkPolicy for tenant isolation. No Longhorn, no kubelet tuning beyond defaults. This works at current scale (~hundreds of namespaces). The items below are documented as future optimization for when we approach 1,000+ namespaces.
+> **Status (Feb 2026):** Not deployed yet — planned as the next infrastructure step before launch. We currently use Flannel (k3s default) with per-namespace NetworkPolicy for tenant isolation. No Longhorn, no kubelet tuning beyond defaults. Cilium migration is a full cluster network reset (all pods restart), which has zero downtime cost pre-launch but would be disruptive with live customer traffic. Better to do it now.
 
 **What:** Keep our existing k3s cluster, but replace Flannel with Cilium for networking, add Longhorn for volume replication, and tune kubelet parameters for higher pod density.
 
@@ -104,9 +104,21 @@ We have identified four distinct approaches to increasing container density, eac
 
 **Current state:** Flannel with per-namespace `NetworkPolicy` objects (ingress-isolation + egress-isolation per namespace, see `infra/eu-central-1/k8s/templates/customer-namespace-template.yml`). This works correctly at current scale — Flannel delegates NetworkPolicy enforcement to kube-router, which programs iptables.
 
-**Problem with Flannel at scale:** Flannel does not enforce NetworkPolicy natively. At 1,000+ namespaces (our namespace-per-customer model), iptables rules grow linearly—O(n) per packet evaluation. This becomes a CPU bottleneck and networking latency source.
+**Problem with Flannel + kube-router at scale:** Flannel delegates NetworkPolicy enforcement to kube-router, which programs iptables rules and uses ipsets for matching. Per-packet evaluation is O(1) (ipset lookups are hash-based), so packet forwarding itself is not the bottleneck. The real scaling costs are:
 
-**Why Cilium:** Cilium uses eBPF programs attached at the veth level. Each namespace gets a security identity (an integer). NetworkPolicy evaluation becomes an eBPF map lookup—O(1) regardless of namespace count. One CiliumClusterwideNetworkPolicy replaces thousands of per-namespace NetworkPolicy objects.
+1. **`iptables-restore` atomic sync storms.** Every NetworkPolicy change triggers a full iptables-restore reload. At 1,000 namespaces (2,000 NetworkPolicy objects — ingress + egress per namespace), each sync takes 3–5 seconds. At 2,000+ namespaces, 5–10+ seconds. During the sync, the kernel holds a lock that can stall packet processing.
+2. **2×N etcd objects from per-namespace policies.** Each namespace creates 2 NetworkPolicy objects. At 2,000 namespaces that's 4,000 objects that controllers must watch, reconcile, and sync. This adds etcd pressure and controller CPU load.
+3. **kube-proxy iptables for service routing.** Separate from NetworkPolicy — kube-proxy maintains its own iptables chains for ClusterIP/NodePort routing, which also grow linearly with service count and trigger their own iptables-restore syncs.
+
+**Why Cilium:** Cilium eliminates all three bottlenecks:
+
+- **eBPF enforcement replaces iptables.** Policy changes update eBPF maps in-place — no iptables-restore sync, no kernel lock. Each namespace gets a numeric security identity; policy evaluation is an eBPF map lookup, O(1) regardless of namespace count.
+- **One CiliumClusterwideNetworkPolicy for egress replaces N identical egress policies.** Ingress isolation ("allow from same namespace") is inherently namespace-scoped and still requires one `CiliumNetworkPolicy` per namespace — Cilium has no facility for a cluster-wide policy to reference "the same namespace as the matched endpoint" (GitHub Issue #24731, closed as "not planned"). This reduces policy objects from 2×N to N+1, and Cilium enforces the remaining N ingress policies via eBPF map lookups instead of iptables chain traversal.
+- **eBPF service routing replaces kube-proxy.** Cilium's `kubeProxyReplacement=true` eliminates kube-proxy's iptables chains entirely.
+
+**gVisor compatibility:** Cilium works with gVisor. Set `socketLB.hostNamespaceOnly=true` to bypass socket-level load balancing (gVisor's netstack can't use cgroup BPF hooks). Traffic falls back to TC BPF at the veth — works correctly. **Known risk:** There is a reported DNS resolution issue with `kubeProxyReplacement` + gVisor when pods are not using `hostNetwork` (gVisor issue #6998). Test DNS resolution from gVisor pods during migration before committing — if DNS fails, the workaround is `kubeProxyReplacement=false` with Cilium handling only NetworkPolicy enforcement.
+
+**Identity cardinality at scale:** Cilium assigns a numeric security identity to each unique label set. The default identity map size is 16,384 (`--bpf-policy-map-max`). At 10,000 namespaces with varied labels, you'll approach this limit — each unique label combination per namespace gets a separate identity. Monitor identity count via `cilium identity list` and tune `--bpf-policy-map-max` upward if needed.
 
 **Installation (k3s control node):**
 
@@ -130,31 +142,25 @@ helm install cilium cilium/cilium \
   --set ipam.operator.clusterPoolIPv4PodCIDRList=10.42.0.0/16 \
   --set ipam.operator.clusterPoolIPv4MaskSize=24 \
   --set bpf.masquerade=true \
-  --set enableIdentityMark=true
+  --set enableIdentityMark=true \
+  --set socketLB.hostNamespaceOnly=true  # Required for gVisor — bypasses cgroup BPF hooks
 ```
 
-**Single cluster-wide isolation policy (replaces all per-namespace NetworkPolicies):**
+**Cluster-wide egress policy (replaces N identical per-namespace egress policies):**
+
+Cilium has no facility for a cluster-wide policy to reference "the same namespace as the matched endpoint" — `{{namespace}}` is not valid Cilium syntax (GitHub Issue #24731, closed as "not planned"). Therefore ingress isolation must remain per-namespace. Egress rules are identical across all tenants and CAN be consolidated into a single cluster-wide policy.
 
 ```yaml
+# ONE cluster-wide policy for egress (replaces N identical egress policies)
 apiVersion: cilium.io/v2
 kind: CiliumClusterwideNetworkPolicy
 metadata:
-  name: tenant-isolation
+  name: tenant-egress-isolation
 spec:
   endpointSelector:
     matchLabels:
       tenant: "true"
-  ingress:
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: "{{namespace}}"
-    - fromEndpoints:
-        - matchLabels:
-            app: traefik
   egress:
-    - toEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: "{{namespace}}"
     - toCIDR:
         - 0.0.0.0/0
       toCIDRSet:
@@ -173,6 +179,30 @@ spec:
             - port: "53"
               protocol: UDP
 ```
+
+**Per-namespace ingress policy (still required — one per namespace):**
+
+```yaml
+# Created per namespace by the deployment pipeline (replaces K8s NetworkPolicy)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ingress-isolation
+  namespace: "<customer-namespace>"
+spec:
+  endpointSelector:
+    matchLabels:
+      tenant: "true"
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: "<customer-namespace>"
+    - fromEndpoints:
+        - matchLabels:
+            app: traefik
+```
+
+This reduces policy objects from 2×N to N+1 (N ingress + 1 egress). The remaining N ingress policies are enforced via eBPF map lookups instead of iptables chain traversal — the enforcement speed improvement applies to all policies regardless of whether they're cluster-wide or namespaced.
 
 #### 3.1.2 Longhorn for Volume Replication — Future
 
@@ -410,7 +440,7 @@ Our architecture uses a Kubernetes namespace per customer project for isolation.
 | Customer Count | Namespaces | Key Challenge                                                    | Mitigation                                                                  |
 | -------------- | ---------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | 100            | 100        | None — k3s handles fine                                          | N/A                                                                         |
-| 500            | 500        | NetworkPolicy count if using per-namespace policies              | Switch to CiliumClusterwideNetworkPolicy (one object)                       |
+| 500            | 500        | NetworkPolicy count if using per-namespace policies              | Cilium: consolidate egress to one cluster-wide policy (N+1 vs 2×N objects)  |
 | 1,000          | 1,000      | etcd/SQLite watch pressure; all controllers watch all namespaces | Cilium eBPF identities; tune API server QPS                                 |
 | 2,000          | 2,000      | API server latency; Traefik Ingress watch across all namespaces  | Consider namespace-scoped Traefik instances                                 |
 | 5,000          | 5,000      | k3s SQLite may degrade; Longhorn replica count increases         | Switch to embedded etcd HA (`k3s --cluster-init`)                           |
@@ -463,15 +493,15 @@ What's actually running as of Feb 2026:
 - **Nodes:** Single run node (run-1, 256GB EPYC). ~500 pods comfortable ceiling at current density.
 - **Load balancing:** Hetzner LB (TCP passthrough) → run-1 for custom domains. Cloudflare LB for `*.ml.ink`.
 
-### Phase 1: Network & Density Optimization — WHEN APPROACHING 1,000+ NAMESPACES
+### Phase 1: Network & Density Optimization — PRE-LAUNCH INFRASTRUCTURE HARDENING
 
-- **Migrate Flannel → Cilium** on all nodes. Install CiliumClusterwideNetworkPolicy. Remove all per-namespace NetworkPolicy objects.
+- **Migrate Flannel → Cilium** on all nodes. Install `CiliumClusterwideNetworkPolicy` for egress; replace per-namespace K8s `NetworkPolicy` with per-namespace `CiliumNetworkPolicy` for ingress (N+1 objects vs 2×N). Include `socketLB.hostNamespaceOnly=true` for gVisor compatibility. Test DNS resolution from gVisor pods before committing (gVisor issue #6998).
 - **Install Longhorn** with 2x replication (only if offering persistent volumes to customers).
 - **Tune kubelet:** max-pods=800, serialize-image-pulls=false, kube-api-qps=100. Tune controller: node-monitor-grace-period=20s, pod-eviction-timeout=30s.
 - **Label all customer pods** with `tenant: "true"` and ensure namespace creation workflow adds the label.
 
-**Trigger:** Per-namespace iptables rules causing measurable latency or CPU overhead on run nodes.
-**Outcome:** 800–1,500 pods per run node. Supports 1,000–2,000 customers. Full k8s API preserved.
+**Trigger:** Pre-launch — Cilium migration is a full cluster network reset (all pods restart). Zero downtime cost now; would be disruptive with live customer traffic.
+**Outcome:** Eliminates iptables as the first scaling bottleneck: no more iptables-restore sync storms, consolidates N egress policies into one cluster-wide policy (N+1 total vs 2×N), replaces kube-proxy with eBPF service routing. The etcd/API server ceiling (~3,000–5,000 namespaces on k3s SQLite) is unchanged — Cilium improves enforcement speed, not control plane capacity. Supports 800–1,500 pods per run node.
 **Risk:** Low. Cilium is battle-tested. Longhorn is stable. These are configuration changes, not code changes.
 
 ### Phase 2: Scale Horizontally (Month 2–6) — AS CUSTOMERS GROW
@@ -518,7 +548,7 @@ Every piece needed for Railway-class density already exists as open source or is
 | Container lifecycle API | containerd Go client         | Available                       | Used by Virtual Kubelet or custom agent          |
 | k8s bridge (optional)   | Virtual Kubelet              | Available                       | `github.com/virtual-kubelet/virtual-kubelet`     |
 | Networking (current)    | Flannel + NetworkPolicy      | **Deployed ✓**                  | Per-namespace ingress/egress policies            |
-| Networking (future)     | Cilium                       | Not deployed — future (Phase 1) | Drop-in Flannel replacement at 1,000+ namespaces |
+| Networking (future)     | Cilium                       | Not deployed — planned pre-launch (Phase 1) | Replaces Flannel + kube-router + kube-proxy with eBPF |
 | Networking (post-k8s)   | CNI plugins + nftables       | Available on all nodes          | Same CNI containerd already uses                 |
 | Ingress routing         | Traefik                      | Deployed ✓                      | k8s Ingress OR file provider mode                |
 | Image building          | BuildKit + Railpack          | Deployed ✓                      | Unchanged across all strategies                  |

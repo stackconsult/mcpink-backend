@@ -12,6 +12,20 @@ k3s_server_disable_components:
   - traefik
   - servicelb
 
+# Pod network CIDRs (explicit — k3s defaults are 10.42/10.43 but we set them for visibility)
+k3s_cluster_cidr: "10.42.0.0/16"
+k3s_service_cidr: "10.43.0.0/16"
+
+# Controller-manager tuning for density
+# node-cidr-mask-size=22: gives each node 1022 pod IPs (vs 254 at default /24)
+#   — /16 cluster CIDR / /22 per node = 64 nodes max (sufficient; cluster sharding at ~30 nodes)
+# node-monitor-grace-period=20s: faster failure detection (default 40s)
+# pod-eviction-timeout=30s: faster rescheduling on node failure (default 5m)
+k3s_kube_controller_manager_args:
+  - "node-cidr-mask-size=22"
+  - "node-monitor-grace-period=20s"
+  - "pod-eviction-timeout=30s"
+
 registry_mirror_endpoint: "http://{{ registry_ip }}:{{ registry_port }}"
 registry_host_fqdn: "{{ registry_host_alias }}:{{ registry_port }}"
 
