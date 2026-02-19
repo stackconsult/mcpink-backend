@@ -347,7 +347,7 @@ We separate control, ops, build, and run across dedicated node pools so CPU-heav
 │  run-1+ (run) — Runners (Hetzner Dedicated)                  │
 │                                                              │
 │  Traefik (DaemonSet, hostNetwork)                            │
-│  Customer containers                                         │
+│  Customer containers (max-pods=800 per node)                 │
 │                                                              │
 │  Labels: pool=run                                            │
 └──────────────────────────────────────────────────────────────┘
@@ -371,7 +371,7 @@ We separate control, ops, build, and run across dedicated node pools so CPU-heav
 
 **build (build-1)** — BuildKit daemon with persistent local cache + registry cache
 
-**run (run-1+)** — Traefik DaemonSet (ingress), customer containers
+**run (run-1+)** — Traefik DaemonSet (ingress), customer containers (kubelet tuned: max-pods=800, parallel image pulls)
 
 **dns-eu-1** — PowerDNS authoritative DNS (standalone VM, not a k3s node). Manages zones for custom domains.
 
@@ -540,7 +540,7 @@ Infrastructure is managed via Ansible playbooks in `infra/ansible/`:
 
 - `site.yml` — Full cluster setup
 - `add-run-node.yml` — Add a new run node
-- `upgrade-k3s.yml` — Rolling k3s upgrade
+- `upgrade-k3s.yml` — Rolling k3s upgrade (also applies kubelet/controller-manager config changes)
 
 K8s manifests live in `infra/eu-central-1/k8s/` and are applied by Ansible.
 

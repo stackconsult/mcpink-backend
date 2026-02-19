@@ -90,13 +90,28 @@ ansible-playbook playbooks/patch-hosts.yml
 
 Options: `-e security_patch_reboot_if_required=false` (no reboot), `-e serial=2` (batch size).
 
-### K3s upgrade
+### K3s upgrade / config changes
 
-Update `k3s_version` in inventory, then:
+Update `k3s_version` in inventory (for upgrades), or modify `k3s_kube_controller_manager_args` / `k3s_agent_kubelet_args` (for config changes), then:
 
 ```bash
 ansible-playbook playbooks/upgrade-k3s.yml
 ```
+
+This playbook applies k3s server config first (ctrl), then agents serially (ops, build, run). Config template changes auto-trigger service restarts via handlers. The playbook is safe for both version upgrades and config-only changes.
+
+### Density config variables
+
+These variables control kubelet and controller-manager tuning for pod density:
+
+| Variable | Scope | Location |
+|----------|-------|----------|
+| `k3s_agent_kubelet_args` | Per-pool (currently run only) | `inventory/hosts.yml` → run group vars |
+| `k3s_kube_controller_manager_args` | Cluster-wide | `inventory/group_vars/all/main.yml` |
+| `k3s_cluster_cidr` | Cluster-wide | `inventory/group_vars/all/main.yml` |
+| `k3s_service_cidr` | Cluster-wide | `inventory/group_vars/all/main.yml` |
+
+See `infra/README.md` § "Kubelet density tuning" for the full settings table.
 
 ## Secrets (vault-managed)
 

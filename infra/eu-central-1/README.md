@@ -41,12 +41,12 @@ Hetzner Cloud Network + vSwitch bridge cloud VPS and dedicated servers into one 
 
 Four node pools isolated by taints. This prevents build jobs or platform services from competing with customer traffic.
 
-| Pool  | Node    | Taint                   | What runs here                                         |
-| ----- | ------- | ----------------------- | ------------------------------------------------------ |
-| ctrl  | k3s-1   | —                       | K3s API, Helm controllers, cert-manager                |
-| ops   | ops-1   | `pool=ops:NoSchedule`   | Docker Registry, git-server, Grafana, Prometheus, Loki |
-| build | build-1 | `pool=build:NoSchedule` | BuildKit builders                                      |
-| run   | run-1   | —                       | Customer pods (gVisor sandboxed), Traefik ingress      |
+| Pool  | Node    | Taint                   | What runs here                                         | Density          |
+| ----- | ------- | ----------------------- | ------------------------------------------------------ | ---------------- |
+| ctrl  | k3s-1   | —                       | K3s API, Helm controllers, cert-manager                | default (110)    |
+| ops   | ops-1   | `pool=ops:NoSchedule`   | Docker Registry, git-server, Grafana, Prometheus, Loki | default (110)    |
+| build | build-1 | `pool=build:NoSchedule` | BuildKit builders                                      | default (110)    |
+| run   | run-1   | —                       | Customer pods (gVisor sandboxed), Traefik ingress      | max-pods=800     |
 
 **Why dedicated for run/ops**: Run needs 256GB RAM for pod density. Ops needs RAID storage for registry + git repo durability. Cloud VPS is fine for control plane and builds.
 
@@ -167,7 +167,11 @@ Chart versions are pinned in `inventory/group_vars/all/main.yml`. Helm values in
 
 ## Scaling
 
-**Add run capacity** (common): Provision a new dedicated server → add to inventory under `run` → run `add-run-node.yml`. The playbook joins k3s, installs gVisor, configures firewall, adds to Hetzner LB. Manually add to Cloudflare LB.
+**Current density**: Run nodes are tuned for max-pods=800 with parallel image pulls. With gVisor overhead (64Mi reserved per pod), a 256GB run node fits ~500-800 customer pods depending on workload memory. See `infra/README.md` § "Kubelet density tuning" for the full settings table.
+
+**Node CIDR**: Controller-manager allocates /22 subnets (1022 IPs per node) to new nodes. Existing nodes may still have /24 from before the change — delete and rejoin the node object to get /22 if you need >254 pods. With /16 cluster CIDR and /22 per node, the cluster supports up to 64 nodes.
+
+**Add run capacity** (common): Provision a new dedicated server → add to inventory under `run` → run `add-run-node.yml`. The playbook joins k3s, installs gVisor, configures firewall, adds to Hetzner LB. Manually add to Cloudflare LB. New run nodes automatically inherit the density config from `k3s_agent_kubelet_args` in the run group vars.
 
 **Add build capacity** (rare): Same process but under `build` group with `pool=build:NoSchedule` taint. Enables parallel BuildKit builders.
 

@@ -169,6 +169,28 @@ cert-manager handles TLS via HTTP-01 challenges using a two-phase approach: Cert
 - Customer pods MUST use `runtimeClassName: gvisor` — provides sandbox AND pins to run-pool nodes via nodeSelector
 - Templates in `<region>/k8s/templates/` are the design spec — Go code in `k8sdeployments/` must match them
 
+### Kubelet density tuning (run nodes)
+
+Run nodes are tuned for high pod density. These are set as `kubelet-arg` in the k3s agent config via Ansible (`k3s_agent_kubelet_args` variable, run group only):
+
+| Setting                       | Value   | Default | Purpose                                         |
+| ----------------------------- | ------- | ------- | ----------------------------------------------- |
+| `max-pods`                    | 800     | 110     | Pod capacity ceiling per node                   |
+| `pods-per-core`               | 0       | —       | Disable per-core pod limit                      |
+| `kube-api-qps`                | 100     | 5       | Faster status updates at high pod count         |
+| `kube-api-burst`              | 200     | 10      | Burst allowance for API calls                   |
+| `serialize-image-pulls`       | false   | true    | Parallel image pulls (faster deploys)           |
+| `node-status-update-frequency`| 30s     | 10s     | Reduce API chatter at scale                     |
+
+Controller-manager tuning (on ctrl node, via `k3s_kube_controller_manager_args`):
+
+| Setting                    | Value | Default | Purpose                                            |
+| -------------------------- | ----- | ------- | -------------------------------------------------- |
+| `node-cidr-mask-size`      | 22    | 24      | 1022 pod IPs per node (vs 254). Max 64 nodes at /16. |
+| `node-monitor-grace-period`| 20s   | 40s     | Faster failure detection                           |
+
+**Note**: Existing nodes keep their /24 CIDR allocation. New nodes get /22. To upgrade an existing node, delete the node object and let it rejoin.
+
 ### cert-manager
 
 - `letsencrypt-prod` ClusterIssuer — HTTP-01 for custom domain TLS
