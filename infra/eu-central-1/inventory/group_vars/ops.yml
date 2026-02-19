@@ -1,6 +1,5 @@
 ---
-registry_storage_path: /mnt/registry
-gitea_storage_path: /mnt/gitea
-loki_storage_size: 50Gi
-grafana_storage_size: 10Gi
+git_server_storage_path: /mnt/git-repos
+loki_storage_size: 500Gi
+grafana_storage_size: 50Gi
 prometheus_retention: 30d

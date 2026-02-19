@@ -13,11 +13,11 @@ spec:
       template:
         spec:
           nodeSelector:
-            pool: ops
+            pool: build
           tolerations:
             - key: pool
               operator: Equal
-              value: ops
+              value: build
               effect: NoSchedule
           restartPolicy: OnFailure
           containers:

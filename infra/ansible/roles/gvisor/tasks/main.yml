@@ -29,6 +29,14 @@
     group: root
     mode: "0755"
 
+- name: Ensure /etc/containerd directory exists
+  file:
+    path: /etc/containerd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Deploy runsc configuration
   template:
     src: runsc.toml.j2

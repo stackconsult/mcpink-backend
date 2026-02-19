@@ -8,7 +8,7 @@ data:
     [registry."registry.internal:5000"]
       http = true
       insecure = true
-    [registry."10.0.1.4:5000"]
+    [registry."10.0.1.5:5000"]
       http = true
       insecure = true
 ---
@@ -39,7 +39,7 @@ spec:
           value: build
           effect: NoSchedule
       hostAliases:
-        - ip: "10.0.1.4"
+        - ip: "10.0.1.5"
           hostnames:
             - "registry.internal"
       initContainers:

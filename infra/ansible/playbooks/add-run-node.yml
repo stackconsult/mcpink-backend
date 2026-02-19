@@ -23,18 +23,9 @@
       until: node_status.stdout == "True"
       delegate_to: "{{ groups['ctrl'][0] }}"
 
-    - name: Add run node to Hetzner LB
-      command: >-
-        hcloud load-balancer add-target {{ hetzner_lb_name }}
-        --ip {{ hostvars[inventory_hostname].private_ip }}
-      delegate_to: localhost
-      become: false
-      environment:
-        HCLOUD_TOKEN: "{{ hcloud_token }}"
-
-    - name: Cloudflare origin pool reminder
+    - name: Cloudflare and Hetzner LB reminder
       debug:
         msg: >-
           {{ inventory_hostname }} is Ready.
-          Update the Cloudflare Load Balancer origin pool to include {{ ansible_host }} (DNS wildcard A record is not required).
-          The node has been added to the Hetzner LB ({{ hetzner_lb_name }}) automatically.
+          1) Add {{ hostvars[inventory_hostname].private_ip }} as a target in the Hetzner LB ({{ hetzner_lb_name }}) via Hetzner Console.
+          2) Update the Cloudflare Load Balancer origin pool to include {{ ansible_host }} (DNS wildcard A record is not required).

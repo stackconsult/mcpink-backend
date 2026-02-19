@@ -204,7 +204,7 @@
   loop: "{{ metrics_allowed_cidrs }}"
   notify: Persist iptables rules
 
-- name: Allow registry traffic from approved private CIDRs on ops nodes
+- name: Allow registry traffic from approved private CIDRs on build nodes
   ansible.builtin.iptables:
     chain: INPUT
     protocol: tcp
@@ -214,10 +214,10 @@
     comment: allow private registry access
     state: present
   loop: "{{ registry_allowed_cidrs }}"
-  when: "'ops' in group_names"
+  when: "'build' in group_names"
   notify: Persist iptables rules
 
-- name: Drop public registry traffic on ops nodes
+- name: Drop public registry traffic on build nodes
   ansible.builtin.iptables:
     chain: INPUT
     protocol: tcp
@@ -225,7 +225,7 @@
     jump: DROP
     comment: block public registry access
     state: present
-  when: "'ops' in group_names"
+  when: "'build' in group_names"
   notify: Persist iptables rules
 
 - name: Block metadata endpoint egress
@@ -250,3 +250,22 @@
   when: firewall_block_smtp | bool
   loop: "{{ smtp_ports }}"
   notify: Persist iptables rules
+
+- name: Default-deny all other inbound traffic
+  ansible.builtin.iptables:
+    chain: INPUT
+    jump: DROP
+    comment: default deny inbound
+    state: present
+  notify: Persist iptables rules
+
+- name: Stop and disable rpcbind
+  systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+    masked: true
+  loop:
+    - rpcbind
+    - rpcbind.socket
+  failed_when: false

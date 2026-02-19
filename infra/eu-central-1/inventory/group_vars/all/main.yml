@@ -76,8 +76,7 @@ cloudflare_lb_monitor_expected_codes: "200,301,302,401,403,404"
 cloudflare_lb_monitor_interval: 60
 cloudflare_lb_monitor_timeout: 5
 
-# Hetzner Cloud API / LB (custom domain traffic)
-hetzner_cloud_network_id: 11898981
-hetzner_lb_name: load-balancer-central-1
-hetzner_lb_public_ip: 46.225.35.234
-hetzner_lb_private_ip: 10.0.0.5
+# Hetzner Cloud LB (custom domain traffic)
+hetzner_lb_name: lb-eu-central-1
+hetzner_lb_public_ip: 49.12.19.38
+hetzner_lb_private_ip: 10.0.0.2

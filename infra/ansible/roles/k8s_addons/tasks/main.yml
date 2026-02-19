@@ -219,6 +219,16 @@
     executable: /bin/bash
   when: git_server_admin_token | default('') | length > 0
 
+- name: Create PowerDNS credentials secret when provided
+  shell: |
+    set -euo pipefail
+    k3s kubectl -n dp-system create secret generic powerdns-credentials \
+      --from-literal=api-key={{ powerdns_api_key | quote }} \
+      --dry-run=client -o yaml | k3s kubectl apply -f -
+  args:
+    executable: /bin/bash
+  when: powerdns_api_key | default('') | length > 0
+
 - name: Create Cloudflare token secret when provided
   shell: |
     set -euo pipefail

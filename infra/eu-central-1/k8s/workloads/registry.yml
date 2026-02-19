@@ -16,11 +16,11 @@ spec:
         app: registry
     spec:
       nodeSelector:
-        pool: ops
+        pool: build
       tolerations:
         - key: pool
           operator: Equal
-          value: ops
+          value: build
           effect: NoSchedule
       containers:
         - name: registry
