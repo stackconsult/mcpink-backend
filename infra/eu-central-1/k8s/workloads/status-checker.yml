@@ -1,0 +1,220 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: status-checker
+  namespace: dp-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: status-checker
+  namespace: dp-system
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: status-checker
+  namespace: dp-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: status-checker
+subjects:
+  - kind: ServiceAccount
+    name: status-checker
+    namespace: dp-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: status-checker-nodes
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: status-checker-nodes
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: status-checker-nodes
+subjects:
+  - kind: ServiceAccount
+    name: status-checker
+    namespace: dp-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: status-checker-config
+  namespace: dp-system
+data:
+  application.yaml: |
+    statuschecker:
+      port: "8090"
+      interval: "30s"
+      checks:
+        # Standalone
+        - name: dashboard
+          type: http
+          url: "https://ml.ink"
+          componentid: "cmlu4jtlg3u2w3c4m645v2x3c"
+        - name: api
+          type: http
+          url: "https://api.ml.ink/healthz"
+          componentid: "cmlu6ua0k0bxogoe2i34hvhro"
+        - name: git
+          type: http
+          url: "https://git.ml.ink/healthz"
+          componentid: "cmlu6uavn0jadqmpzs1bvfj8r"
+        # Deployments
+        - name: eu-central-1
+          type: k8s_nodes
+          componentid: "cmlu6yi6m09dui9u29cczjysg"
+        # Build Infrastructure
+        - name: registry
+          type: http
+          url: "http://registry.dp-system:5000/v2/"
+          componentid: "cmlu6yixh0k2mmk9e8mbj766u"
+        - name: buildkit
+          type: k8s_pod
+          labelselector: "app=buildkitd"
+          namespace: "dp-system"
+          componentid: "cmlu6yjnl09dwi9u2ubhgir4c"
+        # Networking
+        - name: dns
+          type: dns
+          server: "10.0.0.4:53"
+          domain: "ml.ink"
+          componentid: "cmlu6yke70k2omk9eic64cmnz"
+        # Monitoring
+        - name: logs
+          type: http
+          url: "http://loki.dp-system:3100/ready"
+          componentid: "cmlu6yl6u0982ifr7kmma7v2p"
+        - name: metrics
+          type: http
+          url: "http://kube-prometheus-stack-prometheus.dp-system:9090/-/ready"
+          componentid: "cmlu6ylxj0c2je0oekfqf911d"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: status-checker
+  namespace: dp-system
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  replicas: 1
+  selector:
+    matchLabels:
+      app: status-checker
+  template:
+    metadata:
+      labels:
+        app: status-checker
+    spec:
+      serviceAccountName: status-checker
+      nodeSelector:
+        pool: ctrl
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: status-checker
+          image: ghcr.io/gluonfield/status-checker:latest
+          ports:
+            - containerPort: 8090
+          env:
+            - name: APPLICATION_CONFIG
+              value: /config/application.yaml
+            - name: STATUSCHECKER_INSTATUSAPIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: instatus-credentials
+                  key: api-key
+            - name: STATUSCHECKER_INSTATUSPAGEID
+              valueFrom:
+                secretKeyRef:
+                  name: instatus-credentials
+                  key: page-id
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: "50m"
+              memory: 32Mi
+            limits:
+              cpu: "200m"
+              memory: 64Mi
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 8090
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8090
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: config
+          configMap:
+            name: status-checker-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: status-checker
+  namespace: dp-system
+spec:
+  type: ClusterIP
+  selector:
+    app: status-checker
+  ports:
+    - port: 8090
+      targetPort: 8090
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: status-checker
+  namespace: dp-system
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: canary.ml.ink
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: status-checker
+                port:
+                  number: 8090

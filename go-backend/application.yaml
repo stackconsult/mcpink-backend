@@ -107,3 +107,10 @@ dns:
   nameservers:
     - ns1.ml.ink
     - ns2.ml.ink
+
+statuschecker:
+  port: "8090"
+  interval: "30s"
+  instatusapikey: ""
+  instatuspageid: ""
+  checks: []

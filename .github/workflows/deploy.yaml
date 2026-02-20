@@ -12,6 +12,7 @@ env:
   WORKER_IMAGE: ghcr.io/gluonfield/deployer-worker
   SERVER_IMAGE: ghcr.io/gluonfield/deployer-server
   GIT_SERVER_IMAGE: ghcr.io/gluonfield/git-server
+  STATUS_CHECKER_IMAGE: ghcr.io/gluonfield/status-checker
 
 jobs:
   deploy:
@@ -44,10 +45,11 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/deployer-worker ./cmd/deployer-worker
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/deployer-server ./cmd/deployer-server
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/git-server ./cmd/git-server
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/status-checker ./cmd/status-checker
 
       - name: Prepare image contexts
         run: |
-          mkdir -p .tmp-deployer-worker-image .tmp-deployer-server-image .tmp-git-server-image
+          mkdir -p .tmp-deployer-worker-image .tmp-deployer-server-image .tmp-git-server-image .tmp-status-checker-image
 
           cat > .tmp-deployer-worker-image/Dockerfile <<'EOF'
           FROM debian:bookworm-slim
@@ -78,6 +80,16 @@ jobs:
           CMD ["./git-server"]
           EOF
 
+          cat > .tmp-status-checker-image/Dockerfile <<'EOF'
+          FROM debian:bookworm-slim
+          RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
+          WORKDIR /app
+          COPY status-checker .
+          COPY application.yaml .
+          EXPOSE 8090
+          CMD ["./status-checker"]
+          EOF
+
       - name: Build & push deployer-worker
         run: |
           cp /tmp/deployer-worker .tmp-deployer-worker-image/deployer-worker
@@ -105,6 +117,15 @@ jobs:
             .tmp-git-server-image/
           docker push ${{ env.GIT_SERVER_IMAGE }}:${{ env.SHORT_SHA }}
 
+      - name: Build & push status-checker
+        run: |
+          cp /tmp/status-checker .tmp-status-checker-image/status-checker
+          cp go-backend/application.yaml .tmp-status-checker-image/application.yaml
+          docker build --platform linux/amd64 \
+            -t ${{ env.STATUS_CHECKER_IMAGE }}:${{ env.SHORT_SHA }} \
+            .tmp-status-checker-image/
+          docker push ${{ env.STATUS_CHECKER_IMAGE }}:${{ env.SHORT_SHA }}
+
       - name: Deploy to k3s
         uses: appleboy/ssh-action@v1
         with:
@@ -115,8 +136,10 @@ jobs:
             kubectl set image deployment/deployer-worker worker=${{ env.WORKER_IMAGE }}:${{ env.SHORT_SHA }} -n dp-system &
             kubectl set image deployment/deployer-server deployer-server=${{ env.SERVER_IMAGE }}:${{ env.SHORT_SHA }} -n dp-system &
             kubectl set image deployment/git-server git-server=${{ env.GIT_SERVER_IMAGE }}:${{ env.SHORT_SHA }} -n dp-system &
+            kubectl set image deployment/status-checker status-checker=${{ env.STATUS_CHECKER_IMAGE }}:${{ env.SHORT_SHA }} -n dp-system &
             wait
             kubectl rollout status deployment/deployer-worker -n dp-system --timeout=120s &
             kubectl rollout status deployment/deployer-server -n dp-system --timeout=120s &
             kubectl rollout status deployment/git-server -n dp-system --timeout=120s &
+            kubectl rollout status deployment/status-checker -n dp-system --timeout=120s &
             wait

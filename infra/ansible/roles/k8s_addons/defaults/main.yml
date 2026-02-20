@@ -29,6 +29,7 @@ k8s_manifest_apply_order:
   - observability/grafana-ingress.yml
   - observability/raid-alerts.yml
   - workloads/git-server.yml
+  - workloads/status-checker.yml
 
 # Customer namespace quota enforcement (cluster-side, not app deploy code)
 customer_quota_namespace_selector: "dp.ml.ink/tenant"

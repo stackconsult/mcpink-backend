@@ -13,6 +13,9 @@ run-deployer-server:
 run-deployer-worker:
 	@go run cmd/deployer-worker/main.go
 
+run-status-checker:
+	@go run cmd/status-checker/main.go
+
 sqlc:
 	@go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
 
