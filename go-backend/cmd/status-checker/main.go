@@ -54,7 +54,7 @@ func startStatusChecker(lc fx.Lifecycle, checker *statuschecker.Checker, cfg sta
 					logger.Error("Status checker HTTP server failed", "error", err)
 				}
 			}()
-			go checker.Run(ctx)
+			go checker.Run(context.Background())
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {

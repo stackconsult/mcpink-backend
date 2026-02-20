@@ -96,8 +96,10 @@ jobs:
           cp go-backend/application.yaml .tmp-deployer-worker-image/application.yaml
           docker build --platform linux/amd64 \
             -t ${{ env.WORKER_IMAGE }}:${{ env.SHORT_SHA }} \
+            -t ${{ env.WORKER_IMAGE }}:latest \
             .tmp-deployer-worker-image/
           docker push ${{ env.WORKER_IMAGE }}:${{ env.SHORT_SHA }}
+          docker push ${{ env.WORKER_IMAGE }}:latest
 
       - name: Build & push deployer-server
         run: |
@@ -105,8 +107,10 @@ jobs:
           cp go-backend/application.yaml .tmp-deployer-server-image/application.yaml
           docker build --platform linux/amd64 \
             -t ${{ env.SERVER_IMAGE }}:${{ env.SHORT_SHA }} \
+            -t ${{ env.SERVER_IMAGE }}:latest \
             .tmp-deployer-server-image/
           docker push ${{ env.SERVER_IMAGE }}:${{ env.SHORT_SHA }}
+          docker push ${{ env.SERVER_IMAGE }}:latest
 
       - name: Build & push git-server
         run: |
@@ -114,8 +118,10 @@ jobs:
           cp go-backend/application.yaml .tmp-git-server-image/application.yaml
           docker build --platform linux/amd64 \
             -t ${{ env.GIT_SERVER_IMAGE }}:${{ env.SHORT_SHA }} \
+            -t ${{ env.GIT_SERVER_IMAGE }}:latest \
             .tmp-git-server-image/
           docker push ${{ env.GIT_SERVER_IMAGE }}:${{ env.SHORT_SHA }}
+          docker push ${{ env.GIT_SERVER_IMAGE }}:latest
 
       - name: Build & push status-checker
         run: |
@@ -123,8 +129,10 @@ jobs:
           cp go-backend/application.yaml .tmp-status-checker-image/application.yaml
           docker build --platform linux/amd64 \
             -t ${{ env.STATUS_CHECKER_IMAGE }}:${{ env.SHORT_SHA }} \
+            -t ${{ env.STATUS_CHECKER_IMAGE }}:latest \
             .tmp-status-checker-image/
           docker push ${{ env.STATUS_CHECKER_IMAGE }}:${{ env.SHORT_SHA }}
+          docker push ${{ env.STATUS_CHECKER_IMAGE }}:latest
 
       - name: Deploy to k3s
         uses: appleboy/ssh-action@v1
