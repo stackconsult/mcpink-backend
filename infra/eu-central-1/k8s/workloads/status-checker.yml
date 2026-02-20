@@ -60,51 +60,35 @@ data:
     statuschecker:
       port: "8090"
       interval: "30s"
-      instatusapikey: ""
-      instatuspageid: ""
       checks:
-        # Standalone
         - name: dashboard
           type: http
           url: "https://ml.ink"
-          componentid: "cmlu4jtlg3u2w3c4m645v2x3c"
         - name: api
           type: http
           url: "https://api.ml.ink/healthz"
-          componentid: "cmlu6ua0k0bxogoe2i34hvhro"
         - name: git
           type: http
           url: "https://git.ml.ink/healthz"
-          componentid: "cmlu6uavn0jadqmpzs1bvfj8r"
-        # Deployments
         - name: eu-central-1
           type: k8s_nodes
-          componentid: "cmlu6yi6m09dui9u29cczjysg"
-        # Build Infrastructure
         - name: registry
           type: http
           url: "http://registry.dp-system:5000/v2/"
-          componentid: "cmlu6yixh0k2mmk9e8mbj766u"
         - name: buildkit
           type: k8s_pod
           labelselector: "app=buildkitd"
           namespace: "dp-system"
-          componentid: "cmlu6yjnl09dwi9u2ubhgir4c"
-        # Networking
         - name: dns
           type: dns
           server: "46.225.84.41:53"
           domain: "ml.ink"
-          componentid: "cmlu6yke70k2omk9eic64cmnz"
-        # Monitoring
         - name: logs
           type: http
           url: "http://loki.dp-system:3100/ready"
-          componentid: "cmlu6yl6u0982ifr7kmma7v2p"
         - name: metrics
           type: http
           url: "http://prometheus-kube-prometheus-prometheus.dp-system:9090/-/ready"
-          componentid: "cmlu6ylxj0c2je0oekfqf911d"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -139,16 +123,6 @@ spec:
           env:
             - name: APPLICATION_CONFIG
               value: /config/application.yaml
-            - name: STATUSCHECKER_INSTATUSAPIKEY
-              valueFrom:
-                secretKeyRef:
-                  name: instatus-credentials
-                  key: api-key
-            - name: STATUSCHECKER_INSTATUSPAGEID
-              valueFrom:
-                secretKeyRef:
-                  name: instatus-credentials
-                  key: page-id
           volumeMounts:
             - name: config
               mountPath: /config

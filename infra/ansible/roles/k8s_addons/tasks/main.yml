@@ -229,19 +229,6 @@
     executable: /bin/bash
   when: powerdns_api_key | default('') | length > 0
 
-- name: Create Instatus credentials secret when provided
-  shell: |
-    set -euo pipefail
-    k3s kubectl -n dp-system create secret generic instatus-credentials \
-      --from-literal=api-key={{ instatus_api_key | quote }} \
-      --from-literal=page-id={{ instatus_page_id | quote }} \
-      --dry-run=client -o yaml | k3s kubectl apply -f -
-  args:
-    executable: /bin/bash
-  when:
-    - instatus_api_key | default('') | length > 0
-    - instatus_page_id | default('') | length > 0
-
 - name: Create Cloudflare token secret when provided
   shell: |
     set -euo pipefail

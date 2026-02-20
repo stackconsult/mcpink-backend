@@ -111,6 +111,4 @@ dns:
 statuschecker:
   port: "8090"
   interval: "30s"
-  instatusapikey: ""
-  instatuspageid: ""
   checks: []

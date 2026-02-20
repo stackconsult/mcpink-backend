@@ -10,11 +10,9 @@ import (
 )
 
 type Config struct {
-	Port           string
-	Interval       string
-	InstatusAPIKey string
-	InstatusPageID string
-	Checks         []CheckConfig
+	Port     string
+	Interval string
+	Checks   []CheckConfig
 }
 
 type CheckConfig struct {
@@ -25,14 +23,20 @@ type CheckConfig struct {
 	Namespace     string
 	Server        string
 	Domain        string
-	ComponentID   string
+}
+
+type CheckResult struct {
+	Healthy bool   `json:"healthy"`
+	Error   string `json:"error,omitempty"`
 }
 
 type Checker struct {
-	cfg      Config
-	k8s      kubernetes.Interface
-	instatus *InstatusClient
-	logger   *slog.Logger
+	cfg    Config
+	k8s    kubernetes.Interface
+	logger *slog.Logger
+
+	mu      sync.RWMutex
+	results map[string]CheckResult
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -40,10 +44,10 @@ type Checker struct {
 
 func New(cfg Config, k8s kubernetes.Interface, logger *slog.Logger) *Checker {
 	return &Checker{
-		cfg:      cfg,
-		k8s:      k8s,
-		instatus: NewInstatusClient(cfg.InstatusPageID, cfg.InstatusAPIKey),
-		logger:   logger,
+		cfg:     cfg,
+		k8s:     k8s,
+		logger:  logger,
+		results: make(map[string]CheckResult),
 	}
 }
 
@@ -60,7 +64,6 @@ func (c *Checker) Run(parentCtx context.Context) {
 	c.wg.Add(1)
 	defer c.wg.Done()
 
-	// Run immediately on start
 	c.runChecks(ctx)
 
 	ticker := time.NewTicker(interval)
@@ -83,24 +86,38 @@ func (c *Checker) Stop() {
 	c.wg.Wait()
 }
 
+func (c *Checker) GetResult(name string) (CheckResult, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	r, ok := c.results[name]
+	return r, ok
+}
+
+func (c *Checker) GetAllResults() map[string]CheckResult {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make(map[string]CheckResult, len(c.results))
+	for k, v := range c.results {
+		out[k] = v
+	}
+	return out
+}
+
 func (c *Checker) runChecks(ctx context.Context) {
 	for _, check := range c.cfg.Checks {
-		if check.ComponentID == "" {
-			continue
-		}
-
 		err := c.executeCheck(ctx, check)
-		status := StatusOperational
+
+		result := CheckResult{Healthy: true}
 		if err != nil {
-			status = StatusMajorOutage
+			result = CheckResult{Healthy: false, Error: err.Error()}
 			c.logger.Error("Check failed", "name", check.Name, "type", check.Type, "error", err)
 		} else {
 			c.logger.Debug("Check passed", "name", check.Name, "type", check.Type)
 		}
 
-		if err := c.instatus.UpdateComponentStatus(ctx, check.ComponentID, status); err != nil {
-			c.logger.Error("Failed to update Instatus", "name", check.Name, "component", check.ComponentID, "error", err)
-		}
+		c.mu.Lock()
+		c.results[check.Name] = result
+		c.mu.Unlock()
 	}
 }
 

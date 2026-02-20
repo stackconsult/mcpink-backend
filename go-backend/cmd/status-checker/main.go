@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"time"
@@ -36,9 +37,36 @@ func main() {
 
 func startStatusChecker(lc fx.Lifecycle, checker *statuschecker.Checker, cfg statuschecker.Config, k8s kubernetes.Interface, logger *slog.Logger) {
 	router := chi.NewRouter()
+
 	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
+	})
+
+	// Individual check endpoint — returns 200 if healthy, 503 if not.
+	// Instatus HTTP monitors poll these.
+	router.Get("/check/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := chi.URLParam(r, "name")
+		result, ok := checker.GetResult(name)
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "unknown check"})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if result.Healthy {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+		json.NewEncoder(w).Encode(result)
+	})
+
+	// All checks as JSON
+	router.Get("/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(checker.GetAllResults())
 	})
 
 	server := &http.Server{
