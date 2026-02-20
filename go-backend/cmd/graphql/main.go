@@ -10,6 +10,7 @@ import (
 	"github.com/augustdev/autoclip/internal/github_oauth"
 	"github.com/augustdev/autoclip/internal/githubapp"
 	"github.com/augustdev/autoclip/internal/internalgit"
+	"github.com/augustdev/autoclip/internal/powerdns"
 	"github.com/augustdev/autoclip/internal/prometheus"
 	"github.com/augustdev/autoclip/internal/resources"
 	"github.com/augustdev/autoclip/internal/storage/pg"
@@ -33,6 +34,7 @@ type config struct {
 	Firebase       bootstrap.FirebaseConfig
 	Prometheus     prometheus.Config
 	DNS            dns.Config
+	PowerDNS       powerdns.Config
 }
 
 func main() {
@@ -60,6 +62,7 @@ func main() {
 			bootstrap.NewTursoClient,
 			prometheus.NewClient,
 			deployments.NewService,
+			powerdns.NewClient,
 			dns.NewService,
 			resources.NewService,
 			internalgit.NewService,
