@@ -74,7 +74,7 @@ CREATE TABLE resources (
     name TEXT NOT NULL,
     type TEXT NOT NULL DEFAULT 'sqlite',
     provider TEXT NOT NULL DEFAULT 'turso',
-    region TEXT NOT NULL DEFAULT 'eu-west',
+    region TEXT NOT NULL DEFAULT 'eu-central',
     external_id TEXT,
     connection_url TEXT,
     auth_token TEXT,

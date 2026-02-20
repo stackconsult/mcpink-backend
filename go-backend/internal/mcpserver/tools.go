@@ -476,8 +476,8 @@ func (s *Server) handleCreateResource(ctx context.Context, req *mcp.CallToolRequ
 
 	region := DefaultRegion
 	if input.Region != "" {
-		if input.Region != "eu-west" {
-			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "invalid region: only 'eu-west' is supported"}}}, CreateResourceOutput{}, nil
+		if input.Region != "eu-central" {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "invalid region: only 'eu-central' is supported"}}}, CreateResourceOutput{}, nil
 		}
 		region = input.Region
 	}
