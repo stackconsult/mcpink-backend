@@ -51,7 +51,7 @@ func main() {
 			pg.NewDeploymentQueries,
 			pg.NewProjectQueries,
 			pg.NewUserQueries,
-			pg.NewDelegatedZoneQueries,
+			pg.NewHostedZoneQueries,
 			powerdns.NewClient,
 			pg.NewClusterMap,
 			githubapp.NewService,

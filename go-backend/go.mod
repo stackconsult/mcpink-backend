@@ -6,7 +6,7 @@ tool github.com/99designs/gqlgen
 
 require (
 	firebase.google.com/go/v4 v4.18.0
-	github.com/99designs/gqlgen v0.17.86
+	github.com/99designs/gqlgen v0.17.87
 	github.com/cloudflare/cloudflare-go v0.116.0
 	github.com/distribution/reference v0.6.0
 	github.com/dustinkirkland/golang-petname v0.0.0-20240428194347-eebcea082ee0
@@ -21,6 +21,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lestrrat-go/jwx v1.2.31
 	github.com/lithammer/shortuuid/v4 v4.2.0
+	github.com/miekg/dns v1.1.72
 	github.com/moby/buildkit v0.27.1
 	github.com/modelcontextprotocol/go-sdk v1.2.0
 	github.com/nats-io/nats.go v1.48.0
@@ -28,14 +29,14 @@ require (
 	github.com/railwayapp/railpack v0.17.1
 	github.com/spf13/viper v1.21.0
 	github.com/tonistiigi/fsutil v0.0.0-20251211185533-a2aa163d723f
-	github.com/vektah/gqlparser/v2 v2.5.31
+	github.com/vektah/gqlparser/v2 v2.5.32
 	github.com/vikstrous/dataloadgen v0.0.10
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.63.0
 	go.temporal.io/api v1.59.0
 	go.temporal.io/sdk v1.39.0
 	go.temporal.io/sdk/contrib/opentelemetry v0.6.0
 	go.uber.org/fx v1.24.0
-	golang.org/x/crypto v0.46.0
+	golang.org/x/crypto v0.48.0
 	golang.org/x/sync v0.19.0
 	google.golang.org/api v0.231.0
 	google.golang.org/grpc v1.76.0
@@ -110,7 +111,7 @@ require (
 	github.com/go-openapi/swag/stringutils v0.25.3 // indirect
 	github.com/go-openapi/swag/typeutils v0.25.3 // indirect
 	github.com/go-openapi/swag/yamlutils v0.25.3 // indirect
-	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
@@ -145,7 +146,6 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
-	github.com/miekg/dns v1.1.72 // indirect
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
 	github.com/moby/sys/signal v0.7.1 // indirect
@@ -181,7 +181,7 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tailscale/hujson v0.0.0-20241010212012-29efb4a0184b // indirect
 	github.com/tonistiigi/units v0.0.0-20180711220420-6950e57a87ea // indirect
-	github.com/urfave/cli/v3 v3.6.1 // indirect
+	github.com/urfave/cli/v3 v3.6.2 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
@@ -203,14 +203,14 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621 // indirect
-	golang.org/x/mod v0.31.0 // indirect
-	golang.org/x/net v0.48.0 // indirect
+	golang.org/x/mod v0.33.0 // indirect
+	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/term v0.38.0 // indirect
-	golang.org/x/text v0.33.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/term v0.40.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
-	golang.org/x/tools v0.40.0 // indirect
+	golang.org/x/tools v0.42.0 // indirect
 	google.golang.org/appengine/v2 v2.0.6 // indirect
 	google.golang.org/genproto v0.0.0-20250505200425-f936aa4a68b2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251103181224-f26f9409b101 // indirect

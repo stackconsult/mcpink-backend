@@ -93,7 +93,7 @@ data:
         # Networking
         - name: dns
           type: dns
-          server: "10.0.0.4:53"
+          server: "46.225.84.41:53"
           domain: "ml.ink"
           componentid: "cmlu6yke70k2omk9eic64cmnz"
         # Monitoring
