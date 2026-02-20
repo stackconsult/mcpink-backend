@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -24,20 +23,10 @@ import (
 
 // NewExecutableSchema creates an ExecutableSchema from the ResolverRoot interface.
 func NewExecutableSchema(cfg Config) graphql.ExecutableSchema {
-	return &executableSchema{
-		schema:     cfg.Schema,
-		resolvers:  cfg.Resolvers,
-		directives: cfg.Directives,
-		complexity: cfg.Complexity,
-	}
+	return &executableSchema{SchemaData: cfg.Schema, Resolvers: cfg.Resolvers, Directives: cfg.Directives, ComplexityRoot: cfg.Complexity}
 }
 
-type Config struct {
-	Schema     *ast.Schema
-	Resolvers  ResolverRoot
-	Directives DirectiveRoot
-	Complexity ComplexityRoot
-}
+type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 type ResolverRoot interface {
 	Mutation() MutationResolver
@@ -67,6 +56,13 @@ type ComplexityRoot struct {
 		Secret func(childComplexity int) int
 	}
 
+	CreateHostedZoneResult struct {
+		DNSRecords func(childComplexity int) int
+		Status     func(childComplexity int) int
+		Zone       func(childComplexity int) int
+		ZoneID     func(childComplexity int) int
+	}
+
 	DNSRecord struct {
 		Host     func(childComplexity int) int
 		Type     func(childComplexity int) int
@@ -74,20 +70,9 @@ type ComplexityRoot struct {
 		Verified func(childComplexity int) int
 	}
 
-	DelegateZoneResult struct {
-		DNSRecords func(childComplexity int) int
-		Status     func(childComplexity int) int
-		Zone       func(childComplexity int) int
-		ZoneID     func(childComplexity int) int
-	}
-
-	DelegatedZone struct {
-		CreatedAt  func(childComplexity int) int
-		DNSRecords func(childComplexity int) int
-		Error      func(childComplexity int) int
-		ID         func(childComplexity int) int
-		Status     func(childComplexity int) int
-		Zone       func(childComplexity int) int
+	DeleteHostedZoneResult struct {
+		Message func(childComplexity int) int
+		ZoneID  func(childComplexity int) int
 	}
 
 	DeleteServiceResult struct {
@@ -101,6 +86,16 @@ type ComplexityRoot struct {
 		Value func(childComplexity int) int
 	}
 
+	HostedZone struct {
+		CreatedAt  func(childComplexity int) int
+		DNSRecords func(childComplexity int) int
+		Error      func(childComplexity int) int
+		ID         func(childComplexity int) int
+		Records    func(childComplexity int) int
+		Status     func(childComplexity int) int
+		Zone       func(childComplexity int) int
+	}
+
 	MetricDataPoint struct {
 		Timestamp func(childComplexity int) int
 		Value     func(childComplexity int) int
@@ -112,13 +107,15 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
+		AddDNSRecord                 func(childComplexity int, zone string, name string, typeArg string, content string, ttl *int32) int
 		CreateAPIKey                 func(childComplexity int, name string) int
-		DelegateZone                 func(childComplexity int, zone string) int
+		CreateHostedZone             func(childComplexity int, zone string) int
+		DeleteDNSRecord              func(childComplexity int, zone string, recordID string) int
+		DeleteHostedZone             func(childComplexity int, zone string) int
 		DeleteService                func(childComplexity int, name string, project *string) int
 		RecheckGithubAppInstallation func(childComplexity int) int
-		RemoveDelegation             func(childComplexity int, zone string) int
 		RevokeAPIKey                 func(childComplexity int, id string) int
-		VerifyDelegation             func(childComplexity int, zone string) int
+		VerifyHostedZone             func(childComplexity int, zone string) int
 	}
 
 	PageInfo struct {
@@ -144,21 +141,16 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		ListDelegatedZones func(childComplexity int) int
-		ListProjects       func(childComplexity int, first *int32, after *string) int
-		ListResources      func(childComplexity int, first *int32, after *string) int
-		ListServices       func(childComplexity int, first *int32, after *string) int
-		Me                 func(childComplexity int) int
-		MyAPIKeys          func(childComplexity int) int
-		ProjectDetails     func(childComplexity int, id string) int
-		ResourceDetails    func(childComplexity int, id string) int
-		ServiceDetails     func(childComplexity int, id string) int
-		ServiceMetrics     func(childComplexity int, serviceID string, timeRange model.MetricTimeRange) int
-	}
-
-	RemoveDelegationResult struct {
-		Message func(childComplexity int) int
-		ZoneID  func(childComplexity int) int
+		ListHostedZones func(childComplexity int) int
+		ListProjects    func(childComplexity int, first *int32, after *string) int
+		ListResources   func(childComplexity int, first *int32, after *string) int
+		ListServices    func(childComplexity int, first *int32, after *string) int
+		Me              func(childComplexity int) int
+		MyAPIKeys       func(childComplexity int) int
+		ProjectDetails  func(childComplexity int, id string) int
+		ResourceDetails func(childComplexity int, id string) int
+		ServiceDetails  func(childComplexity int, id string) int
+		ServiceMetrics  func(childComplexity int, serviceID string, timeRange model.MetricTimeRange) int
 	}
 
 	Resource struct {
@@ -224,11 +216,6 @@ type ComplexityRoot struct {
 		NetworkTransmitBytesPerSec func(childComplexity int) int
 	}
 
-	ServiceStatus struct {
-		Build   func(childComplexity int) int
-		Runtime func(childComplexity int) int
-	}
-
 	User struct {
 		AvatarURL               func(childComplexity int) int
 		CreatedAt               func(childComplexity int) int
@@ -240,12 +227,22 @@ type ComplexityRoot struct {
 		ID                      func(childComplexity int) int
 	}
 
-	VerifyDelegationResult struct {
+	VerifyHostedZoneResult struct {
 		DNSRecords func(childComplexity int) int
 		Message    func(childComplexity int) int
 		Status     func(childComplexity int) int
 		Zone       func(childComplexity int) int
 		ZoneID     func(childComplexity int) int
+	}
+
+	ZoneRecord struct {
+		Content   func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Managed   func(childComplexity int) int
+		Name      func(childComplexity int) int
+		TTL       func(childComplexity int) int
+		Type      func(childComplexity int) int
 	}
 }
 
@@ -253,9 +250,11 @@ type MutationResolver interface {
 	CreateAPIKey(ctx context.Context, name string) (*model.CreateAPIKeyResult, error)
 	RevokeAPIKey(ctx context.Context, id string) (bool, error)
 	RecheckGithubAppInstallation(ctx context.Context) (*string, error)
-	DelegateZone(ctx context.Context, zone string) (*model.DelegateZoneResult, error)
-	VerifyDelegation(ctx context.Context, zone string) (*model.VerifyDelegationResult, error)
-	RemoveDelegation(ctx context.Context, zone string) (*model.RemoveDelegationResult, error)
+	CreateHostedZone(ctx context.Context, zone string) (*model.CreateHostedZoneResult, error)
+	VerifyHostedZone(ctx context.Context, zone string) (*model.VerifyHostedZoneResult, error)
+	DeleteHostedZone(ctx context.Context, zone string) (*model.DeleteHostedZoneResult, error)
+	AddDNSRecord(ctx context.Context, zone string, name string, typeArg string, content string, ttl *int32) (*model.ZoneRecord, error)
+	DeleteDNSRecord(ctx context.Context, zone string, recordID string) (bool, error)
 	DeleteService(ctx context.Context, name string, project *string) (*model.DeleteServiceResult, error)
 }
 type ProjectResolver interface {
@@ -264,7 +263,7 @@ type ProjectResolver interface {
 type QueryResolver interface {
 	Me(ctx context.Context) (*model.User, error)
 	MyAPIKeys(ctx context.Context) ([]*model.APIKey, error)
-	ListDelegatedZones(ctx context.Context) ([]*model.DelegatedZone, error)
+	ListHostedZones(ctx context.Context) ([]*model.HostedZone, error)
 	ServiceMetrics(ctx context.Context, serviceID string, timeRange model.MetricTimeRange) (*model.ServiceMetrics, error)
 	ListProjects(ctx context.Context, first *int32, after *string) (*model.ProjectConnection, error)
 	ProjectDetails(ctx context.Context, id string) (*model.Project, error)
@@ -279,7 +278,7 @@ type ResourceResolver interface {
 type ServiceResolver interface {
 	Project(ctx context.Context, obj *model.Service) (*model.Project, error)
 
-	Status(ctx context.Context, obj *model.Service) (*model.ServiceStatus, error)
+	Status(ctx context.Context, obj *model.Service) (string, error)
 	ErrorMessage(ctx context.Context, obj *model.Service) (*string, error)
 
 	CommitHash(ctx context.Context, obj *model.Service) (*string, error)
@@ -288,216 +287,241 @@ type ServiceResolver interface {
 	CustomDomainStatus(ctx context.Context, obj *model.Service) (*string, error)
 }
 
-type executableSchema struct {
-	schema     *ast.Schema
-	resolvers  ResolverRoot
-	directives DirectiveRoot
-	complexity ComplexityRoot
-}
+type executableSchema graphql.ExecutableSchemaState[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 func (e *executableSchema) Schema() *ast.Schema {
-	if e.schema != nil {
-		return e.schema
+	if e.SchemaData != nil {
+		return e.SchemaData
 	}
 	return parsedSchema
 }
 
 func (e *executableSchema) Complexity(ctx context.Context, typeName, field string, childComplexity int, rawArgs map[string]any) (int, bool) {
-	ec := executionContext{nil, e, 0, 0, nil}
+	ec := newExecutionContext(nil, e, nil)
 	_ = ec
 	switch typeName + "." + field {
 
 	case "APIKey.createdAt":
-		if e.complexity.APIKey.CreatedAt == nil {
+		if e.ComplexityRoot.APIKey.CreatedAt == nil {
 			break
 		}
 
-		return e.complexity.APIKey.CreatedAt(childComplexity), true
+		return e.ComplexityRoot.APIKey.CreatedAt(childComplexity), true
 	case "APIKey.id":
-		if e.complexity.APIKey.ID == nil {
+		if e.ComplexityRoot.APIKey.ID == nil {
 			break
 		}
 
-		return e.complexity.APIKey.ID(childComplexity), true
+		return e.ComplexityRoot.APIKey.ID(childComplexity), true
 	case "APIKey.lastUsedAt":
-		if e.complexity.APIKey.LastUsedAt == nil {
+		if e.ComplexityRoot.APIKey.LastUsedAt == nil {
 			break
 		}
 
-		return e.complexity.APIKey.LastUsedAt(childComplexity), true
+		return e.ComplexityRoot.APIKey.LastUsedAt(childComplexity), true
 	case "APIKey.name":
-		if e.complexity.APIKey.Name == nil {
+		if e.ComplexityRoot.APIKey.Name == nil {
 			break
 		}
 
-		return e.complexity.APIKey.Name(childComplexity), true
+		return e.ComplexityRoot.APIKey.Name(childComplexity), true
 	case "APIKey.prefix":
-		if e.complexity.APIKey.Prefix == nil {
+		if e.ComplexityRoot.APIKey.Prefix == nil {
 			break
 		}
 
-		return e.complexity.APIKey.Prefix(childComplexity), true
+		return e.ComplexityRoot.APIKey.Prefix(childComplexity), true
 
 	case "CreateAPIKeyResult.apiKey":
-		if e.complexity.CreateAPIKeyResult.APIKey == nil {
+		if e.ComplexityRoot.CreateAPIKeyResult.APIKey == nil {
 			break
 		}
 
-		return e.complexity.CreateAPIKeyResult.APIKey(childComplexity), true
+		return e.ComplexityRoot.CreateAPIKeyResult.APIKey(childComplexity), true
 	case "CreateAPIKeyResult.secret":
-		if e.complexity.CreateAPIKeyResult.Secret == nil {
+		if e.ComplexityRoot.CreateAPIKeyResult.Secret == nil {
 			break
 		}
 
-		return e.complexity.CreateAPIKeyResult.Secret(childComplexity), true
+		return e.ComplexityRoot.CreateAPIKeyResult.Secret(childComplexity), true
+
+	case "CreateHostedZoneResult.dnsRecords":
+		if e.ComplexityRoot.CreateHostedZoneResult.DNSRecords == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreateHostedZoneResult.DNSRecords(childComplexity), true
+	case "CreateHostedZoneResult.status":
+		if e.ComplexityRoot.CreateHostedZoneResult.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreateHostedZoneResult.Status(childComplexity), true
+	case "CreateHostedZoneResult.zone":
+		if e.ComplexityRoot.CreateHostedZoneResult.Zone == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreateHostedZoneResult.Zone(childComplexity), true
+	case "CreateHostedZoneResult.zoneId":
+		if e.ComplexityRoot.CreateHostedZoneResult.ZoneID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreateHostedZoneResult.ZoneID(childComplexity), true
 
 	case "DNSRecord.host":
-		if e.complexity.DNSRecord.Host == nil {
+		if e.ComplexityRoot.DNSRecord.Host == nil {
 			break
 		}
 
-		return e.complexity.DNSRecord.Host(childComplexity), true
+		return e.ComplexityRoot.DNSRecord.Host(childComplexity), true
 	case "DNSRecord.type":
-		if e.complexity.DNSRecord.Type == nil {
+		if e.ComplexityRoot.DNSRecord.Type == nil {
 			break
 		}
 
-		return e.complexity.DNSRecord.Type(childComplexity), true
+		return e.ComplexityRoot.DNSRecord.Type(childComplexity), true
 	case "DNSRecord.value":
-		if e.complexity.DNSRecord.Value == nil {
+		if e.ComplexityRoot.DNSRecord.Value == nil {
 			break
 		}
 
-		return e.complexity.DNSRecord.Value(childComplexity), true
+		return e.ComplexityRoot.DNSRecord.Value(childComplexity), true
 	case "DNSRecord.verified":
-		if e.complexity.DNSRecord.Verified == nil {
+		if e.ComplexityRoot.DNSRecord.Verified == nil {
 			break
 		}
 
-		return e.complexity.DNSRecord.Verified(childComplexity), true
+		return e.ComplexityRoot.DNSRecord.Verified(childComplexity), true
 
-	case "DelegateZoneResult.dnsRecords":
-		if e.complexity.DelegateZoneResult.DNSRecords == nil {
+	case "DeleteHostedZoneResult.message":
+		if e.ComplexityRoot.DeleteHostedZoneResult.Message == nil {
 			break
 		}
 
-		return e.complexity.DelegateZoneResult.DNSRecords(childComplexity), true
-	case "DelegateZoneResult.status":
-		if e.complexity.DelegateZoneResult.Status == nil {
+		return e.ComplexityRoot.DeleteHostedZoneResult.Message(childComplexity), true
+	case "DeleteHostedZoneResult.zoneId":
+		if e.ComplexityRoot.DeleteHostedZoneResult.ZoneID == nil {
 			break
 		}
 
-		return e.complexity.DelegateZoneResult.Status(childComplexity), true
-	case "DelegateZoneResult.zone":
-		if e.complexity.DelegateZoneResult.Zone == nil {
-			break
-		}
-
-		return e.complexity.DelegateZoneResult.Zone(childComplexity), true
-	case "DelegateZoneResult.zoneId":
-		if e.complexity.DelegateZoneResult.ZoneID == nil {
-			break
-		}
-
-		return e.complexity.DelegateZoneResult.ZoneID(childComplexity), true
-
-	case "DelegatedZone.createdAt":
-		if e.complexity.DelegatedZone.CreatedAt == nil {
-			break
-		}
-
-		return e.complexity.DelegatedZone.CreatedAt(childComplexity), true
-	case "DelegatedZone.dnsRecords":
-		if e.complexity.DelegatedZone.DNSRecords == nil {
-			break
-		}
-
-		return e.complexity.DelegatedZone.DNSRecords(childComplexity), true
-	case "DelegatedZone.error":
-		if e.complexity.DelegatedZone.Error == nil {
-			break
-		}
-
-		return e.complexity.DelegatedZone.Error(childComplexity), true
-	case "DelegatedZone.id":
-		if e.complexity.DelegatedZone.ID == nil {
-			break
-		}
-
-		return e.complexity.DelegatedZone.ID(childComplexity), true
-	case "DelegatedZone.status":
-		if e.complexity.DelegatedZone.Status == nil {
-			break
-		}
-
-		return e.complexity.DelegatedZone.Status(childComplexity), true
-	case "DelegatedZone.zone":
-		if e.complexity.DelegatedZone.Zone == nil {
-			break
-		}
-
-		return e.complexity.DelegatedZone.Zone(childComplexity), true
+		return e.ComplexityRoot.DeleteHostedZoneResult.ZoneID(childComplexity), true
 
 	case "DeleteServiceResult.message":
-		if e.complexity.DeleteServiceResult.Message == nil {
+		if e.ComplexityRoot.DeleteServiceResult.Message == nil {
 			break
 		}
 
-		return e.complexity.DeleteServiceResult.Message(childComplexity), true
+		return e.ComplexityRoot.DeleteServiceResult.Message(childComplexity), true
 	case "DeleteServiceResult.name":
-		if e.complexity.DeleteServiceResult.Name == nil {
+		if e.ComplexityRoot.DeleteServiceResult.Name == nil {
 			break
 		}
 
-		return e.complexity.DeleteServiceResult.Name(childComplexity), true
+		return e.ComplexityRoot.DeleteServiceResult.Name(childComplexity), true
 	case "DeleteServiceResult.serviceId":
-		if e.complexity.DeleteServiceResult.ServiceID == nil {
+		if e.ComplexityRoot.DeleteServiceResult.ServiceID == nil {
 			break
 		}
 
-		return e.complexity.DeleteServiceResult.ServiceID(childComplexity), true
+		return e.ComplexityRoot.DeleteServiceResult.ServiceID(childComplexity), true
 
 	case "EnvVar.key":
-		if e.complexity.EnvVar.Key == nil {
+		if e.ComplexityRoot.EnvVar.Key == nil {
 			break
 		}
 
-		return e.complexity.EnvVar.Key(childComplexity), true
+		return e.ComplexityRoot.EnvVar.Key(childComplexity), true
 	case "EnvVar.value":
-		if e.complexity.EnvVar.Value == nil {
+		if e.ComplexityRoot.EnvVar.Value == nil {
 			break
 		}
 
-		return e.complexity.EnvVar.Value(childComplexity), true
+		return e.ComplexityRoot.EnvVar.Value(childComplexity), true
+
+	case "HostedZone.createdAt":
+		if e.ComplexityRoot.HostedZone.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.HostedZone.CreatedAt(childComplexity), true
+	case "HostedZone.dnsRecords":
+		if e.ComplexityRoot.HostedZone.DNSRecords == nil {
+			break
+		}
+
+		return e.ComplexityRoot.HostedZone.DNSRecords(childComplexity), true
+	case "HostedZone.error":
+		if e.ComplexityRoot.HostedZone.Error == nil {
+			break
+		}
+
+		return e.ComplexityRoot.HostedZone.Error(childComplexity), true
+	case "HostedZone.id":
+		if e.ComplexityRoot.HostedZone.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.HostedZone.ID(childComplexity), true
+	case "HostedZone.records":
+		if e.ComplexityRoot.HostedZone.Records == nil {
+			break
+		}
+
+		return e.ComplexityRoot.HostedZone.Records(childComplexity), true
+	case "HostedZone.status":
+		if e.ComplexityRoot.HostedZone.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.HostedZone.Status(childComplexity), true
+	case "HostedZone.zone":
+		if e.ComplexityRoot.HostedZone.Zone == nil {
+			break
+		}
+
+		return e.ComplexityRoot.HostedZone.Zone(childComplexity), true
 
 	case "MetricDataPoint.timestamp":
-		if e.complexity.MetricDataPoint.Timestamp == nil {
+		if e.ComplexityRoot.MetricDataPoint.Timestamp == nil {
 			break
 		}
 
-		return e.complexity.MetricDataPoint.Timestamp(childComplexity), true
+		return e.ComplexityRoot.MetricDataPoint.Timestamp(childComplexity), true
 	case "MetricDataPoint.value":
-		if e.complexity.MetricDataPoint.Value == nil {
+		if e.ComplexityRoot.MetricDataPoint.Value == nil {
 			break
 		}
 
-		return e.complexity.MetricDataPoint.Value(childComplexity), true
+		return e.ComplexityRoot.MetricDataPoint.Value(childComplexity), true
 
 	case "MetricSeries.dataPoints":
-		if e.complexity.MetricSeries.DataPoints == nil {
+		if e.ComplexityRoot.MetricSeries.DataPoints == nil {
 			break
 		}
 
-		return e.complexity.MetricSeries.DataPoints(childComplexity), true
+		return e.ComplexityRoot.MetricSeries.DataPoints(childComplexity), true
 	case "MetricSeries.metric":
-		if e.complexity.MetricSeries.Metric == nil {
+		if e.ComplexityRoot.MetricSeries.Metric == nil {
 			break
 		}
 
-		return e.complexity.MetricSeries.Metric(childComplexity), true
+		return e.ComplexityRoot.MetricSeries.Metric(childComplexity), true
 
+	case "Mutation.addDnsRecord":
+		if e.ComplexityRoot.Mutation.AddDNSRecord == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_addDnsRecord_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AddDNSRecord(childComplexity, args["zone"].(string), args["name"].(string), args["type"].(string), args["content"].(string), args["ttl"].(*int32)), true
 	case "Mutation.createAPIKey":
-		if e.complexity.Mutation.CreateAPIKey == nil {
+		if e.ComplexityRoot.Mutation.CreateAPIKey == nil {
 			break
 		}
 
@@ -506,20 +530,42 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateAPIKey(childComplexity, args["name"].(string)), true
-	case "Mutation.delegateZone":
-		if e.complexity.Mutation.DelegateZone == nil {
+		return e.ComplexityRoot.Mutation.CreateAPIKey(childComplexity, args["name"].(string)), true
+	case "Mutation.createHostedZone":
+		if e.ComplexityRoot.Mutation.CreateHostedZone == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_delegateZone_args(ctx, rawArgs)
+		args, err := ec.field_Mutation_createHostedZone_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Mutation.DelegateZone(childComplexity, args["zone"].(string)), true
+		return e.ComplexityRoot.Mutation.CreateHostedZone(childComplexity, args["zone"].(string)), true
+	case "Mutation.deleteDnsRecord":
+		if e.ComplexityRoot.Mutation.DeleteDNSRecord == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteDnsRecord_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteDNSRecord(childComplexity, args["zone"].(string), args["recordId"].(string)), true
+	case "Mutation.deleteHostedZone":
+		if e.ComplexityRoot.Mutation.DeleteHostedZone == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteHostedZone_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteHostedZone(childComplexity, args["zone"].(string)), true
 	case "Mutation.deleteService":
-		if e.complexity.Mutation.DeleteService == nil {
+		if e.ComplexityRoot.Mutation.DeleteService == nil {
 			break
 		}
 
@@ -528,26 +574,15 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.DeleteService(childComplexity, args["name"].(string), args["project"].(*string)), true
+		return e.ComplexityRoot.Mutation.DeleteService(childComplexity, args["name"].(string), args["project"].(*string)), true
 	case "Mutation.recheckGithubAppInstallation":
-		if e.complexity.Mutation.RecheckGithubAppInstallation == nil {
+		if e.ComplexityRoot.Mutation.RecheckGithubAppInstallation == nil {
 			break
 		}
 
-		return e.complexity.Mutation.RecheckGithubAppInstallation(childComplexity), true
-	case "Mutation.removeDelegation":
-		if e.complexity.Mutation.RemoveDelegation == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_removeDelegation_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.RemoveDelegation(childComplexity, args["zone"].(string)), true
+		return e.ComplexityRoot.Mutation.RecheckGithubAppInstallation(childComplexity), true
 	case "Mutation.revokeAPIKey":
-		if e.complexity.Mutation.RevokeAPIKey == nil {
+		if e.ComplexityRoot.Mutation.RevokeAPIKey == nil {
 			break
 		}
 
@@ -556,108 +591,108 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.RevokeAPIKey(childComplexity, args["id"].(string)), true
-	case "Mutation.verifyDelegation":
-		if e.complexity.Mutation.VerifyDelegation == nil {
+		return e.ComplexityRoot.Mutation.RevokeAPIKey(childComplexity, args["id"].(string)), true
+	case "Mutation.verifyHostedZone":
+		if e.ComplexityRoot.Mutation.VerifyHostedZone == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_verifyDelegation_args(ctx, rawArgs)
+		args, err := ec.field_Mutation_verifyHostedZone_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Mutation.VerifyDelegation(childComplexity, args["zone"].(string)), true
+		return e.ComplexityRoot.Mutation.VerifyHostedZone(childComplexity, args["zone"].(string)), true
 
 	case "PageInfo.endCursor":
-		if e.complexity.PageInfo.EndCursor == nil {
+		if e.ComplexityRoot.PageInfo.EndCursor == nil {
 			break
 		}
 
-		return e.complexity.PageInfo.EndCursor(childComplexity), true
+		return e.ComplexityRoot.PageInfo.EndCursor(childComplexity), true
 	case "PageInfo.hasNextPage":
-		if e.complexity.PageInfo.HasNextPage == nil {
+		if e.ComplexityRoot.PageInfo.HasNextPage == nil {
 			break
 		}
 
-		return e.complexity.PageInfo.HasNextPage(childComplexity), true
+		return e.ComplexityRoot.PageInfo.HasNextPage(childComplexity), true
 	case "PageInfo.hasPreviousPage":
-		if e.complexity.PageInfo.HasPreviousPage == nil {
+		if e.ComplexityRoot.PageInfo.HasPreviousPage == nil {
 			break
 		}
 
-		return e.complexity.PageInfo.HasPreviousPage(childComplexity), true
+		return e.ComplexityRoot.PageInfo.HasPreviousPage(childComplexity), true
 	case "PageInfo.startCursor":
-		if e.complexity.PageInfo.StartCursor == nil {
+		if e.ComplexityRoot.PageInfo.StartCursor == nil {
 			break
 		}
 
-		return e.complexity.PageInfo.StartCursor(childComplexity), true
+		return e.ComplexityRoot.PageInfo.StartCursor(childComplexity), true
 
 	case "Project.createdAt":
-		if e.complexity.Project.CreatedAt == nil {
+		if e.ComplexityRoot.Project.CreatedAt == nil {
 			break
 		}
 
-		return e.complexity.Project.CreatedAt(childComplexity), true
+		return e.ComplexityRoot.Project.CreatedAt(childComplexity), true
 	case "Project.id":
-		if e.complexity.Project.ID == nil {
+		if e.ComplexityRoot.Project.ID == nil {
 			break
 		}
 
-		return e.complexity.Project.ID(childComplexity), true
+		return e.ComplexityRoot.Project.ID(childComplexity), true
 	case "Project.name":
-		if e.complexity.Project.Name == nil {
+		if e.ComplexityRoot.Project.Name == nil {
 			break
 		}
 
-		return e.complexity.Project.Name(childComplexity), true
+		return e.ComplexityRoot.Project.Name(childComplexity), true
 	case "Project.ref":
-		if e.complexity.Project.Ref == nil {
+		if e.ComplexityRoot.Project.Ref == nil {
 			break
 		}
 
-		return e.complexity.Project.Ref(childComplexity), true
+		return e.ComplexityRoot.Project.Ref(childComplexity), true
 	case "Project.services":
-		if e.complexity.Project.Services == nil {
+		if e.ComplexityRoot.Project.Services == nil {
 			break
 		}
 
-		return e.complexity.Project.Services(childComplexity), true
+		return e.ComplexityRoot.Project.Services(childComplexity), true
 	case "Project.updatedAt":
-		if e.complexity.Project.UpdatedAt == nil {
+		if e.ComplexityRoot.Project.UpdatedAt == nil {
 			break
 		}
 
-		return e.complexity.Project.UpdatedAt(childComplexity), true
+		return e.ComplexityRoot.Project.UpdatedAt(childComplexity), true
 
 	case "ProjectConnection.nodes":
-		if e.complexity.ProjectConnection.Nodes == nil {
+		if e.ComplexityRoot.ProjectConnection.Nodes == nil {
 			break
 		}
 
-		return e.complexity.ProjectConnection.Nodes(childComplexity), true
+		return e.ComplexityRoot.ProjectConnection.Nodes(childComplexity), true
 	case "ProjectConnection.pageInfo":
-		if e.complexity.ProjectConnection.PageInfo == nil {
+		if e.ComplexityRoot.ProjectConnection.PageInfo == nil {
 			break
 		}
 
-		return e.complexity.ProjectConnection.PageInfo(childComplexity), true
+		return e.ComplexityRoot.ProjectConnection.PageInfo(childComplexity), true
 	case "ProjectConnection.totalCount":
-		if e.complexity.ProjectConnection.TotalCount == nil {
+		if e.ComplexityRoot.ProjectConnection.TotalCount == nil {
 			break
 		}
 
-		return e.complexity.ProjectConnection.TotalCount(childComplexity), true
+		return e.ComplexityRoot.ProjectConnection.TotalCount(childComplexity), true
 
-	case "Query.listDelegatedZones":
-		if e.complexity.Query.ListDelegatedZones == nil {
+	case "Query.listHostedZones":
+		if e.ComplexityRoot.Query.ListHostedZones == nil {
 			break
 		}
 
-		return e.complexity.Query.ListDelegatedZones(childComplexity), true
+		return e.ComplexityRoot.Query.ListHostedZones(childComplexity), true
 	case "Query.listProjects":
-		if e.complexity.Query.ListProjects == nil {
+		if e.ComplexityRoot.Query.ListProjects == nil {
 			break
 		}
 
@@ -666,9 +701,9 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.ListProjects(childComplexity, args["first"].(*int32), args["after"].(*string)), true
+		return e.ComplexityRoot.Query.ListProjects(childComplexity, args["first"].(*int32), args["after"].(*string)), true
 	case "Query.listResources":
-		if e.complexity.Query.ListResources == nil {
+		if e.ComplexityRoot.Query.ListResources == nil {
 			break
 		}
 
@@ -677,9 +712,9 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.ListResources(childComplexity, args["first"].(*int32), args["after"].(*string)), true
+		return e.ComplexityRoot.Query.ListResources(childComplexity, args["first"].(*int32), args["after"].(*string)), true
 	case "Query.listServices":
-		if e.complexity.Query.ListServices == nil {
+		if e.ComplexityRoot.Query.ListServices == nil {
 			break
 		}
 
@@ -688,21 +723,21 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.ListServices(childComplexity, args["first"].(*int32), args["after"].(*string)), true
+		return e.ComplexityRoot.Query.ListServices(childComplexity, args["first"].(*int32), args["after"].(*string)), true
 	case "Query.me":
-		if e.complexity.Query.Me == nil {
+		if e.ComplexityRoot.Query.Me == nil {
 			break
 		}
 
-		return e.complexity.Query.Me(childComplexity), true
+		return e.ComplexityRoot.Query.Me(childComplexity), true
 	case "Query.myAPIKeys":
-		if e.complexity.Query.MyAPIKeys == nil {
+		if e.ComplexityRoot.Query.MyAPIKeys == nil {
 			break
 		}
 
-		return e.complexity.Query.MyAPIKeys(childComplexity), true
+		return e.ComplexityRoot.Query.MyAPIKeys(childComplexity), true
 	case "Query.projectDetails":
-		if e.complexity.Query.ProjectDetails == nil {
+		if e.ComplexityRoot.Query.ProjectDetails == nil {
 			break
 		}
 
@@ -711,9 +746,9 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.ProjectDetails(childComplexity, args["id"].(string)), true
+		return e.ComplexityRoot.Query.ProjectDetails(childComplexity, args["id"].(string)), true
 	case "Query.resourceDetails":
-		if e.complexity.Query.ResourceDetails == nil {
+		if e.ComplexityRoot.Query.ResourceDetails == nil {
 			break
 		}
 
@@ -722,9 +757,9 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.ResourceDetails(childComplexity, args["id"].(string)), true
+		return e.ComplexityRoot.Query.ResourceDetails(childComplexity, args["id"].(string)), true
 	case "Query.serviceDetails":
-		if e.complexity.Query.ServiceDetails == nil {
+		if e.ComplexityRoot.Query.ServiceDetails == nil {
 			break
 		}
 
@@ -733,9 +768,9 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.ServiceDetails(childComplexity, args["id"].(string)), true
+		return e.ComplexityRoot.Query.ServiceDetails(childComplexity, args["id"].(string)), true
 	case "Query.serviceMetrics":
-		if e.complexity.Query.ServiceMetrics == nil {
+		if e.ComplexityRoot.Query.ServiceMetrics == nil {
 			break
 		}
 
@@ -744,389 +779,406 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.ServiceMetrics(childComplexity, args["serviceId"].(string), args["timeRange"].(model.MetricTimeRange)), true
-
-	case "RemoveDelegationResult.message":
-		if e.complexity.RemoveDelegationResult.Message == nil {
-			break
-		}
-
-		return e.complexity.RemoveDelegationResult.Message(childComplexity), true
-	case "RemoveDelegationResult.zoneId":
-		if e.complexity.RemoveDelegationResult.ZoneID == nil {
-			break
-		}
-
-		return e.complexity.RemoveDelegationResult.ZoneID(childComplexity), true
+		return e.ComplexityRoot.Query.ServiceMetrics(childComplexity, args["serviceId"].(string), args["timeRange"].(model.MetricTimeRange)), true
 
 	case "Resource.createdAt":
-		if e.complexity.Resource.CreatedAt == nil {
+		if e.ComplexityRoot.Resource.CreatedAt == nil {
 			break
 		}
 
-		return e.complexity.Resource.CreatedAt(childComplexity), true
+		return e.ComplexityRoot.Resource.CreatedAt(childComplexity), true
 	case "Resource.id":
-		if e.complexity.Resource.ID == nil {
+		if e.ComplexityRoot.Resource.ID == nil {
 			break
 		}
 
-		return e.complexity.Resource.ID(childComplexity), true
+		return e.ComplexityRoot.Resource.ID(childComplexity), true
 	case "Resource.metadata":
-		if e.complexity.Resource.Metadata == nil {
+		if e.ComplexityRoot.Resource.Metadata == nil {
 			break
 		}
 
-		return e.complexity.Resource.Metadata(childComplexity), true
+		return e.ComplexityRoot.Resource.Metadata(childComplexity), true
 	case "Resource.name":
-		if e.complexity.Resource.Name == nil {
+		if e.ComplexityRoot.Resource.Name == nil {
 			break
 		}
 
-		return e.complexity.Resource.Name(childComplexity), true
+		return e.ComplexityRoot.Resource.Name(childComplexity), true
 	case "Resource.project":
-		if e.complexity.Resource.Project == nil {
+		if e.ComplexityRoot.Resource.Project == nil {
 			break
 		}
 
-		return e.complexity.Resource.Project(childComplexity), true
+		return e.ComplexityRoot.Resource.Project(childComplexity), true
 	case "Resource.projectId":
-		if e.complexity.Resource.ProjectID == nil {
+		if e.ComplexityRoot.Resource.ProjectID == nil {
 			break
 		}
 
-		return e.complexity.Resource.ProjectID(childComplexity), true
+		return e.ComplexityRoot.Resource.ProjectID(childComplexity), true
 	case "Resource.provider":
-		if e.complexity.Resource.Provider == nil {
+		if e.ComplexityRoot.Resource.Provider == nil {
 			break
 		}
 
-		return e.complexity.Resource.Provider(childComplexity), true
+		return e.ComplexityRoot.Resource.Provider(childComplexity), true
 	case "Resource.region":
-		if e.complexity.Resource.Region == nil {
+		if e.ComplexityRoot.Resource.Region == nil {
 			break
 		}
 
-		return e.complexity.Resource.Region(childComplexity), true
+		return e.ComplexityRoot.Resource.Region(childComplexity), true
 	case "Resource.status":
-		if e.complexity.Resource.Status == nil {
+		if e.ComplexityRoot.Resource.Status == nil {
 			break
 		}
 
-		return e.complexity.Resource.Status(childComplexity), true
+		return e.ComplexityRoot.Resource.Status(childComplexity), true
 	case "Resource.type":
-		if e.complexity.Resource.Type == nil {
+		if e.ComplexityRoot.Resource.Type == nil {
 			break
 		}
 
-		return e.complexity.Resource.Type(childComplexity), true
+		return e.ComplexityRoot.Resource.Type(childComplexity), true
 	case "Resource.updatedAt":
-		if e.complexity.Resource.UpdatedAt == nil {
+		if e.ComplexityRoot.Resource.UpdatedAt == nil {
 			break
 		}
 
-		return e.complexity.Resource.UpdatedAt(childComplexity), true
+		return e.ComplexityRoot.Resource.UpdatedAt(childComplexity), true
 
 	case "ResourceConnection.nodes":
-		if e.complexity.ResourceConnection.Nodes == nil {
+		if e.ComplexityRoot.ResourceConnection.Nodes == nil {
 			break
 		}
 
-		return e.complexity.ResourceConnection.Nodes(childComplexity), true
+		return e.ComplexityRoot.ResourceConnection.Nodes(childComplexity), true
 	case "ResourceConnection.pageInfo":
-		if e.complexity.ResourceConnection.PageInfo == nil {
+		if e.ComplexityRoot.ResourceConnection.PageInfo == nil {
 			break
 		}
 
-		return e.complexity.ResourceConnection.PageInfo(childComplexity), true
+		return e.ComplexityRoot.ResourceConnection.PageInfo(childComplexity), true
 	case "ResourceConnection.totalCount":
-		if e.complexity.ResourceConnection.TotalCount == nil {
+		if e.ComplexityRoot.ResourceConnection.TotalCount == nil {
 			break
 		}
 
-		return e.complexity.ResourceConnection.TotalCount(childComplexity), true
+		return e.ComplexityRoot.ResourceConnection.TotalCount(childComplexity), true
 
 	case "ResourceMetadata.group":
-		if e.complexity.ResourceMetadata.Group == nil {
+		if e.ComplexityRoot.ResourceMetadata.Group == nil {
 			break
 		}
 
-		return e.complexity.ResourceMetadata.Group(childComplexity), true
+		return e.ComplexityRoot.ResourceMetadata.Group(childComplexity), true
 	case "ResourceMetadata.hostname":
-		if e.complexity.ResourceMetadata.Hostname == nil {
+		if e.ComplexityRoot.ResourceMetadata.Hostname == nil {
 			break
 		}
 
-		return e.complexity.ResourceMetadata.Hostname(childComplexity), true
+		return e.ComplexityRoot.ResourceMetadata.Hostname(childComplexity), true
 	case "ResourceMetadata.size":
-		if e.complexity.ResourceMetadata.Size == nil {
+		if e.ComplexityRoot.ResourceMetadata.Size == nil {
 			break
 		}
 
-		return e.complexity.ResourceMetadata.Size(childComplexity), true
+		return e.ComplexityRoot.ResourceMetadata.Size(childComplexity), true
 
 	case "Service.branch":
-		if e.complexity.Service.Branch == nil {
+		if e.ComplexityRoot.Service.Branch == nil {
 			break
 		}
 
-		return e.complexity.Service.Branch(childComplexity), true
+		return e.ComplexityRoot.Service.Branch(childComplexity), true
 	case "Service.commitHash":
-		if e.complexity.Service.CommitHash == nil {
+		if e.ComplexityRoot.Service.CommitHash == nil {
 			break
 		}
 
-		return e.complexity.Service.CommitHash(childComplexity), true
+		return e.ComplexityRoot.Service.CommitHash(childComplexity), true
 	case "Service.createdAt":
-		if e.complexity.Service.CreatedAt == nil {
+		if e.ComplexityRoot.Service.CreatedAt == nil {
 			break
 		}
 
-		return e.complexity.Service.CreatedAt(childComplexity), true
+		return e.ComplexityRoot.Service.CreatedAt(childComplexity), true
 	case "Service.customDomain":
-		if e.complexity.Service.CustomDomain == nil {
+		if e.ComplexityRoot.Service.CustomDomain == nil {
 			break
 		}
 
-		return e.complexity.Service.CustomDomain(childComplexity), true
+		return e.ComplexityRoot.Service.CustomDomain(childComplexity), true
 	case "Service.customDomainStatus":
-		if e.complexity.Service.CustomDomainStatus == nil {
+		if e.ComplexityRoot.Service.CustomDomainStatus == nil {
 			break
 		}
 
-		return e.complexity.Service.CustomDomainStatus(childComplexity), true
+		return e.ComplexityRoot.Service.CustomDomainStatus(childComplexity), true
 	case "Service.envVars":
-		if e.complexity.Service.EnvVars == nil {
+		if e.ComplexityRoot.Service.EnvVars == nil {
 			break
 		}
 
-		return e.complexity.Service.EnvVars(childComplexity), true
+		return e.ComplexityRoot.Service.EnvVars(childComplexity), true
 	case "Service.errorMessage":
-		if e.complexity.Service.ErrorMessage == nil {
+		if e.ComplexityRoot.Service.ErrorMessage == nil {
 			break
 		}
 
-		return e.complexity.Service.ErrorMessage(childComplexity), true
+		return e.ComplexityRoot.Service.ErrorMessage(childComplexity), true
 	case "Service.fqdn":
-		if e.complexity.Service.Fqdn == nil {
+		if e.ComplexityRoot.Service.Fqdn == nil {
 			break
 		}
 
-		return e.complexity.Service.Fqdn(childComplexity), true
+		return e.ComplexityRoot.Service.Fqdn(childComplexity), true
 	case "Service.gitProvider":
-		if e.complexity.Service.GitProvider == nil {
+		if e.ComplexityRoot.Service.GitProvider == nil {
 			break
 		}
 
-		return e.complexity.Service.GitProvider(childComplexity), true
+		return e.ComplexityRoot.Service.GitProvider(childComplexity), true
 	case "Service.id":
-		if e.complexity.Service.ID == nil {
+		if e.ComplexityRoot.Service.ID == nil {
 			break
 		}
 
-		return e.complexity.Service.ID(childComplexity), true
+		return e.ComplexityRoot.Service.ID(childComplexity), true
 	case "Service.memory":
-		if e.complexity.Service.Memory == nil {
+		if e.ComplexityRoot.Service.Memory == nil {
 			break
 		}
 
-		return e.complexity.Service.Memory(childComplexity), true
+		return e.ComplexityRoot.Service.Memory(childComplexity), true
 	case "Service.name":
-		if e.complexity.Service.Name == nil {
+		if e.ComplexityRoot.Service.Name == nil {
 			break
 		}
 
-		return e.complexity.Service.Name(childComplexity), true
+		return e.ComplexityRoot.Service.Name(childComplexity), true
 	case "Service.port":
-		if e.complexity.Service.Port == nil {
+		if e.ComplexityRoot.Service.Port == nil {
 			break
 		}
 
-		return e.complexity.Service.Port(childComplexity), true
+		return e.ComplexityRoot.Service.Port(childComplexity), true
 	case "Service.project":
-		if e.complexity.Service.Project == nil {
+		if e.ComplexityRoot.Service.Project == nil {
 			break
 		}
 
-		return e.complexity.Service.Project(childComplexity), true
+		return e.ComplexityRoot.Service.Project(childComplexity), true
 	case "Service.projectId":
-		if e.complexity.Service.ProjectID == nil {
+		if e.ComplexityRoot.Service.ProjectID == nil {
 			break
 		}
 
-		return e.complexity.Service.ProjectID(childComplexity), true
+		return e.ComplexityRoot.Service.ProjectID(childComplexity), true
 	case "Service.repo":
-		if e.complexity.Service.Repo == nil {
+		if e.ComplexityRoot.Service.Repo == nil {
 			break
 		}
 
-		return e.complexity.Service.Repo(childComplexity), true
+		return e.ComplexityRoot.Service.Repo(childComplexity), true
 	case "Service.status":
-		if e.complexity.Service.Status == nil {
+		if e.ComplexityRoot.Service.Status == nil {
 			break
 		}
 
-		return e.complexity.Service.Status(childComplexity), true
+		return e.ComplexityRoot.Service.Status(childComplexity), true
 	case "Service.updatedAt":
-		if e.complexity.Service.UpdatedAt == nil {
+		if e.ComplexityRoot.Service.UpdatedAt == nil {
 			break
 		}
 
-		return e.complexity.Service.UpdatedAt(childComplexity), true
+		return e.ComplexityRoot.Service.UpdatedAt(childComplexity), true
 	case "Service.vcpus":
-		if e.complexity.Service.Vcpus == nil {
+		if e.ComplexityRoot.Service.Vcpus == nil {
 			break
 		}
 
-		return e.complexity.Service.Vcpus(childComplexity), true
+		return e.ComplexityRoot.Service.Vcpus(childComplexity), true
 
 	case "ServiceConnection.nodes":
-		if e.complexity.ServiceConnection.Nodes == nil {
+		if e.ComplexityRoot.ServiceConnection.Nodes == nil {
 			break
 		}
 
-		return e.complexity.ServiceConnection.Nodes(childComplexity), true
+		return e.ComplexityRoot.ServiceConnection.Nodes(childComplexity), true
 	case "ServiceConnection.pageInfo":
-		if e.complexity.ServiceConnection.PageInfo == nil {
+		if e.ComplexityRoot.ServiceConnection.PageInfo == nil {
 			break
 		}
 
-		return e.complexity.ServiceConnection.PageInfo(childComplexity), true
+		return e.ComplexityRoot.ServiceConnection.PageInfo(childComplexity), true
 	case "ServiceConnection.totalCount":
-		if e.complexity.ServiceConnection.TotalCount == nil {
+		if e.ComplexityRoot.ServiceConnection.TotalCount == nil {
 			break
 		}
 
-		return e.complexity.ServiceConnection.TotalCount(childComplexity), true
+		return e.ComplexityRoot.ServiceConnection.TotalCount(childComplexity), true
 
 	case "ServiceMetrics.cpuLimitVCPUs":
-		if e.complexity.ServiceMetrics.CPULimitVCPUs == nil {
+		if e.ComplexityRoot.ServiceMetrics.CPULimitVCPUs == nil {
 			break
 		}
 
-		return e.complexity.ServiceMetrics.CPULimitVCPUs(childComplexity), true
+		return e.ComplexityRoot.ServiceMetrics.CPULimitVCPUs(childComplexity), true
 	case "ServiceMetrics.cpuUsage":
-		if e.complexity.ServiceMetrics.CPUUsage == nil {
+		if e.ComplexityRoot.ServiceMetrics.CPUUsage == nil {
 			break
 		}
 
-		return e.complexity.ServiceMetrics.CPUUsage(childComplexity), true
+		return e.ComplexityRoot.ServiceMetrics.CPUUsage(childComplexity), true
 	case "ServiceMetrics.memoryLimitMB":
-		if e.complexity.ServiceMetrics.MemoryLimitMb == nil {
+		if e.ComplexityRoot.ServiceMetrics.MemoryLimitMb == nil {
 			break
 		}
 
-		return e.complexity.ServiceMetrics.MemoryLimitMb(childComplexity), true
+		return e.ComplexityRoot.ServiceMetrics.MemoryLimitMb(childComplexity), true
 	case "ServiceMetrics.memoryUsageMB":
-		if e.complexity.ServiceMetrics.MemoryUsageMb == nil {
+		if e.ComplexityRoot.ServiceMetrics.MemoryUsageMb == nil {
 			break
 		}
 
-		return e.complexity.ServiceMetrics.MemoryUsageMb(childComplexity), true
+		return e.ComplexityRoot.ServiceMetrics.MemoryUsageMb(childComplexity), true
 	case "ServiceMetrics.networkReceiveBytesPerSec":
-		if e.complexity.ServiceMetrics.NetworkReceiveBytesPerSec == nil {
+		if e.ComplexityRoot.ServiceMetrics.NetworkReceiveBytesPerSec == nil {
 			break
 		}
 
-		return e.complexity.ServiceMetrics.NetworkReceiveBytesPerSec(childComplexity), true
+		return e.ComplexityRoot.ServiceMetrics.NetworkReceiveBytesPerSec(childComplexity), true
 	case "ServiceMetrics.networkTransmitBytesPerSec":
-		if e.complexity.ServiceMetrics.NetworkTransmitBytesPerSec == nil {
+		if e.ComplexityRoot.ServiceMetrics.NetworkTransmitBytesPerSec == nil {
 			break
 		}
 
-		return e.complexity.ServiceMetrics.NetworkTransmitBytesPerSec(childComplexity), true
-
-	case "ServiceStatus.build":
-		if e.complexity.ServiceStatus.Build == nil {
-			break
-		}
-
-		return e.complexity.ServiceStatus.Build(childComplexity), true
-	case "ServiceStatus.runtime":
-		if e.complexity.ServiceStatus.Runtime == nil {
-			break
-		}
-
-		return e.complexity.ServiceStatus.Runtime(childComplexity), true
+		return e.ComplexityRoot.ServiceMetrics.NetworkTransmitBytesPerSec(childComplexity), true
 
 	case "User.avatarUrl":
-		if e.complexity.User.AvatarURL == nil {
+		if e.ComplexityRoot.User.AvatarURL == nil {
 			break
 		}
 
-		return e.complexity.User.AvatarURL(childComplexity), true
+		return e.ComplexityRoot.User.AvatarURL(childComplexity), true
 	case "User.createdAt":
-		if e.complexity.User.CreatedAt == nil {
+		if e.ComplexityRoot.User.CreatedAt == nil {
 			break
 		}
 
-		return e.complexity.User.CreatedAt(childComplexity), true
+		return e.ComplexityRoot.User.CreatedAt(childComplexity), true
 	case "User.displayName":
-		if e.complexity.User.DisplayName == nil {
+		if e.ComplexityRoot.User.DisplayName == nil {
 			break
 		}
 
-		return e.complexity.User.DisplayName(childComplexity), true
+		return e.ComplexityRoot.User.DisplayName(childComplexity), true
 	case "User.email":
-		if e.complexity.User.Email == nil {
+		if e.ComplexityRoot.User.Email == nil {
 			break
 		}
 
-		return e.complexity.User.Email(childComplexity), true
+		return e.ComplexityRoot.User.Email(childComplexity), true
 	case "User.githubAppInstallationId":
-		if e.complexity.User.GithubAppInstallationID == nil {
+		if e.ComplexityRoot.User.GithubAppInstallationID == nil {
 			break
 		}
 
-		return e.complexity.User.GithubAppInstallationID(childComplexity), true
+		return e.ComplexityRoot.User.GithubAppInstallationID(childComplexity), true
 	case "User.githubScopes":
-		if e.complexity.User.GithubScopes == nil {
+		if e.ComplexityRoot.User.GithubScopes == nil {
 			break
 		}
 
-		return e.complexity.User.GithubScopes(childComplexity), true
+		return e.ComplexityRoot.User.GithubScopes(childComplexity), true
 	case "User.githubUsername":
-		if e.complexity.User.GithubUsername == nil {
+		if e.ComplexityRoot.User.GithubUsername == nil {
 			break
 		}
 
-		return e.complexity.User.GithubUsername(childComplexity), true
+		return e.ComplexityRoot.User.GithubUsername(childComplexity), true
 	case "User.id":
-		if e.complexity.User.ID == nil {
+		if e.ComplexityRoot.User.ID == nil {
 			break
 		}
 
-		return e.complexity.User.ID(childComplexity), true
+		return e.ComplexityRoot.User.ID(childComplexity), true
 
-	case "VerifyDelegationResult.dnsRecords":
-		if e.complexity.VerifyDelegationResult.DNSRecords == nil {
+	case "VerifyHostedZoneResult.dnsRecords":
+		if e.ComplexityRoot.VerifyHostedZoneResult.DNSRecords == nil {
 			break
 		}
 
-		return e.complexity.VerifyDelegationResult.DNSRecords(childComplexity), true
-	case "VerifyDelegationResult.message":
-		if e.complexity.VerifyDelegationResult.Message == nil {
+		return e.ComplexityRoot.VerifyHostedZoneResult.DNSRecords(childComplexity), true
+	case "VerifyHostedZoneResult.message":
+		if e.ComplexityRoot.VerifyHostedZoneResult.Message == nil {
 			break
 		}
 
-		return e.complexity.VerifyDelegationResult.Message(childComplexity), true
-	case "VerifyDelegationResult.status":
-		if e.complexity.VerifyDelegationResult.Status == nil {
+		return e.ComplexityRoot.VerifyHostedZoneResult.Message(childComplexity), true
+	case "VerifyHostedZoneResult.status":
+		if e.ComplexityRoot.VerifyHostedZoneResult.Status == nil {
 			break
 		}
 
-		return e.complexity.VerifyDelegationResult.Status(childComplexity), true
-	case "VerifyDelegationResult.zone":
-		if e.complexity.VerifyDelegationResult.Zone == nil {
+		return e.ComplexityRoot.VerifyHostedZoneResult.Status(childComplexity), true
+	case "VerifyHostedZoneResult.zone":
+		if e.ComplexityRoot.VerifyHostedZoneResult.Zone == nil {
 			break
 		}
 
-		return e.complexity.VerifyDelegationResult.Zone(childComplexity), true
-	case "VerifyDelegationResult.zoneId":
-		if e.complexity.VerifyDelegationResult.ZoneID == nil {
+		return e.ComplexityRoot.VerifyHostedZoneResult.Zone(childComplexity), true
+	case "VerifyHostedZoneResult.zoneId":
+		if e.ComplexityRoot.VerifyHostedZoneResult.ZoneID == nil {
 			break
 		}
 
-		return e.complexity.VerifyDelegationResult.ZoneID(childComplexity), true
+		return e.ComplexityRoot.VerifyHostedZoneResult.ZoneID(childComplexity), true
+
+	case "ZoneRecord.content":
+		if e.ComplexityRoot.ZoneRecord.Content == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ZoneRecord.Content(childComplexity), true
+	case "ZoneRecord.createdAt":
+		if e.ComplexityRoot.ZoneRecord.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ZoneRecord.CreatedAt(childComplexity), true
+	case "ZoneRecord.id":
+		if e.ComplexityRoot.ZoneRecord.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ZoneRecord.ID(childComplexity), true
+	case "ZoneRecord.managed":
+		if e.ComplexityRoot.ZoneRecord.Managed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ZoneRecord.Managed(childComplexity), true
+	case "ZoneRecord.name":
+		if e.ComplexityRoot.ZoneRecord.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ZoneRecord.Name(childComplexity), true
+	case "ZoneRecord.ttl":
+		if e.ComplexityRoot.ZoneRecord.TTL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ZoneRecord.TTL(childComplexity), true
+	case "ZoneRecord.type":
+		if e.ComplexityRoot.ZoneRecord.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ZoneRecord.Type(childComplexity), true
 
 	}
 	return 0, false
@@ -1134,7 +1186,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
-	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
+	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
 	first := true
 
@@ -1148,9 +1200,9 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 				ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
 				data = ec._Query(ctx, opCtx.Operation.SelectionSet)
 			} else {
-				if atomic.LoadInt32(&ec.pendingDeferred) > 0 {
-					result := <-ec.deferredResults
-					atomic.AddInt32(&ec.pendingDeferred, -1)
+				if atomic.LoadInt32(&ec.PendingDeferred) > 0 {
+					result := <-ec.DeferredResults
+					atomic.AddInt32(&ec.PendingDeferred, -1)
 					data = result.Result
 					response.Path = result.Path
 					response.Label = result.Label
@@ -1162,8 +1214,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			var buf bytes.Buffer
 			data.MarshalGQL(&buf)
 			response.Data = buf.Bytes()
-			if atomic.LoadInt32(&ec.deferred) > 0 {
-				hasNext := atomic.LoadInt32(&ec.pendingDeferred) > 0
+			if atomic.LoadInt32(&ec.Deferred) > 0 {
+				hasNext := atomic.LoadInt32(&ec.PendingDeferred) > 0
 				response.HasNext = &hasNext
 			}
 
@@ -1191,44 +1243,22 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 }
 
 type executionContext struct {
-	*graphql.OperationContext
-	*executableSchema
-	deferred        int32
-	pendingDeferred int32
-	deferredResults chan graphql.DeferredResult
+	*graphql.ExecutionContextState[ResolverRoot, DirectiveRoot, ComplexityRoot]
 }
 
-func (ec *executionContext) processDeferredGroup(dg graphql.DeferredGroup) {
-	atomic.AddInt32(&ec.pendingDeferred, 1)
-	go func() {
-		ctx := graphql.WithFreshResponseContext(dg.Context)
-		dg.FieldSet.Dispatch(ctx)
-		ds := graphql.DeferredResult{
-			Path:   dg.Path,
-			Label:  dg.Label,
-			Result: dg.FieldSet,
-			Errors: graphql.GetErrors(ctx),
-		}
-		// null fields should bubble up
-		if dg.FieldSet.Invalids > 0 {
-			ds.Result = graphql.Null
-		}
-		ec.deferredResults <- ds
-	}()
-}
-
-func (ec *executionContext) introspectSchema() (*introspection.Schema, error) {
-	if ec.DisableIntrospection {
-		return nil, errors.New("introspection disabled")
+func newExecutionContext(
+	opCtx *graphql.OperationContext,
+	execSchema *executableSchema,
+	deferredResults chan graphql.DeferredResult,
+) executionContext {
+	return executionContext{
+		ExecutionContextState: graphql.NewExecutionContextState[ResolverRoot, DirectiveRoot, ComplexityRoot](
+			opCtx,
+			(*graphql.ExecutableSchemaState[ResolverRoot, DirectiveRoot, ComplexityRoot])(execSchema),
+			parsedSchema,
+			deferredResults,
+		),
 	}
-	return introspection.WrapSchema(ec.Schema()), nil
-}
-
-func (ec *executionContext) introspectType(name string) (*introspection.Type, error) {
-	if ec.DisableIntrospection {
-		return nil, errors.New("introspection disabled")
-	}
-	return introspection.WrapTypeFromDef(ec.Schema(), ec.Schema().Types[name]), nil
 }
 
 //go:embed "dns.graphqls" "metrics.graphqls" "projects.graphqls" "resources.graphqls" "schema.graphqls" "services.graphqls"
@@ -1283,6 +1313,37 @@ func (ec *executionContext) dir_hasRole_args(ctx context.Context, rawArgs map[st
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_addDnsRecord_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "zone", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["zone"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "name", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "type", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["type"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "content", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["content"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "ttl", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["ttl"] = arg4
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createAPIKey_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1294,7 +1355,34 @@ func (ec *executionContext) field_Mutation_createAPIKey_args(ctx context.Context
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_delegateZone_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Mutation_createHostedZone_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "zone", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["zone"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteDnsRecord_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "zone", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["zone"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "recordId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["recordId"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteHostedZone_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "zone", ec.unmarshalNString2string)
@@ -1321,17 +1409,6 @@ func (ec *executionContext) field_Mutation_deleteService_args(ctx context.Contex
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_removeDelegation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "zone", ec.unmarshalNString2string)
-	if err != nil {
-		return nil, err
-	}
-	args["zone"] = arg0
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_revokeAPIKey_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1343,7 +1420,7 @@ func (ec *executionContext) field_Mutation_revokeAPIKey_args(ctx context.Context
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_verifyDelegation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Mutation_verifyHostedZone_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "zone", ec.unmarshalNString2string)
@@ -1729,6 +1806,132 @@ func (ec *executionContext) fieldContext_CreateAPIKeyResult_secret(_ context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _CreateHostedZoneResult_zoneId(ctx context.Context, field graphql.CollectedField, obj *model.CreateHostedZoneResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CreateHostedZoneResult_zoneId,
+		func(ctx context.Context) (any, error) {
+			return obj.ZoneID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CreateHostedZoneResult_zoneId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CreateHostedZoneResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CreateHostedZoneResult_zone(ctx context.Context, field graphql.CollectedField, obj *model.CreateHostedZoneResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CreateHostedZoneResult_zone,
+		func(ctx context.Context) (any, error) {
+			return obj.Zone, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CreateHostedZoneResult_zone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CreateHostedZoneResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CreateHostedZoneResult_status(ctx context.Context, field graphql.CollectedField, obj *model.CreateHostedZoneResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CreateHostedZoneResult_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CreateHostedZoneResult_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CreateHostedZoneResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CreateHostedZoneResult_dnsRecords(ctx context.Context, field graphql.CollectedField, obj *model.CreateHostedZoneResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CreateHostedZoneResult_dnsRecords,
+		func(ctx context.Context) (any, error) {
+			return obj.DNSRecords, nil
+		},
+		nil,
+		ec.marshalNDNSRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecordᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CreateHostedZoneResult_dnsRecords(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CreateHostedZoneResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "host":
+				return ec.fieldContext_DNSRecord_host(ctx, field)
+			case "type":
+				return ec.fieldContext_DNSRecord_type(ctx, field)
+			case "value":
+				return ec.fieldContext_DNSRecord_value(ctx, field)
+			case "verified":
+				return ec.fieldContext_DNSRecord_verified(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DNSRecord", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _DNSRecord_host(ctx context.Context, field graphql.CollectedField, obj *model.DNSRecord) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1845,12 +2048,12 @@ func (ec *executionContext) fieldContext_DNSRecord_verified(_ context.Context, f
 	return fc, nil
 }
 
-func (ec *executionContext) _DelegateZoneResult_zoneId(ctx context.Context, field graphql.CollectedField, obj *model.DelegateZoneResult) (ret graphql.Marshaler) {
+func (ec *executionContext) _DeleteHostedZoneResult_zoneId(ctx context.Context, field graphql.CollectedField, obj *model.DeleteHostedZoneResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_DelegateZoneResult_zoneId,
+		ec.fieldContext_DeleteHostedZoneResult_zoneId,
 		func(ctx context.Context) (any, error) {
 			return obj.ZoneID, nil
 		},
@@ -1861,9 +2064,9 @@ func (ec *executionContext) _DelegateZoneResult_zoneId(ctx context.Context, fiel
 	)
 }
 
-func (ec *executionContext) fieldContext_DelegateZoneResult_zoneId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_DeleteHostedZoneResult_zoneId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "DelegateZoneResult",
+		Object:     "DeleteHostedZoneResult",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -1874,14 +2077,14 @@ func (ec *executionContext) fieldContext_DelegateZoneResult_zoneId(_ context.Con
 	return fc, nil
 }
 
-func (ec *executionContext) _DelegateZoneResult_zone(ctx context.Context, field graphql.CollectedField, obj *model.DelegateZoneResult) (ret graphql.Marshaler) {
+func (ec *executionContext) _DeleteHostedZoneResult_message(ctx context.Context, field graphql.CollectedField, obj *model.DeleteHostedZoneResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_DelegateZoneResult_zone,
+		ec.fieldContext_DeleteHostedZoneResult_message,
 		func(ctx context.Context) (any, error) {
-			return obj.Zone, nil
+			return obj.Message, nil
 		},
 		nil,
 		ec.marshalNString2string,
@@ -1890,266 +2093,14 @@ func (ec *executionContext) _DelegateZoneResult_zone(ctx context.Context, field 
 	)
 }
 
-func (ec *executionContext) fieldContext_DelegateZoneResult_zone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_DeleteHostedZoneResult_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "DelegateZoneResult",
+		Object:     "DeleteHostedZoneResult",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _DelegateZoneResult_status(ctx context.Context, field graphql.CollectedField, obj *model.DelegateZoneResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_DelegateZoneResult_status,
-		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
-		},
-		nil,
-		ec.marshalNString2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_DelegateZoneResult_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "DelegateZoneResult",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _DelegateZoneResult_dnsRecords(ctx context.Context, field graphql.CollectedField, obj *model.DelegateZoneResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_DelegateZoneResult_dnsRecords,
-		func(ctx context.Context) (any, error) {
-			return obj.DNSRecords, nil
-		},
-		nil,
-		ec.marshalNDNSRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecordᚄ,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_DelegateZoneResult_dnsRecords(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "DelegateZoneResult",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "host":
-				return ec.fieldContext_DNSRecord_host(ctx, field)
-			case "type":
-				return ec.fieldContext_DNSRecord_type(ctx, field)
-			case "value":
-				return ec.fieldContext_DNSRecord_value(ctx, field)
-			case "verified":
-				return ec.fieldContext_DNSRecord_verified(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type DNSRecord", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _DelegatedZone_id(ctx context.Context, field graphql.CollectedField, obj *model.DelegatedZone) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_DelegatedZone_id,
-		func(ctx context.Context) (any, error) {
-			return obj.ID, nil
-		},
-		nil,
-		ec.marshalNID2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_DelegatedZone_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "DelegatedZone",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type ID does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _DelegatedZone_zone(ctx context.Context, field graphql.CollectedField, obj *model.DelegatedZone) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_DelegatedZone_zone,
-		func(ctx context.Context) (any, error) {
-			return obj.Zone, nil
-		},
-		nil,
-		ec.marshalNString2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_DelegatedZone_zone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "DelegatedZone",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _DelegatedZone_status(ctx context.Context, field graphql.CollectedField, obj *model.DelegatedZone) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_DelegatedZone_status,
-		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
-		},
-		nil,
-		ec.marshalNString2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_DelegatedZone_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "DelegatedZone",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _DelegatedZone_error(ctx context.Context, field graphql.CollectedField, obj *model.DelegatedZone) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_DelegatedZone_error,
-		func(ctx context.Context) (any, error) {
-			return obj.Error, nil
-		},
-		nil,
-		ec.marshalOString2ᚖstring,
-		true,
-		false,
-	)
-}
-
-func (ec *executionContext) fieldContext_DelegatedZone_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "DelegatedZone",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _DelegatedZone_dnsRecords(ctx context.Context, field graphql.CollectedField, obj *model.DelegatedZone) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_DelegatedZone_dnsRecords,
-		func(ctx context.Context) (any, error) {
-			return obj.DNSRecords, nil
-		},
-		nil,
-		ec.marshalODNSRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecordᚄ,
-		true,
-		false,
-	)
-}
-
-func (ec *executionContext) fieldContext_DelegatedZone_dnsRecords(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "DelegatedZone",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "host":
-				return ec.fieldContext_DNSRecord_host(ctx, field)
-			case "type":
-				return ec.fieldContext_DNSRecord_type(ctx, field)
-			case "value":
-				return ec.fieldContext_DNSRecord_value(ctx, field)
-			case "verified":
-				return ec.fieldContext_DNSRecord_verified(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type DNSRecord", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _DelegatedZone_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.DelegatedZone) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_DelegatedZone_createdAt,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
-		nil,
-		ec.marshalNTime2timeᚐTime,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_DelegatedZone_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "DelegatedZone",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -2300,6 +2251,235 @@ func (ec *executionContext) fieldContext_EnvVar_value(_ context.Context, field g
 	return fc, nil
 }
 
+func (ec *executionContext) _HostedZone_id(ctx context.Context, field graphql.CollectedField, obj *model.HostedZone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_HostedZone_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_HostedZone_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "HostedZone",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _HostedZone_zone(ctx context.Context, field graphql.CollectedField, obj *model.HostedZone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_HostedZone_zone,
+		func(ctx context.Context) (any, error) {
+			return obj.Zone, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_HostedZone_zone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "HostedZone",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _HostedZone_status(ctx context.Context, field graphql.CollectedField, obj *model.HostedZone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_HostedZone_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_HostedZone_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "HostedZone",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _HostedZone_error(ctx context.Context, field graphql.CollectedField, obj *model.HostedZone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_HostedZone_error,
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_HostedZone_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "HostedZone",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _HostedZone_dnsRecords(ctx context.Context, field graphql.CollectedField, obj *model.HostedZone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_HostedZone_dnsRecords,
+		func(ctx context.Context) (any, error) {
+			return obj.DNSRecords, nil
+		},
+		nil,
+		ec.marshalODNSRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecordᚄ,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_HostedZone_dnsRecords(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "HostedZone",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "host":
+				return ec.fieldContext_DNSRecord_host(ctx, field)
+			case "type":
+				return ec.fieldContext_DNSRecord_type(ctx, field)
+			case "value":
+				return ec.fieldContext_DNSRecord_value(ctx, field)
+			case "verified":
+				return ec.fieldContext_DNSRecord_verified(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DNSRecord", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _HostedZone_records(ctx context.Context, field graphql.CollectedField, obj *model.HostedZone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_HostedZone_records,
+		func(ctx context.Context) (any, error) {
+			return obj.Records, nil
+		},
+		nil,
+		ec.marshalNZoneRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐZoneRecordᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_HostedZone_records(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "HostedZone",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ZoneRecord_id(ctx, field)
+			case "name":
+				return ec.fieldContext_ZoneRecord_name(ctx, field)
+			case "type":
+				return ec.fieldContext_ZoneRecord_type(ctx, field)
+			case "content":
+				return ec.fieldContext_ZoneRecord_content(ctx, field)
+			case "ttl":
+				return ec.fieldContext_ZoneRecord_ttl(ctx, field)
+			case "managed":
+				return ec.fieldContext_ZoneRecord_managed(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_ZoneRecord_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ZoneRecord", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _HostedZone_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.HostedZone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_HostedZone_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_HostedZone_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "HostedZone",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _MetricDataPoint_timestamp(ctx context.Context, field graphql.CollectedField, obj *model.MetricDataPoint) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -2430,17 +2610,17 @@ func (ec *executionContext) _Mutation_createAPIKey(ctx context.Context, field gr
 		ec.fieldContext_Mutation_createAPIKey,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().CreateAPIKey(ctx, fc.Args["name"].(string))
+			return ec.Resolvers.Mutation().CreateAPIKey(ctx, fc.Args["name"].(string))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
+				if ec.Directives.IsAuthenticated == nil {
 					var zeroVal *model.CreateAPIKeyResult
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
@@ -2490,17 +2670,17 @@ func (ec *executionContext) _Mutation_revokeAPIKey(ctx context.Context, field gr
 		ec.fieldContext_Mutation_revokeAPIKey,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().RevokeAPIKey(ctx, fc.Args["id"].(string))
+			return ec.Resolvers.Mutation().RevokeAPIKey(ctx, fc.Args["id"].(string))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
+				if ec.Directives.IsAuthenticated == nil {
 					var zeroVal bool
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
@@ -2543,17 +2723,17 @@ func (ec *executionContext) _Mutation_recheckGithubAppInstallation(ctx context.C
 		field,
 		ec.fieldContext_Mutation_recheckGithubAppInstallation,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Mutation().RecheckGithubAppInstallation(ctx)
+			return ec.Resolvers.Mutation().RecheckGithubAppInstallation(ctx)
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
+				if ec.Directives.IsAuthenticated == nil {
 					var zeroVal *string
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
@@ -2578,37 +2758,37 @@ func (ec *executionContext) fieldContext_Mutation_recheckGithubAppInstallation(_
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_delegateZone(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Mutation_createHostedZone(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Mutation_delegateZone,
+		ec.fieldContext_Mutation_createHostedZone,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().DelegateZone(ctx, fc.Args["zone"].(string))
+			return ec.Resolvers.Mutation().CreateHostedZone(ctx, fc.Args["zone"].(string))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
-					var zeroVal *model.DelegateZoneResult
+				if ec.Directives.IsAuthenticated == nil {
+					var zeroVal *model.CreateHostedZoneResult
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
 			return next
 		},
-		ec.marshalNDelegateZoneResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegateZoneResult,
+		ec.marshalNCreateHostedZoneResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐCreateHostedZoneResult,
 		true,
 		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_Mutation_delegateZone(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_createHostedZone(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -2617,15 +2797,15 @@ func (ec *executionContext) fieldContext_Mutation_delegateZone(ctx context.Conte
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "zoneId":
-				return ec.fieldContext_DelegateZoneResult_zoneId(ctx, field)
+				return ec.fieldContext_CreateHostedZoneResult_zoneId(ctx, field)
 			case "zone":
-				return ec.fieldContext_DelegateZoneResult_zone(ctx, field)
+				return ec.fieldContext_CreateHostedZoneResult_zone(ctx, field)
 			case "status":
-				return ec.fieldContext_DelegateZoneResult_status(ctx, field)
+				return ec.fieldContext_CreateHostedZoneResult_status(ctx, field)
 			case "dnsRecords":
-				return ec.fieldContext_DelegateZoneResult_dnsRecords(ctx, field)
+				return ec.fieldContext_CreateHostedZoneResult_dnsRecords(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type DelegateZoneResult", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type CreateHostedZoneResult", field.Name)
 		},
 	}
 	defer func() {
@@ -2635,44 +2815,44 @@ func (ec *executionContext) fieldContext_Mutation_delegateZone(ctx context.Conte
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_delegateZone_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_createHostedZone_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_verifyDelegation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Mutation_verifyHostedZone(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Mutation_verifyDelegation,
+		ec.fieldContext_Mutation_verifyHostedZone,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().VerifyDelegation(ctx, fc.Args["zone"].(string))
+			return ec.Resolvers.Mutation().VerifyHostedZone(ctx, fc.Args["zone"].(string))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
-					var zeroVal *model.VerifyDelegationResult
+				if ec.Directives.IsAuthenticated == nil {
+					var zeroVal *model.VerifyHostedZoneResult
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
 			return next
 		},
-		ec.marshalNVerifyDelegationResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐVerifyDelegationResult,
+		ec.marshalNVerifyHostedZoneResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐVerifyHostedZoneResult,
 		true,
 		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_Mutation_verifyDelegation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_verifyHostedZone(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -2681,17 +2861,17 @@ func (ec *executionContext) fieldContext_Mutation_verifyDelegation(ctx context.C
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "zoneId":
-				return ec.fieldContext_VerifyDelegationResult_zoneId(ctx, field)
+				return ec.fieldContext_VerifyHostedZoneResult_zoneId(ctx, field)
 			case "zone":
-				return ec.fieldContext_VerifyDelegationResult_zone(ctx, field)
+				return ec.fieldContext_VerifyHostedZoneResult_zone(ctx, field)
 			case "status":
-				return ec.fieldContext_VerifyDelegationResult_status(ctx, field)
+				return ec.fieldContext_VerifyHostedZoneResult_status(ctx, field)
 			case "message":
-				return ec.fieldContext_VerifyDelegationResult_message(ctx, field)
+				return ec.fieldContext_VerifyHostedZoneResult_message(ctx, field)
 			case "dnsRecords":
-				return ec.fieldContext_VerifyDelegationResult_dnsRecords(ctx, field)
+				return ec.fieldContext_VerifyHostedZoneResult_dnsRecords(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type VerifyDelegationResult", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type VerifyHostedZoneResult", field.Name)
 		},
 	}
 	defer func() {
@@ -2701,44 +2881,44 @@ func (ec *executionContext) fieldContext_Mutation_verifyDelegation(ctx context.C
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_verifyDelegation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_verifyHostedZone_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_removeDelegation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Mutation_deleteHostedZone(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Mutation_removeDelegation,
+		ec.fieldContext_Mutation_deleteHostedZone,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().RemoveDelegation(ctx, fc.Args["zone"].(string))
+			return ec.Resolvers.Mutation().DeleteHostedZone(ctx, fc.Args["zone"].(string))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
-					var zeroVal *model.RemoveDelegationResult
+				if ec.Directives.IsAuthenticated == nil {
+					var zeroVal *model.DeleteHostedZoneResult
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
 			return next
 		},
-		ec.marshalNRemoveDelegationResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐRemoveDelegationResult,
+		ec.marshalNDeleteHostedZoneResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDeleteHostedZoneResult,
 		true,
 		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_Mutation_removeDelegation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_deleteHostedZone(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -2747,11 +2927,11 @@ func (ec *executionContext) fieldContext_Mutation_removeDelegation(ctx context.C
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "zoneId":
-				return ec.fieldContext_RemoveDelegationResult_zoneId(ctx, field)
+				return ec.fieldContext_DeleteHostedZoneResult_zoneId(ctx, field)
 			case "message":
-				return ec.fieldContext_RemoveDelegationResult_message(ctx, field)
+				return ec.fieldContext_DeleteHostedZoneResult_message(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type RemoveDelegationResult", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type DeleteHostedZoneResult", field.Name)
 		},
 	}
 	defer func() {
@@ -2761,7 +2941,131 @@ func (ec *executionContext) fieldContext_Mutation_removeDelegation(ctx context.C
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_removeDelegation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_deleteHostedZone_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_addDnsRecord(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_addDnsRecord,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AddDNSRecord(ctx, fc.Args["zone"].(string), fc.Args["name"].(string), fc.Args["type"].(string), fc.Args["content"].(string), fc.Args["ttl"].(*int32))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.IsAuthenticated == nil {
+					var zeroVal *model.ZoneRecord
+					return zeroVal, errors.New("directive isAuthenticated is not implemented")
+				}
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		ec.marshalNZoneRecord2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐZoneRecord,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_addDnsRecord(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ZoneRecord_id(ctx, field)
+			case "name":
+				return ec.fieldContext_ZoneRecord_name(ctx, field)
+			case "type":
+				return ec.fieldContext_ZoneRecord_type(ctx, field)
+			case "content":
+				return ec.fieldContext_ZoneRecord_content(ctx, field)
+			case "ttl":
+				return ec.fieldContext_ZoneRecord_ttl(ctx, field)
+			case "managed":
+				return ec.fieldContext_ZoneRecord_managed(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_ZoneRecord_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ZoneRecord", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_addDnsRecord_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteDnsRecord(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteDnsRecord,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteDNSRecord(ctx, fc.Args["zone"].(string), fc.Args["recordId"].(string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.IsAuthenticated == nil {
+					var zeroVal bool
+					return zeroVal, errors.New("directive isAuthenticated is not implemented")
+				}
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteDnsRecord(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteDnsRecord_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -2776,17 +3080,17 @@ func (ec *executionContext) _Mutation_deleteService(ctx context.Context, field g
 		ec.fieldContext_Mutation_deleteService,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().DeleteService(ctx, fc.Args["name"].(string), fc.Args["project"].(*string))
+			return ec.Resolvers.Mutation().DeleteService(ctx, fc.Args["name"].(string), fc.Args["project"].(*string))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
+				if ec.Directives.IsAuthenticated == nil {
 					var zeroVal *model.DeleteServiceResult
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
@@ -3040,7 +3344,7 @@ func (ec *executionContext) _Project_services(ctx context.Context, field graphql
 		field,
 		ec.fieldContext_Project_services,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Project().Services(ctx, obj)
+			return ec.Resolvers.Project().Services(ctx, obj)
 		},
 		nil,
 		ec.marshalNService2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐServiceᚄ,
@@ -3278,17 +3582,17 @@ func (ec *executionContext) _Query_me(ctx context.Context, field graphql.Collect
 		field,
 		ec.fieldContext_Query_me,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Query().Me(ctx)
+			return ec.Resolvers.Query().Me(ctx)
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
+				if ec.Directives.IsAuthenticated == nil {
 					var zeroVal *model.User
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
@@ -3338,17 +3642,17 @@ func (ec *executionContext) _Query_myAPIKeys(ctx context.Context, field graphql.
 		field,
 		ec.fieldContext_Query_myAPIKeys,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Query().MyAPIKeys(ctx)
+			return ec.Resolvers.Query().MyAPIKeys(ctx)
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
+				if ec.Directives.IsAuthenticated == nil {
 					var zeroVal []*model.APIKey
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
@@ -3385,36 +3689,36 @@ func (ec *executionContext) fieldContext_Query_myAPIKeys(_ context.Context, fiel
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_listDelegatedZones(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Query_listHostedZones(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Query_listDelegatedZones,
+		ec.fieldContext_Query_listHostedZones,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Query().ListDelegatedZones(ctx)
+			return ec.Resolvers.Query().ListHostedZones(ctx)
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
-					var zeroVal []*model.DelegatedZone
+				if ec.Directives.IsAuthenticated == nil {
+					var zeroVal []*model.HostedZone
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
 			return next
 		},
-		ec.marshalNDelegatedZone2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegatedZoneᚄ,
+		ec.marshalNHostedZone2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐHostedZoneᚄ,
 		true,
 		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_Query_listDelegatedZones(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_listHostedZones(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -3423,19 +3727,21 @@ func (ec *executionContext) fieldContext_Query_listDelegatedZones(_ context.Cont
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "id":
-				return ec.fieldContext_DelegatedZone_id(ctx, field)
+				return ec.fieldContext_HostedZone_id(ctx, field)
 			case "zone":
-				return ec.fieldContext_DelegatedZone_zone(ctx, field)
+				return ec.fieldContext_HostedZone_zone(ctx, field)
 			case "status":
-				return ec.fieldContext_DelegatedZone_status(ctx, field)
+				return ec.fieldContext_HostedZone_status(ctx, field)
 			case "error":
-				return ec.fieldContext_DelegatedZone_error(ctx, field)
+				return ec.fieldContext_HostedZone_error(ctx, field)
 			case "dnsRecords":
-				return ec.fieldContext_DelegatedZone_dnsRecords(ctx, field)
+				return ec.fieldContext_HostedZone_dnsRecords(ctx, field)
+			case "records":
+				return ec.fieldContext_HostedZone_records(ctx, field)
 			case "createdAt":
-				return ec.fieldContext_DelegatedZone_createdAt(ctx, field)
+				return ec.fieldContext_HostedZone_createdAt(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type DelegatedZone", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type HostedZone", field.Name)
 		},
 	}
 	return fc, nil
@@ -3449,17 +3755,17 @@ func (ec *executionContext) _Query_serviceMetrics(ctx context.Context, field gra
 		ec.fieldContext_Query_serviceMetrics,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().ServiceMetrics(ctx, fc.Args["serviceId"].(string), fc.Args["timeRange"].(model.MetricTimeRange))
+			return ec.Resolvers.Query().ServiceMetrics(ctx, fc.Args["serviceId"].(string), fc.Args["timeRange"].(model.MetricTimeRange))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
+				if ec.Directives.IsAuthenticated == nil {
 					var zeroVal *model.ServiceMetrics
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
@@ -3517,17 +3823,17 @@ func (ec *executionContext) _Query_listProjects(ctx context.Context, field graph
 		ec.fieldContext_Query_listProjects,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().ListProjects(ctx, fc.Args["first"].(*int32), fc.Args["after"].(*string))
+			return ec.Resolvers.Query().ListProjects(ctx, fc.Args["first"].(*int32), fc.Args["after"].(*string))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
+				if ec.Directives.IsAuthenticated == nil {
 					var zeroVal *model.ProjectConnection
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
@@ -3579,17 +3885,17 @@ func (ec *executionContext) _Query_projectDetails(ctx context.Context, field gra
 		ec.fieldContext_Query_projectDetails,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().ProjectDetails(ctx, fc.Args["id"].(string))
+			return ec.Resolvers.Query().ProjectDetails(ctx, fc.Args["id"].(string))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
+				if ec.Directives.IsAuthenticated == nil {
 					var zeroVal *model.Project
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
@@ -3647,17 +3953,17 @@ func (ec *executionContext) _Query_listResources(ctx context.Context, field grap
 		ec.fieldContext_Query_listResources,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().ListResources(ctx, fc.Args["first"].(*int32), fc.Args["after"].(*string))
+			return ec.Resolvers.Query().ListResources(ctx, fc.Args["first"].(*int32), fc.Args["after"].(*string))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
+				if ec.Directives.IsAuthenticated == nil {
 					var zeroVal *model.ResourceConnection
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
@@ -3709,17 +4015,17 @@ func (ec *executionContext) _Query_resourceDetails(ctx context.Context, field gr
 		ec.fieldContext_Query_resourceDetails,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().ResourceDetails(ctx, fc.Args["id"].(string))
+			return ec.Resolvers.Query().ResourceDetails(ctx, fc.Args["id"].(string))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
+				if ec.Directives.IsAuthenticated == nil {
 					var zeroVal *model.Resource
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
@@ -3787,17 +4093,17 @@ func (ec *executionContext) _Query_listServices(ctx context.Context, field graph
 		ec.fieldContext_Query_listServices,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().ListServices(ctx, fc.Args["first"].(*int32), fc.Args["after"].(*string))
+			return ec.Resolvers.Query().ListServices(ctx, fc.Args["first"].(*int32), fc.Args["after"].(*string))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
+				if ec.Directives.IsAuthenticated == nil {
 					var zeroVal *model.ServiceConnection
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
@@ -3849,17 +4155,17 @@ func (ec *executionContext) _Query_serviceDetails(ctx context.Context, field gra
 		ec.fieldContext_Query_serviceDetails,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().ServiceDetails(ctx, fc.Args["id"].(string))
+			return ec.Resolvers.Query().ServiceDetails(ctx, fc.Args["id"].(string))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
 
 			directive1 := func(ctx context.Context) (any, error) {
-				if ec.directives.IsAuthenticated == nil {
+				if ec.Directives.IsAuthenticated == nil {
 					var zeroVal *model.Service
 					return zeroVal, errors.New("directive isAuthenticated is not implemented")
 				}
-				return ec.directives.IsAuthenticated(ctx, nil, directive0)
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
 			}
 
 			next = directive1
@@ -3943,7 +4249,7 @@ func (ec *executionContext) _Query___type(ctx context.Context, field graphql.Col
 		ec.fieldContext_Query___type,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.introspectType(fc.Args["name"].(string))
+			return ec.IntrospectType(fc.Args["name"].(string))
 		},
 		nil,
 		ec.marshalO__Type2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐType,
@@ -4007,7 +4313,7 @@ func (ec *executionContext) _Query___schema(ctx context.Context, field graphql.C
 		field,
 		ec.fieldContext_Query___schema,
 		func(ctx context.Context) (any, error) {
-			return ec.introspectSchema()
+			return ec.IntrospectSchema()
 		},
 		nil,
 		ec.marshalO__Schema2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐSchema,
@@ -4038,64 +4344,6 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 				return ec.fieldContext___Schema_directives(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type __Schema", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _RemoveDelegationResult_zoneId(ctx context.Context, field graphql.CollectedField, obj *model.RemoveDelegationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_RemoveDelegationResult_zoneId,
-		func(ctx context.Context) (any, error) {
-			return obj.ZoneID, nil
-		},
-		nil,
-		ec.marshalNID2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_RemoveDelegationResult_zoneId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "RemoveDelegationResult",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type ID does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _RemoveDelegationResult_message(ctx context.Context, field graphql.CollectedField, obj *model.RemoveDelegationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_RemoveDelegationResult_message,
-		func(ctx context.Context) (any, error) {
-			return obj.Message, nil
-		},
-		nil,
-		ec.marshalNString2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_RemoveDelegationResult_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "RemoveDelegationResult",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -4348,7 +4596,7 @@ func (ec *executionContext) _Resource_project(ctx context.Context, field graphql
 		field,
 		ec.fieldContext_Resource_project,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Resource().Project(ctx, obj)
+			return ec.Resolvers.Resource().Project(ctx, obj)
 		},
 		nil,
 		ec.marshalOProject2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐProject,
@@ -4715,7 +4963,7 @@ func (ec *executionContext) _Service_project(ctx context.Context, field graphql.
 		field,
 		ec.fieldContext_Service_project,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Service().Project(ctx, obj)
+			return ec.Resolvers.Service().Project(ctx, obj)
 		},
 		nil,
 		ec.marshalOProject2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐProject,
@@ -4845,10 +5093,10 @@ func (ec *executionContext) _Service_status(ctx context.Context, field graphql.C
 		field,
 		ec.fieldContext_Service_status,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Service().Status(ctx, obj)
+			return ec.Resolvers.Service().Status(ctx, obj)
 		},
 		nil,
-		ec.marshalNServiceStatus2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐServiceStatus,
+		ec.marshalNString2string,
 		true,
 		true,
 	)
@@ -4861,13 +5109,7 @@ func (ec *executionContext) fieldContext_Service_status(_ context.Context, field
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "build":
-				return ec.fieldContext_ServiceStatus_build(ctx, field)
-			case "runtime":
-				return ec.fieldContext_ServiceStatus_runtime(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type ServiceStatus", field.Name)
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -4880,7 +5122,7 @@ func (ec *executionContext) _Service_errorMessage(ctx context.Context, field gra
 		field,
 		ec.fieldContext_Service_errorMessage,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Service().ErrorMessage(ctx, obj)
+			return ec.Resolvers.Service().ErrorMessage(ctx, obj)
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -5031,7 +5273,7 @@ func (ec *executionContext) _Service_commitHash(ctx context.Context, field graph
 		field,
 		ec.fieldContext_Service_commitHash,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Service().CommitHash(ctx, obj)
+			return ec.Resolvers.Service().CommitHash(ctx, obj)
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -5118,7 +5360,7 @@ func (ec *executionContext) _Service_customDomain(ctx context.Context, field gra
 		field,
 		ec.fieldContext_Service_customDomain,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Service().CustomDomain(ctx, obj)
+			return ec.Resolvers.Service().CustomDomain(ctx, obj)
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -5147,7 +5389,7 @@ func (ec *executionContext) _Service_customDomainStatus(ctx context.Context, fie
 		field,
 		ec.fieldContext_Service_customDomainStatus,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Service().CustomDomainStatus(ctx, obj)
+			return ec.Resolvers.Service().CustomDomainStatus(ctx, obj)
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -5562,64 +5804,6 @@ func (ec *executionContext) fieldContext_ServiceMetrics_cpuLimitVCPUs(_ context.
 	return fc, nil
 }
 
-func (ec *executionContext) _ServiceStatus_build(ctx context.Context, field graphql.CollectedField, obj *model.ServiceStatus) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_ServiceStatus_build,
-		func(ctx context.Context) (any, error) {
-			return obj.Build, nil
-		},
-		nil,
-		ec.marshalNString2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_ServiceStatus_build(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ServiceStatus",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ServiceStatus_runtime(ctx context.Context, field graphql.CollectedField, obj *model.ServiceStatus) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_ServiceStatus_runtime,
-		func(ctx context.Context) (any, error) {
-			return obj.Runtime, nil
-		},
-		nil,
-		ec.marshalNString2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_ServiceStatus_runtime(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ServiceStatus",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5852,12 +6036,12 @@ func (ec *executionContext) fieldContext_User_githubScopes(_ context.Context, fi
 	return fc, nil
 }
 
-func (ec *executionContext) _VerifyDelegationResult_zoneId(ctx context.Context, field graphql.CollectedField, obj *model.VerifyDelegationResult) (ret graphql.Marshaler) {
+func (ec *executionContext) _VerifyHostedZoneResult_zoneId(ctx context.Context, field graphql.CollectedField, obj *model.VerifyHostedZoneResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_VerifyDelegationResult_zoneId,
+		ec.fieldContext_VerifyHostedZoneResult_zoneId,
 		func(ctx context.Context) (any, error) {
 			return obj.ZoneID, nil
 		},
@@ -5868,9 +6052,9 @@ func (ec *executionContext) _VerifyDelegationResult_zoneId(ctx context.Context, 
 	)
 }
 
-func (ec *executionContext) fieldContext_VerifyDelegationResult_zoneId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_VerifyHostedZoneResult_zoneId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "VerifyDelegationResult",
+		Object:     "VerifyHostedZoneResult",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -5881,12 +6065,12 @@ func (ec *executionContext) fieldContext_VerifyDelegationResult_zoneId(_ context
 	return fc, nil
 }
 
-func (ec *executionContext) _VerifyDelegationResult_zone(ctx context.Context, field graphql.CollectedField, obj *model.VerifyDelegationResult) (ret graphql.Marshaler) {
+func (ec *executionContext) _VerifyHostedZoneResult_zone(ctx context.Context, field graphql.CollectedField, obj *model.VerifyHostedZoneResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_VerifyDelegationResult_zone,
+		ec.fieldContext_VerifyHostedZoneResult_zone,
 		func(ctx context.Context) (any, error) {
 			return obj.Zone, nil
 		},
@@ -5897,9 +6081,9 @@ func (ec *executionContext) _VerifyDelegationResult_zone(ctx context.Context, fi
 	)
 }
 
-func (ec *executionContext) fieldContext_VerifyDelegationResult_zone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_VerifyHostedZoneResult_zone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "VerifyDelegationResult",
+		Object:     "VerifyHostedZoneResult",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -5910,12 +6094,12 @@ func (ec *executionContext) fieldContext_VerifyDelegationResult_zone(_ context.C
 	return fc, nil
 }
 
-func (ec *executionContext) _VerifyDelegationResult_status(ctx context.Context, field graphql.CollectedField, obj *model.VerifyDelegationResult) (ret graphql.Marshaler) {
+func (ec *executionContext) _VerifyHostedZoneResult_status(ctx context.Context, field graphql.CollectedField, obj *model.VerifyHostedZoneResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_VerifyDelegationResult_status,
+		ec.fieldContext_VerifyHostedZoneResult_status,
 		func(ctx context.Context) (any, error) {
 			return obj.Status, nil
 		},
@@ -5926,9 +6110,9 @@ func (ec *executionContext) _VerifyDelegationResult_status(ctx context.Context, 
 	)
 }
 
-func (ec *executionContext) fieldContext_VerifyDelegationResult_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_VerifyHostedZoneResult_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "VerifyDelegationResult",
+		Object:     "VerifyHostedZoneResult",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -5939,12 +6123,12 @@ func (ec *executionContext) fieldContext_VerifyDelegationResult_status(_ context
 	return fc, nil
 }
 
-func (ec *executionContext) _VerifyDelegationResult_message(ctx context.Context, field graphql.CollectedField, obj *model.VerifyDelegationResult) (ret graphql.Marshaler) {
+func (ec *executionContext) _VerifyHostedZoneResult_message(ctx context.Context, field graphql.CollectedField, obj *model.VerifyHostedZoneResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_VerifyDelegationResult_message,
+		ec.fieldContext_VerifyHostedZoneResult_message,
 		func(ctx context.Context) (any, error) {
 			return obj.Message, nil
 		},
@@ -5955,9 +6139,9 @@ func (ec *executionContext) _VerifyDelegationResult_message(ctx context.Context,
 	)
 }
 
-func (ec *executionContext) fieldContext_VerifyDelegationResult_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_VerifyHostedZoneResult_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "VerifyDelegationResult",
+		Object:     "VerifyHostedZoneResult",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -5968,12 +6152,12 @@ func (ec *executionContext) fieldContext_VerifyDelegationResult_message(_ contex
 	return fc, nil
 }
 
-func (ec *executionContext) _VerifyDelegationResult_dnsRecords(ctx context.Context, field graphql.CollectedField, obj *model.VerifyDelegationResult) (ret graphql.Marshaler) {
+func (ec *executionContext) _VerifyHostedZoneResult_dnsRecords(ctx context.Context, field graphql.CollectedField, obj *model.VerifyHostedZoneResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_VerifyDelegationResult_dnsRecords,
+		ec.fieldContext_VerifyHostedZoneResult_dnsRecords,
 		func(ctx context.Context) (any, error) {
 			return obj.DNSRecords, nil
 		},
@@ -5984,9 +6168,9 @@ func (ec *executionContext) _VerifyDelegationResult_dnsRecords(ctx context.Conte
 	)
 }
 
-func (ec *executionContext) fieldContext_VerifyDelegationResult_dnsRecords(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_VerifyHostedZoneResult_dnsRecords(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "VerifyDelegationResult",
+		Object:     "VerifyHostedZoneResult",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -6002,6 +6186,209 @@ func (ec *executionContext) fieldContext_VerifyDelegationResult_dnsRecords(_ con
 				return ec.fieldContext_DNSRecord_verified(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type DNSRecord", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ZoneRecord_id(ctx context.Context, field graphql.CollectedField, obj *model.ZoneRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ZoneRecord_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ZoneRecord_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ZoneRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ZoneRecord_name(ctx context.Context, field graphql.CollectedField, obj *model.ZoneRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ZoneRecord_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ZoneRecord_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ZoneRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ZoneRecord_type(ctx context.Context, field graphql.CollectedField, obj *model.ZoneRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ZoneRecord_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ZoneRecord_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ZoneRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ZoneRecord_content(ctx context.Context, field graphql.CollectedField, obj *model.ZoneRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ZoneRecord_content,
+		func(ctx context.Context) (any, error) {
+			return obj.Content, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ZoneRecord_content(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ZoneRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ZoneRecord_ttl(ctx context.Context, field graphql.CollectedField, obj *model.ZoneRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ZoneRecord_ttl,
+		func(ctx context.Context) (any, error) {
+			return obj.TTL, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ZoneRecord_ttl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ZoneRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ZoneRecord_managed(ctx context.Context, field graphql.CollectedField, obj *model.ZoneRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ZoneRecord_managed,
+		func(ctx context.Context) (any, error) {
+			return obj.Managed, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ZoneRecord_managed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ZoneRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ZoneRecord_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.ZoneRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ZoneRecord_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ZoneRecord_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ZoneRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -7503,10 +7890,10 @@ func (ec *executionContext) _APIKey(ctx context.Context, sel ast.SelectionSet, o
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -7547,10 +7934,64 @@ func (ec *executionContext) _CreateAPIKeyResult(ctx context.Context, sel ast.Sel
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var createHostedZoneResultImplementors = []string{"CreateHostedZoneResult"}
+
+func (ec *executionContext) _CreateHostedZoneResult(ctx context.Context, sel ast.SelectionSet, obj *model.CreateHostedZoneResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, createHostedZoneResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CreateHostedZoneResult")
+		case "zoneId":
+			out.Values[i] = ec._CreateHostedZoneResult_zoneId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "zone":
+			out.Values[i] = ec._CreateHostedZoneResult_zone(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._CreateHostedZoneResult_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dnsRecords":
+			out.Values[i] = ec._CreateHostedZoneResult_dnsRecords(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -7601,10 +8042,10 @@ func (ec *executionContext) _DNSRecord(ctx context.Context, sel ast.SelectionSet
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -7615,34 +8056,24 @@ func (ec *executionContext) _DNSRecord(ctx context.Context, sel ast.SelectionSet
 	return out
 }
 
-var delegateZoneResultImplementors = []string{"DelegateZoneResult"}
+var deleteHostedZoneResultImplementors = []string{"DeleteHostedZoneResult"}
 
-func (ec *executionContext) _DelegateZoneResult(ctx context.Context, sel ast.SelectionSet, obj *model.DelegateZoneResult) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, delegateZoneResultImplementors)
+func (ec *executionContext) _DeleteHostedZoneResult(ctx context.Context, sel ast.SelectionSet, obj *model.DeleteHostedZoneResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, deleteHostedZoneResultImplementors)
 
 	out := graphql.NewFieldSet(fields)
 	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
-			out.Values[i] = graphql.MarshalString("DelegateZoneResult")
+			out.Values[i] = graphql.MarshalString("DeleteHostedZoneResult")
 		case "zoneId":
-			out.Values[i] = ec._DelegateZoneResult_zoneId(ctx, field, obj)
+			out.Values[i] = ec._DeleteHostedZoneResult_zoneId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "zone":
-			out.Values[i] = ec._DelegateZoneResult_zone(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "status":
-			out.Values[i] = ec._DelegateZoneResult_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "dnsRecords":
-			out.Values[i] = ec._DelegateZoneResult_dnsRecords(ctx, field, obj)
+		case "message":
+			out.Values[i] = ec._DeleteHostedZoneResult_message(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -7655,68 +8086,10 @@ func (ec *executionContext) _DelegateZoneResult(ctx context.Context, sel ast.Sel
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
-			Label:    label,
-			Path:     graphql.GetPath(ctx),
-			FieldSet: dfs,
-			Context:  ctx,
-		})
-	}
-
-	return out
-}
-
-var delegatedZoneImplementors = []string{"DelegatedZone"}
-
-func (ec *executionContext) _DelegatedZone(ctx context.Context, sel ast.SelectionSet, obj *model.DelegatedZone) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, delegatedZoneImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := make(map[string]*graphql.FieldSet)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("DelegatedZone")
-		case "id":
-			out.Values[i] = ec._DelegatedZone_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "zone":
-			out.Values[i] = ec._DelegatedZone_zone(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "status":
-			out.Values[i] = ec._DelegatedZone_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "error":
-			out.Values[i] = ec._DelegatedZone_error(ctx, field, obj)
-		case "dnsRecords":
-			out.Values[i] = ec._DelegatedZone_dnsRecords(ctx, field, obj)
-		case "createdAt":
-			out.Values[i] = ec._DelegatedZone_createdAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
-
-	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -7762,10 +8135,10 @@ func (ec *executionContext) _DeleteServiceResult(ctx context.Context, sel ast.Se
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -7806,10 +8179,73 @@ func (ec *executionContext) _EnvVar(ctx context.Context, sel ast.SelectionSet, o
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var hostedZoneImplementors = []string{"HostedZone"}
+
+func (ec *executionContext) _HostedZone(ctx context.Context, sel ast.SelectionSet, obj *model.HostedZone) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, hostedZoneImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("HostedZone")
+		case "id":
+			out.Values[i] = ec._HostedZone_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "zone":
+			out.Values[i] = ec._HostedZone_zone(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._HostedZone_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._HostedZone_error(ctx, field, obj)
+		case "dnsRecords":
+			out.Values[i] = ec._HostedZone_dnsRecords(ctx, field, obj)
+		case "records":
+			out.Values[i] = ec._HostedZone_records(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._HostedZone_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -7850,10 +8286,10 @@ func (ec *executionContext) _MetricDataPoint(ctx context.Context, sel ast.Select
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -7894,10 +8330,10 @@ func (ec *executionContext) _MetricSeries(ctx context.Context, sel ast.Selection
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -7945,23 +8381,37 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_recheckGithubAppInstallation(ctx, field)
 			})
-		case "delegateZone":
+		case "createHostedZone":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_delegateZone(ctx, field)
+				return ec._Mutation_createHostedZone(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "verifyDelegation":
+		case "verifyHostedZone":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_verifyDelegation(ctx, field)
+				return ec._Mutation_verifyHostedZone(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "removeDelegation":
+		case "deleteHostedZone":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_removeDelegation(ctx, field)
+				return ec._Mutation_deleteHostedZone(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addDnsRecord":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_addDnsRecord(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteDnsRecord":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteDnsRecord(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -7982,10 +8432,10 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -8030,10 +8480,10 @@ func (ec *executionContext) _PageInfo(ctx context.Context, sel ast.SelectionSet,
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -8125,10 +8575,10 @@ func (ec *executionContext) _Project(ctx context.Context, sel ast.SelectionSet, 
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -8174,10 +8624,10 @@ func (ec *executionContext) _ProjectConnection(ctx context.Context, sel ast.Sele
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -8248,7 +8698,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "listDelegatedZones":
+		case "listHostedZones":
 			field := field
 
 			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
@@ -8257,7 +8707,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_listDelegatedZones(ctx, field)
+				res = ec._Query_listHostedZones(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -8432,54 +8882,10 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
-			Label:    label,
-			Path:     graphql.GetPath(ctx),
-			FieldSet: dfs,
-			Context:  ctx,
-		})
-	}
-
-	return out
-}
-
-var removeDelegationResultImplementors = []string{"RemoveDelegationResult"}
-
-func (ec *executionContext) _RemoveDelegationResult(ctx context.Context, sel ast.SelectionSet, obj *model.RemoveDelegationResult) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, removeDelegationResultImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := make(map[string]*graphql.FieldSet)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("RemoveDelegationResult")
-		case "zoneId":
-			out.Values[i] = ec._RemoveDelegationResult_zoneId(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "message":
-			out.Values[i] = ec._RemoveDelegationResult_message(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
-
-	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -8587,10 +8993,10 @@ func (ec *executionContext) _Resource(ctx context.Context, sel ast.SelectionSet,
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -8636,10 +9042,10 @@ func (ec *executionContext) _ResourceConnection(ctx context.Context, sel ast.Sel
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -8676,10 +9082,10 @@ func (ec *executionContext) _ResourceMetadata(ctx context.Context, sel ast.Selec
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -8970,10 +9376,10 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -9019,10 +9425,10 @@ func (ec *executionContext) _ServiceConnection(ctx context.Context, sel ast.Sele
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -9083,54 +9489,10 @@ func (ec *executionContext) _ServiceMetrics(ctx context.Context, sel ast.Selecti
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
-			Label:    label,
-			Path:     graphql.GetPath(ctx),
-			FieldSet: dfs,
-			Context:  ctx,
-		})
-	}
-
-	return out
-}
-
-var serviceStatusImplementors = []string{"ServiceStatus"}
-
-func (ec *executionContext) _ServiceStatus(ctx context.Context, sel ast.SelectionSet, obj *model.ServiceStatus) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, serviceStatusImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := make(map[string]*graphql.FieldSet)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("ServiceStatus")
-		case "build":
-			out.Values[i] = ec._ServiceStatus_build(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "runtime":
-			out.Values[i] = ec._ServiceStatus_runtime(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
-
-	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -9186,10 +9548,10 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -9200,39 +9562,39 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
-var verifyDelegationResultImplementors = []string{"VerifyDelegationResult"}
+var verifyHostedZoneResultImplementors = []string{"VerifyHostedZoneResult"}
 
-func (ec *executionContext) _VerifyDelegationResult(ctx context.Context, sel ast.SelectionSet, obj *model.VerifyDelegationResult) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, verifyDelegationResultImplementors)
+func (ec *executionContext) _VerifyHostedZoneResult(ctx context.Context, sel ast.SelectionSet, obj *model.VerifyHostedZoneResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, verifyHostedZoneResultImplementors)
 
 	out := graphql.NewFieldSet(fields)
 	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
-			out.Values[i] = graphql.MarshalString("VerifyDelegationResult")
+			out.Values[i] = graphql.MarshalString("VerifyHostedZoneResult")
 		case "zoneId":
-			out.Values[i] = ec._VerifyDelegationResult_zoneId(ctx, field, obj)
+			out.Values[i] = ec._VerifyHostedZoneResult_zoneId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "zone":
-			out.Values[i] = ec._VerifyDelegationResult_zone(ctx, field, obj)
+			out.Values[i] = ec._VerifyHostedZoneResult_zone(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "status":
-			out.Values[i] = ec._VerifyDelegationResult_status(ctx, field, obj)
+			out.Values[i] = ec._VerifyHostedZoneResult_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "message":
-			out.Values[i] = ec._VerifyDelegationResult_message(ctx, field, obj)
+			out.Values[i] = ec._VerifyHostedZoneResult_message(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "dnsRecords":
-			out.Values[i] = ec._VerifyDelegationResult_dnsRecords(ctx, field, obj)
+			out.Values[i] = ec._VerifyHostedZoneResult_dnsRecords(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -9245,10 +9607,79 @@ func (ec *executionContext) _VerifyDelegationResult(ctx context.Context, sel ast
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var zoneRecordImplementors = []string{"ZoneRecord"}
+
+func (ec *executionContext) _ZoneRecord(ctx context.Context, sel ast.SelectionSet, obj *model.ZoneRecord) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, zoneRecordImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ZoneRecord")
+		case "id":
+			out.Values[i] = ec._ZoneRecord_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._ZoneRecord_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._ZoneRecord_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "content":
+			out.Values[i] = ec._ZoneRecord_content(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ttl":
+			out.Values[i] = ec._ZoneRecord_ttl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "managed":
+			out.Values[i] = ec._ZoneRecord_managed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._ZoneRecord_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -9301,10 +9732,10 @@ func (ec *executionContext) ___Directive(ctx context.Context, sel ast.SelectionS
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -9349,10 +9780,10 @@ func (ec *executionContext) ___EnumValue(ctx context.Context, sel ast.SelectionS
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -9407,10 +9838,10 @@ func (ec *executionContext) ___Field(ctx context.Context, sel ast.SelectionSet, 
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -9462,10 +9893,10 @@ func (ec *executionContext) ___InputValue(ctx context.Context, sel ast.Selection
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -9517,10 +9948,10 @@ func (ec *executionContext) ___Schema(ctx context.Context, sel ast.SelectionSet,
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -9576,10 +10007,10 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 		return graphql.Null
 	}
 
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
 
 	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
 			Label:    label,
 			Path:     graphql.GetPath(ctx),
 			FieldSet: dfs,
@@ -9595,39 +10026,11 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 // region    ***************************** type.gotpl *****************************
 
 func (ec *executionContext) marshalNAPIKey2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐAPIKeyᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.APIKey) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNAPIKey2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐAPIKey(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAPIKey2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐAPIKey(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -9678,40 +10081,26 @@ func (ec *executionContext) marshalNCreateAPIKeyResult2ᚖgithubᚗcomᚋaugustd
 	return ec._CreateAPIKeyResult(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNDNSRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecordᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DNSRecord) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNDNSRecord2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecord(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
+func (ec *executionContext) marshalNCreateHostedZoneResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐCreateHostedZoneResult(ctx context.Context, sel ast.SelectionSet, v model.CreateHostedZoneResult) graphql.Marshaler {
+	return ec._CreateHostedZoneResult(ctx, sel, &v)
+}
 
+func (ec *executionContext) marshalNCreateHostedZoneResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐCreateHostedZoneResult(ctx context.Context, sel ast.SelectionSet, v *model.CreateHostedZoneResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
 	}
-	wg.Wait()
+	return ec._CreateHostedZoneResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDNSRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecordᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DNSRecord) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDNSRecord2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecord(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -9732,72 +10121,18 @@ func (ec *executionContext) marshalNDNSRecord2ᚖgithubᚗcomᚋaugustdevᚋauto
 	return ec._DNSRecord(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNDelegateZoneResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegateZoneResult(ctx context.Context, sel ast.SelectionSet, v model.DelegateZoneResult) graphql.Marshaler {
-	return ec._DelegateZoneResult(ctx, sel, &v)
+func (ec *executionContext) marshalNDeleteHostedZoneResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDeleteHostedZoneResult(ctx context.Context, sel ast.SelectionSet, v model.DeleteHostedZoneResult) graphql.Marshaler {
+	return ec._DeleteHostedZoneResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNDelegateZoneResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegateZoneResult(ctx context.Context, sel ast.SelectionSet, v *model.DelegateZoneResult) graphql.Marshaler {
+func (ec *executionContext) marshalNDeleteHostedZoneResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDeleteHostedZoneResult(ctx context.Context, sel ast.SelectionSet, v *model.DeleteHostedZoneResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
 		}
 		return graphql.Null
 	}
-	return ec._DelegateZoneResult(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNDelegatedZone2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegatedZoneᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DelegatedZone) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNDelegatedZone2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegatedZone(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNDelegatedZone2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDelegatedZone(ctx context.Context, sel ast.SelectionSet, v *model.DelegatedZone) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._DelegatedZone(ctx, sel, v)
+	return ec._DeleteHostedZoneResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNDeleteServiceResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDeleteServiceResult(ctx context.Context, sel ast.SelectionSet, v model.DeleteServiceResult) graphql.Marshaler {
@@ -9815,39 +10150,11 @@ func (ec *executionContext) marshalNDeleteServiceResult2ᚖgithubᚗcomᚋaugust
 }
 
 func (ec *executionContext) marshalNEnvVar2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐEnvVarᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EnvVar) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNEnvVar2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐEnvVar(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNEnvVar2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐEnvVar(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -9884,6 +10191,32 @@ func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.S
 	return graphql.WrapContextMarshaler(ctx, res)
 }
 
+func (ec *executionContext) marshalNHostedZone2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐHostedZoneᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.HostedZone) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNHostedZone2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐHostedZone(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNHostedZone2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐHostedZone(ctx context.Context, sel ast.SelectionSet, v *model.HostedZone) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._HostedZone(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalID(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -9917,39 +10250,11 @@ func (ec *executionContext) marshalNInt2int32(ctx context.Context, sel ast.Selec
 }
 
 func (ec *executionContext) marshalNMetricDataPoint2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐMetricDataPointᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MetricDataPoint) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNMetricDataPoint2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐMetricDataPoint(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMetricDataPoint2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐMetricDataPoint(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -10001,39 +10306,11 @@ func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋaugustdevᚋautoc
 }
 
 func (ec *executionContext) marshalNProject2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐProjectᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Project) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNProject2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐProject(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProject2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐProject(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -10068,54 +10345,12 @@ func (ec *executionContext) marshalNProjectConnection2ᚖgithubᚗcomᚋaugustde
 	return ec._ProjectConnection(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNRemoveDelegationResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐRemoveDelegationResult(ctx context.Context, sel ast.SelectionSet, v model.RemoveDelegationResult) graphql.Marshaler {
-	return ec._RemoveDelegationResult(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNRemoveDelegationResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐRemoveDelegationResult(ctx context.Context, sel ast.SelectionSet, v *model.RemoveDelegationResult) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._RemoveDelegationResult(ctx, sel, v)
-}
-
 func (ec *executionContext) marshalNResource2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐResourceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Resource) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNResource2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐResource(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNResource2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐResource(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -10161,39 +10396,11 @@ func (ec *executionContext) marshalNRole2githubᚗcomᚋaugustdevᚋautoclipᚋi
 }
 
 func (ec *executionContext) marshalNService2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐServiceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Service) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNService2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐService(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNService2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐService(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -10240,20 +10447,6 @@ func (ec *executionContext) marshalNServiceMetrics2ᚖgithubᚗcomᚋaugustdev�
 		return graphql.Null
 	}
 	return ec._ServiceMetrics(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNServiceStatus2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐServiceStatus(ctx context.Context, sel ast.SelectionSet, v model.ServiceStatus) graphql.Marshaler {
-	return ec._ServiceStatus(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNServiceStatus2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐServiceStatus(ctx context.Context, sel ast.SelectionSet, v *model.ServiceStatus) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._ServiceStatus(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
@@ -10318,18 +10511,48 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalNVerifyDelegationResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐVerifyDelegationResult(ctx context.Context, sel ast.SelectionSet, v model.VerifyDelegationResult) graphql.Marshaler {
-	return ec._VerifyDelegationResult(ctx, sel, &v)
+func (ec *executionContext) marshalNVerifyHostedZoneResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐVerifyHostedZoneResult(ctx context.Context, sel ast.SelectionSet, v model.VerifyHostedZoneResult) graphql.Marshaler {
+	return ec._VerifyHostedZoneResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNVerifyDelegationResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐVerifyDelegationResult(ctx context.Context, sel ast.SelectionSet, v *model.VerifyDelegationResult) graphql.Marshaler {
+func (ec *executionContext) marshalNVerifyHostedZoneResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐVerifyHostedZoneResult(ctx context.Context, sel ast.SelectionSet, v *model.VerifyHostedZoneResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
 		}
 		return graphql.Null
 	}
-	return ec._VerifyDelegationResult(ctx, sel, v)
+	return ec._VerifyHostedZoneResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNZoneRecord2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐZoneRecord(ctx context.Context, sel ast.SelectionSet, v model.ZoneRecord) graphql.Marshaler {
+	return ec._ZoneRecord(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNZoneRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐZoneRecordᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ZoneRecord) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNZoneRecord2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐZoneRecord(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNZoneRecord2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐZoneRecord(ctx context.Context, sel ast.SelectionSet, v *model.ZoneRecord) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ZoneRecord(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
@@ -10337,39 +10560,11 @@ func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlge
 }
 
 func (ec *executionContext) marshalN__Directive2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirectiveᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.Directive) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -10412,39 +10607,11 @@ func (ec *executionContext) unmarshalN__DirectiveLocation2ᚕstringᚄ(ctx conte
 }
 
 func (ec *executionContext) marshalN__DirectiveLocation2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalN__DirectiveLocation2string(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalN__DirectiveLocation2string(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -10468,39 +10635,11 @@ func (ec *executionContext) marshalN__InputValue2githubᚗcomᚋ99designsᚋgqlg
 }
 
 func (ec *executionContext) marshalN__InputValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐInputValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.InputValue) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalN__InputValue2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐInputValue(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalN__InputValue2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐInputValue(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -10516,39 +10655,11 @@ func (ec *executionContext) marshalN__Type2githubᚗcomᚋ99designsᚋgqlgenᚋg
 }
 
 func (ec *executionContext) marshalN__Type2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐTypeᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.Type) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalN__Type2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐType(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalN__Type2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐType(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -10619,39 +10730,11 @@ func (ec *executionContext) marshalODNSRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋa
 	if v == nil {
 		return graphql.Null
 	}
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNDNSRecord2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecord(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDNSRecord2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐDNSRecord(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -10773,39 +10856,11 @@ func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgq
 	if v == nil {
 		return graphql.Null
 	}
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalN__EnumValue2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValue(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalN__EnumValue2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValue(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -10820,39 +10875,11 @@ func (ec *executionContext) marshalO__Field2ᚕgithubᚗcomᚋ99designsᚋgqlgen
 	if v == nil {
 		return graphql.Null
 	}
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalN__Field2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐField(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalN__Field2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐField(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -10867,39 +10894,11 @@ func (ec *executionContext) marshalO__InputValue2ᚕgithubᚗcomᚋ99designsᚋg
 	if v == nil {
 		return graphql.Null
 	}
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalN__InputValue2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐInputValue(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalN__InputValue2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐInputValue(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {
@@ -10921,39 +10920,11 @@ func (ec *executionContext) marshalO__Type2ᚕgithubᚗcomᚋ99designsᚋgqlgen�
 	if v == nil {
 		return graphql.Null
 	}
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalN__Type2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐType(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalN__Type2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐType(ctx, sel, v[i])
+	})
 
 	for _, e := range ret {
 		if e == graphql.Null {

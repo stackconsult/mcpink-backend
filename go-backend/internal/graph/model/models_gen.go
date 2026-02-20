@@ -23,6 +23,13 @@ type CreateAPIKeyResult struct {
 	Secret string  `json:"secret"`
 }
 
+type CreateHostedZoneResult struct {
+	ZoneID     string       `json:"zoneId"`
+	Zone       string       `json:"zone"`
+	Status     string       `json:"status"`
+	DNSRecords []*DNSRecord `json:"dnsRecords"`
+}
+
 type DNSRecord struct {
 	Host     string `json:"host"`
 	Type     string `json:"type"`
@@ -30,20 +37,9 @@ type DNSRecord struct {
 	Verified bool   `json:"verified"`
 }
 
-type DelegateZoneResult struct {
-	ZoneID     string       `json:"zoneId"`
-	Zone       string       `json:"zone"`
-	Status     string       `json:"status"`
-	DNSRecords []*DNSRecord `json:"dnsRecords"`
-}
-
-type DelegatedZone struct {
-	ID         string       `json:"id"`
-	Zone       string       `json:"zone"`
-	Status     string       `json:"status"`
-	Error      *string      `json:"error,omitempty"`
-	DNSRecords []*DNSRecord `json:"dnsRecords,omitempty"`
-	CreatedAt  time.Time    `json:"createdAt"`
+type DeleteHostedZoneResult struct {
+	ZoneID  string `json:"zoneId"`
+	Message string `json:"message"`
 }
 
 type DeleteServiceResult struct {
@@ -55,6 +51,16 @@ type DeleteServiceResult struct {
 type EnvVar struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
+}
+
+type HostedZone struct {
+	ID         string        `json:"id"`
+	Zone       string        `json:"zone"`
+	Status     string        `json:"status"`
+	Error      *string       `json:"error,omitempty"`
+	DNSRecords []*DNSRecord  `json:"dnsRecords,omitempty"`
+	Records    []*ZoneRecord `json:"records"`
+	CreatedAt  time.Time     `json:"createdAt"`
 }
 
 type MetricDataPoint struct {
@@ -95,11 +101,6 @@ type ProjectConnection struct {
 type Query struct {
 }
 
-type RemoveDelegationResult struct {
-	ZoneID  string `json:"zoneId"`
-	Message string `json:"message"`
-}
-
 type Resource struct {
 	ID        string            `json:"id"`
 	Name      string            `json:"name"`
@@ -127,25 +128,25 @@ type ResourceMetadata struct {
 }
 
 type Service struct {
-	ID                 string         `json:"id"`
-	ProjectID          string         `json:"projectId"`
-	Project            *Project       `json:"project,omitempty"`
-	Name               *string        `json:"name,omitempty"`
-	Repo               string         `json:"repo"`
-	Branch             string         `json:"branch"`
-	Status             *ServiceStatus `json:"status"`
-	ErrorMessage       *string        `json:"errorMessage,omitempty"`
-	EnvVars            []*EnvVar      `json:"envVars"`
-	Fqdn               *string        `json:"fqdn,omitempty"`
-	Port               string         `json:"port"`
-	GitProvider        string         `json:"gitProvider"`
-	CommitHash         *string        `json:"commitHash,omitempty"`
-	Memory             string         `json:"memory"`
-	Vcpus              string         `json:"vcpus"`
-	CustomDomain       *string        `json:"customDomain,omitempty"`
-	CustomDomainStatus *string        `json:"customDomainStatus,omitempty"`
-	CreatedAt          time.Time      `json:"createdAt"`
-	UpdatedAt          time.Time      `json:"updatedAt"`
+	ID                 string    `json:"id"`
+	ProjectID          string    `json:"projectId"`
+	Project            *Project  `json:"project,omitempty"`
+	Name               *string   `json:"name,omitempty"`
+	Repo               string    `json:"repo"`
+	Branch             string    `json:"branch"`
+	Status             string    `json:"status"`
+	ErrorMessage       *string   `json:"errorMessage,omitempty"`
+	EnvVars            []*EnvVar `json:"envVars"`
+	Fqdn               *string   `json:"fqdn,omitempty"`
+	Port               string    `json:"port"`
+	GitProvider        string    `json:"gitProvider"`
+	CommitHash         *string   `json:"commitHash,omitempty"`
+	Memory             string    `json:"memory"`
+	Vcpus              string    `json:"vcpus"`
+	CustomDomain       *string   `json:"customDomain,omitempty"`
+	CustomDomainStatus *string   `json:"customDomainStatus,omitempty"`
+	CreatedAt          time.Time `json:"createdAt"`
+	UpdatedAt          time.Time `json:"updatedAt"`
 }
 
 type ServiceConnection struct {
@@ -163,11 +164,6 @@ type ServiceMetrics struct {
 	CPULimitVCPUs              float64       `json:"cpuLimitVCPUs"`
 }
 
-type ServiceStatus struct {
-	Build   string `json:"build"`
-	Runtime string `json:"runtime"`
-}
-
 type User struct {
 	ID                      string    `json:"id"`
 	Email                   *string   `json:"email,omitempty"`
@@ -179,12 +175,22 @@ type User struct {
 	GithubScopes            []string  `json:"githubScopes"`
 }
 
-type VerifyDelegationResult struct {
+type VerifyHostedZoneResult struct {
 	ZoneID     string       `json:"zoneId"`
 	Zone       string       `json:"zone"`
 	Status     string       `json:"status"`
 	Message    string       `json:"message"`
 	DNSRecords []*DNSRecord `json:"dnsRecords"`
+}
+
+type ZoneRecord struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Type      string    `json:"type"`
+	Content   string    `json:"content"`
+	TTL       int32     `json:"ttl"`
+	Managed   bool      `json:"managed"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type MetricTimeRange string

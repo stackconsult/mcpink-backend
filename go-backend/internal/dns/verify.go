@@ -70,7 +70,7 @@ func NormalizeDomain(d string) string {
 	return d
 }
 
-func ValidateDelegatedZone(zone, platformDomain string) error {
+func ValidateHostedZone(zone, platformDomain string) error {
 	zone = NormalizeDomain(zone)
 
 	if zone == "" {

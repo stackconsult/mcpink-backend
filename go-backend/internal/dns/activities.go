@@ -5,33 +5,33 @@ import (
 	"log/slog"
 
 	"github.com/augustdev/autoclip/internal/powerdns"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/delegatedzones"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/dnsdb"
 	"go.temporal.io/sdk/activity"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
 
 type Activities struct {
-	logger          *slog.Logger
-	k8s             kubernetes.Interface
-	dynClient       dynamic.Interface
-	delegatedZonesQ delegatedzones.Querier
-	pdns            *powerdns.Client
+	logger    *slog.Logger
+	k8s       kubernetes.Interface
+	dynClient dynamic.Interface
+	dnsQ      dnsdb.Querier
+	pdns      *powerdns.Client
 }
 
 func NewActivities(
 	logger *slog.Logger,
 	k8s kubernetes.Interface,
 	dynClient dynamic.Interface,
-	delegatedZonesQ delegatedzones.Querier,
+	dnsQ dnsdb.Querier,
 	pdns *powerdns.Client,
 ) *Activities {
 	return &Activities{
-		logger:          logger,
-		k8s:             k8s,
-		dynClient:       dynClient,
-		delegatedZonesQ: delegatedZonesQ,
-		pdns:            pdns,
+		logger:    logger,
+		k8s:       k8s,
+		dynClient: dynClient,
+		dnsQ:      dnsQ,
+		pdns:      pdns,
 	}
 }
 

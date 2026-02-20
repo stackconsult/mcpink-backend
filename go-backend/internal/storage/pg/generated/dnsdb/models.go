@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.30.0
 
-package zonerecords
+package dnsdb
 
 import (
 	"github.com/jackc/pgx/v5/pgtype"
@@ -32,22 +32,6 @@ type Cluster struct {
 	HasDns      bool               `json:"has_dns"`
 }
 
-type DelegatedZone struct {
-	ID                 string             `json:"id"`
-	UserID             string             `json:"user_id"`
-	Zone               string             `json:"zone"`
-	Status             string             `json:"status"`
-	VerificationToken  string             `json:"verification_token"`
-	WildcardCertSecret *string            `json:"wildcard_cert_secret"`
-	CertIssuedAt       pgtype.Timestamptz `json:"cert_issued_at"`
-	VerifiedAt         pgtype.Timestamptz `json:"verified_at"`
-	DelegatedAt        pgtype.Timestamptz `json:"delegated_at"`
-	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
-	LastError          *string            `json:"last_error"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-}
-
 type Deployment struct {
 	ID              string             `json:"id"`
 	ServiceID       string             `json:"service_id"`
@@ -70,6 +54,18 @@ type Deployment struct {
 	FinishedAt      pgtype.Timestamptz `json:"finished_at"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type DnsRecord struct {
+	ID        string             `json:"id"`
+	ZoneID    string             `json:"zone_id"`
+	Name      string             `json:"name"`
+	Rrtype    string             `json:"rrtype"`
+	Content   string             `json:"content"`
+	Ttl       int32              `json:"ttl"`
+	Managed   bool               `json:"managed"`
+	ServiceID *string            `json:"service_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type GitToken struct {
@@ -95,6 +91,22 @@ type GithubCred struct {
 	GithubAppInstallationID *int64             `json:"github_app_installation_id"`
 	CreatedAt               pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+}
+
+type HostedZone struct {
+	ID                 string             `json:"id"`
+	UserID             string             `json:"user_id"`
+	Zone               string             `json:"zone"`
+	Status             string             `json:"status"`
+	VerificationToken  string             `json:"verification_token"`
+	WildcardCertSecret *string            `json:"wildcard_cert_secret"`
+	CertIssuedAt       pgtype.Timestamptz `json:"cert_issued_at"`
+	VerifiedAt         pgtype.Timestamptz `json:"verified_at"`
+	DelegatedAt        pgtype.Timestamptz `json:"delegated_at"`
+	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
+	LastError          *string            `json:"last_error"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
 type InternalRepo struct {
@@ -176,12 +188,4 @@ type User struct {
 	GithubScopes   []string           `json:"github_scopes"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-}
-
-type ZoneRecord struct {
-	ID        string             `json:"id"`
-	ZoneID    string             `json:"zone_id"`
-	ServiceID string             `json:"service_id"`
-	Name      string             `json:"name"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }

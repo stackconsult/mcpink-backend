@@ -12,6 +12,7 @@ import (
 	"github.com/augustdev/autoclip/internal/internalgit"
 	"github.com/augustdev/autoclip/internal/mcp_oauth"
 	"github.com/augustdev/autoclip/internal/mcpserver"
+	"github.com/augustdev/autoclip/internal/powerdns"
 	"github.com/augustdev/autoclip/internal/resources"
 	"github.com/augustdev/autoclip/internal/storage/pg"
 	"github.com/augustdev/autoclip/internal/turso"
@@ -35,6 +36,7 @@ type config struct {
 	Firebase       bootstrap.FirebaseConfig
 	Loki           mcpserver.LokiConfig
 	DNS            dns.Config
+	PowerDNS       powerdns.Config
 }
 
 func main() {
@@ -52,14 +54,14 @@ func main() {
 			pg.NewGitHubCredsQueries,
 			pg.NewResourceQueries,
 			pg.NewInternalReposQueries,
-			pg.NewDelegatedZoneQueries,
-			pg.NewZoneRecordQueries,
+			pg.NewDnsQueries,
 			pg.NewClusterMap,
 			bootstrap.CreateTemporalClient,
 			github_oauth.NewOAuthService,
 			githubapp.NewService,
 			auth.NewService,
 			bootstrap.NewTursoClient,
+			powerdns.NewClient,
 			deployments.NewService,
 			dns.NewService,
 			resources.NewService,

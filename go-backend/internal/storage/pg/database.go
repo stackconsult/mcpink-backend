@@ -10,8 +10,8 @@ import (
 
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/apikeys"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/clusters"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/delegatedzones"
 	deploymentsdb "github.com/augustdev/autoclip/internal/storage/pg/generated/deployments"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/dnsdb"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/githubcreds"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/gittokens"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/internalrepos"
@@ -19,7 +19,6 @@ import (
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/resources"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/users"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/zonerecords"
 	pgxdecimal "github.com/jackc/pgx-shopspring-decimal"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,19 +35,18 @@ type DbConfig struct {
 
 type DB struct {
 	*pgxpool.Pool
-	logger           *slog.Logger
-	userQueries      users.Querier
-	apiKeyQueries    apikeys.Querier
-	serviceQueries   services.Querier
-	projectQueries   projects.Querier
-	githubCredsQ     githubcreds.Querier
-	resourceQueries  resources.Querier
-	internalReposQ   internalrepos.Querier
-	gitTokensQ       gittokens.Querier
-	delegatedZonesQ  delegatedzones.Querier
-	zoneRecordsQ     zonerecords.Querier
-	deploymentsQ     deploymentsdb.Querier
-	clustersQ        clusters.Querier
+	logger          *slog.Logger
+	userQueries     users.Querier
+	apiKeyQueries   apikeys.Querier
+	serviceQueries  services.Querier
+	projectQueries  projects.Querier
+	githubCredsQ    githubcreds.Querier
+	resourceQueries resources.Querier
+	internalReposQ  internalrepos.Querier
+	gitTokensQ      gittokens.Querier
+	dnsQ            dnsdb.Querier
+	deploymentsQ    deploymentsdb.Querier
+	clustersQ       clusters.Querier
 }
 
 func NewDatabase(lc fx.Lifecycle, config DbConfig, logger *slog.Logger) (*DB, error) {
@@ -143,8 +141,7 @@ func NewDatabase(lc fx.Lifecycle, config DbConfig, logger *slog.Logger) (*DB, er
 		resourceQueries: resources.New(pool),
 		internalReposQ:  internalrepos.New(pool),
 		gitTokensQ:      gittokens.New(pool),
-		delegatedZonesQ: delegatedzones.New(pool),
-		zoneRecordsQ:    zonerecords.New(pool),
+		dnsQ:            dnsdb.New(pool),
 		deploymentsQ:    deploymentsdb.New(pool),
 		clustersQ:       clusters.New(pool),
 	}, nil
@@ -191,12 +188,8 @@ func NewGitTokenQueries(database *DB) gittokens.Querier {
 	return database.gitTokensQ
 }
 
-func NewDelegatedZoneQueries(database *DB) delegatedzones.Querier {
-	return database.delegatedZonesQ
-}
-
-func NewZoneRecordQueries(database *DB) zonerecords.Querier {
-	return database.zoneRecordsQ
+func NewDnsQueries(database *DB) dnsdb.Querier {
+	return database.dnsQ
 }
 
 func NewDeploymentQueries(database *DB) deploymentsdb.Querier {

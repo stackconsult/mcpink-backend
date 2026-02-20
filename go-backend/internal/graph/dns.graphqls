@@ -1,19 +1,22 @@
 extend type Query {
-  listDelegatedZones: [DelegatedZone!]! @isAuthenticated
+  listHostedZones: [HostedZone!]! @isAuthenticated
 }
 
 extend type Mutation {
-  delegateZone(zone: String!): DelegateZoneResult! @isAuthenticated
-  verifyDelegation(zone: String!): VerifyDelegationResult! @isAuthenticated
-  removeDelegation(zone: String!): RemoveDelegationResult! @isAuthenticated
+  createHostedZone(zone: String!): CreateHostedZoneResult! @isAuthenticated
+  verifyHostedZone(zone: String!): VerifyHostedZoneResult! @isAuthenticated
+  deleteHostedZone(zone: String!): DeleteHostedZoneResult! @isAuthenticated
+  addDnsRecord(zone: String!, name: String!, type: String!, content: String!, ttl: Int): ZoneRecord! @isAuthenticated
+  deleteDnsRecord(zone: String!, recordId: ID!): Boolean! @isAuthenticated
 }
 
-type DelegatedZone {
+type HostedZone {
   id: ID!
   zone: String!
   status: String!
   error: String
   dnsRecords: [DNSRecord!]
+  records: [ZoneRecord!]!
   createdAt: Time!
 }
 
@@ -24,14 +27,24 @@ type DNSRecord {
   verified: Boolean!
 }
 
-type DelegateZoneResult {
+type ZoneRecord {
+  id: ID!
+  name: String!
+  type: String!
+  content: String!
+  ttl: Int!
+  managed: Boolean!
+  createdAt: Time!
+}
+
+type CreateHostedZoneResult {
   zoneId: ID!
   zone: String!
   status: String!
   dnsRecords: [DNSRecord!]!
 }
 
-type VerifyDelegationResult {
+type VerifyHostedZoneResult {
   zoneId: ID!
   zone: String!
   status: String!
@@ -39,7 +52,7 @@ type VerifyDelegationResult {
   dnsRecords: [DNSRecord!]!
 }
 
-type RemoveDelegationResult {
+type DeleteHostedZoneResult {
   zoneId: ID!
   message: String!
 }

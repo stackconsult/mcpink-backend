@@ -23,10 +23,10 @@ import (
 	"github.com/augustdev/autoclip/internal/prometheus"
 	"github.com/augustdev/autoclip/internal/storage/pg"
 	deploymentsdb "github.com/augustdev/autoclip/internal/storage/pg/generated/deployments"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/dnsdb"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/projects"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/resources"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/zonerecords"
 	"github.com/augustdev/autoclip/internal/turso"
 	"github.com/augustdev/autoclip/internal/webhooks"
 	"github.com/go-chi/chi/v5"
@@ -71,12 +71,12 @@ func NewResolver(
 func NewLoaderDeps(
 	serviceQueries services.Querier,
 	deploymentQueries deploymentsdb.Querier,
-	zoneRecordQueries zonerecords.Querier,
+	dnsQueries dnsdb.Querier,
 ) *dataloader.LoaderDeps {
 	return &dataloader.LoaderDeps{
 		ServiceQueries:    serviceQueries,
 		DeploymentQueries: deploymentQueries,
-		ZoneRecordQueries: zoneRecordQueries,
+		DnsQueries:        dnsQueries,
 	}
 }
 

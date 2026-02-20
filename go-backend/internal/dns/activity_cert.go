@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/delegatedzones"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/dnsdb"
 	"go.temporal.io/sdk/temporal"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -120,13 +120,13 @@ func (a *Activities) UpdateZoneStatus(ctx context.Context, input UpdateZoneStatu
 
 	switch input.Status {
 	case "active":
-		_, err := a.delegatedZonesQ.UpdateActivated(ctx, delegatedzones.UpdateActivatedParams{
+		_, err := a.dnsQ.UpdateHostedZoneActivated(ctx, dnsdb.UpdateHostedZoneActivatedParams{
 			ID:                 input.ZoneID,
 			WildcardCertSecret: &input.WildcardCertSecret,
 		})
 		return err
 	default:
-		_, err := a.delegatedZonesQ.UpdateStatus(ctx, delegatedzones.UpdateStatusParams{
+		_, err := a.dnsQ.UpdateHostedZoneStatus(ctx, dnsdb.UpdateHostedZoneStatusParams{
 			ID:     input.ZoneID,
 			Status: input.Status,
 		})

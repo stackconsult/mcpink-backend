@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	deploymentsdb "github.com/augustdev/autoclip/internal/storage/pg/generated/deployments"
+	"github.com/augustdev/autoclip/internal/storage/pg/generated/dnsdb"
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
-	"github.com/augustdev/autoclip/internal/storage/pg/generated/zonerecords"
 	"github.com/vikstrous/dataloadgen"
 )
 
@@ -21,7 +21,7 @@ type CustomDomainInfo struct {
 type LoaderDeps struct {
 	ServiceQueries    services.Querier
 	DeploymentQueries deploymentsdb.Querier
-	ZoneRecordQueries zonerecords.Querier
+	DnsQueries        dnsdb.Querier
 }
 
 type Loaders struct {
@@ -100,7 +100,7 @@ func newLatestDeploymentFn(deps *LoaderDeps) func(ctx context.Context, keys []st
 
 func newCustomDomainFn(deps *LoaderDeps) func(ctx context.Context, keys []string) ([]*CustomDomainInfo, []error) {
 	return func(ctx context.Context, keys []string) ([]*CustomDomainInfo, []error) {
-		rows, err := deps.ZoneRecordQueries.ListCustomDomainsByServiceIDs(ctx, keys)
+		rows, err := deps.DnsQueries.ListCustomDomainsByServiceIDs(ctx, keys)
 		if err != nil {
 			return nil, []error{fmt.Errorf("ListCustomDomainsByServiceIDs: %w", err)}
 		}
@@ -108,8 +108,15 @@ func newCustomDomainFn(deps *LoaderDeps) func(ctx context.Context, keys []string
 		// Pick first record per service
 		firstByService := make(map[string]*CustomDomainInfo, len(rows))
 		for _, row := range rows {
-			if _, ok := firstByService[row.ServiceID]; !ok {
-				firstByService[row.ServiceID] = &CustomDomainInfo{
+			sid := ""
+			if row.ServiceID != nil {
+				sid = *row.ServiceID
+			}
+			if sid == "" {
+				continue
+			}
+			if _, ok := firstByService[sid]; !ok {
+				firstByService[sid] = &CustomDomainInfo{
 					Domain: row.Name + "." + row.Zone,
 					Status: row.Status,
 				}
