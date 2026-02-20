@@ -69,9 +69,9 @@ Deploy MCP supports two git providers, each with its own auth model:
 
 ### Git Providers
 
-| Provider                           | Identity      | Repo Access                             | Webhooks           |
-| ---------------------------------- | ------------- | --------------------------------------- | ------------------ |
-| **GitHub** (`host=github.com`)     | GitHub OAuth  | GitHub App (installation tokens)        | GitHub App webhook |
+| Provider                                  | Identity      | Repo Access                                      | Webhooks             |
+| ----------------------------------------- | ------------- | ------------------------------------------------ | -------------------- |
+| **GitHub** (`host=github.com`)            | GitHub OAuth  | GitHub App (installation tokens)                 | GitHub App webhook   |
 | **Internal git** (`host=ml.ink`, default) | Firebase Auth | Per-repo HTTPS tokens (`mlg_...`) via git-server | git-server push hook |
 
 **GitHub flow:** User signs in via GitHub OAuth, installs the GitHub App for repo access, then deploys with `host=github.com`.
@@ -124,9 +124,9 @@ The OAuth flow creates an API key behind the scenes — the `access_token` retur
 
 ### Webhooks (Auto-Redeploy)
 
-| Source     | Event                                  | Verification                 |
-| ---------- | -------------------------------------- | ---------------------------- |
-| GitHub App | `push`, `installation.created/deleted` | HMAC-SHA256 (webhook secret) |
+| Source     | Event                                  | Verification                         |
+| ---------- | -------------------------------------- | ------------------------------------ |
+| GitHub App | `push`, `installation.created/deleted` | HMAC-SHA256 (webhook secret)         |
 | git-server | `push` (post-receive)                  | Direct Temporal trigger (no webhook) |
 
 Both trigger the same Temporal redeploy workflow with deterministic workflow IDs for deduplication.
@@ -154,23 +154,23 @@ Both trigger the same Temporal redeploy workflow with deterministic workflow IDs
 
 ## MCP Tools
 
-| Tool               | Description                                                      | Requirements |
-| ------------------ | ---------------------------------------------------------------- | ------------ |
-| `whoami`           | Get current user info and GitHub App status                      | API key      |
-| `create_service`   | Deploy a service from a git repo (`host=ml.ink` or `github.com`) | API key      |
-| `list_services`    | List all deployed services                                       | API key      |
-| `get_service`      | Get service details including build/runtime logs                 | API key      |
-| `redeploy_service` | Redeploy a service to pull latest code                           | API key      |
-| `delete_service`   | Delete a service and its k8s resources                           | API key      |
-| `create_resource`  | Provision a database (SQLite via Turso)                          | API key      |
-| `list_resources`   | List all provisioned resources                                   | API key      |
-| `get_resource`     | Get resource connection details (URL + auth token)               | API key      |
-| `delete_resource`  | Delete a resource                                                | API key      |
-| `create_repo`      | Create a git repo (`host=ml.ink` default, or `github.com`)       | API key      |
-| `get_git_token`    | Get a temporary git token to push code                           | API key      |
-| `add_custom_domain`   | Attach a custom domain to a service (requires delegated zone) | API key      |
-| `remove_custom_domain` | Remove a custom domain from a service                        | API key      |
-| `list_delegations` | List all delegated zones with their status                       | API key      |
+| Tool                   | Description                                                      | Requirements |
+| ---------------------- | ---------------------------------------------------------------- | ------------ |
+| `whoami`               | Get current user info and GitHub App status                      | API key      |
+| `create_service`       | Deploy a service from a git repo (`host=ml.ink` or `github.com`) | API key      |
+| `list_services`        | List all deployed services                                       | API key      |
+| `get_service`          | Get service details including build/runtime logs                 | API key      |
+| `redeploy_service`     | Redeploy a service to pull latest code                           | API key      |
+| `delete_service`       | Delete a service and its k8s resources                           | API key      |
+| `create_resource`      | Provision a database (SQLite via Turso)                          | API key      |
+| `list_resources`       | List all provisioned resources                                   | API key      |
+| `get_resource`         | Get resource connection details (URL + auth token)               | API key      |
+| `delete_resource`      | Delete a resource                                                | API key      |
+| `create_repo`          | Create a git repo (`host=ml.ink` default, or `github.com`)       | API key      |
+| `get_git_token`        | Get a temporary git token to push code                           | API key      |
+| `add_custom_domain`    | Attach a custom domain to a service (requires delegated zone)    | API key      |
+| `remove_custom_domain` | Remove a custom domain from a service                            | API key      |
+| `list_delegations`     | List all delegated zones with their status                       | API key      |
 
 ### Adding MCP Server to Claude Code
 
@@ -191,12 +191,12 @@ There are 4 binaries split across two runtimes:
 - Railway: `cmd/server` + `cmd/worker`
 - k3s cluster: `cmd/deployer-server` + `cmd/deployer-worker`
 
-| Binary            | Path                          | Runtime        | Purpose                                                         | Task Queue   | K8s Manifest                    |
-| ----------------- | ----------------------------- | -------------- | --------------------------------------------------------------- | ------------ | ------------------------------- |
-| `server`          | `cmd/server/main.go`          | Railway        | Product API — GraphQL, MCP server, OAuth, Firebase auth        | —            | —                               |
-| `worker`          | `cmd/worker/main.go`          | Railway        | Product Temporal worker — account workflows                     | `default`    | —                               |
-| `deployer-server` | `cmd/deployer-server/main.go` | k3s (`dp-system`) | Webhook receiver (GitHub), kicks off Temporal workflows | —            | `infra/eu-central-1/k8s/workloads/deployer-server.yml` |
-| `deployer-worker` | `cmd/deployer-worker/main.go` | k3s (`dp-system`) | K8s deployment worker — build, deploy, delete, status          | `deployer-eu-central-1` | `infra/eu-central-1/k8s/workloads/deployer-worker.yml` |
+| Binary            | Path                          | Runtime           | Purpose                                                 | Task Queue              | K8s Manifest                                           |
+| ----------------- | ----------------------------- | ----------------- | ------------------------------------------------------- | ----------------------- | ------------------------------------------------------ |
+| `server`          | `cmd/server/main.go`          | Railway           | Product API — GraphQL, MCP server, OAuth, Firebase auth | —                       | —                                                      |
+| `worker`          | `cmd/worker/main.go`          | Railway           | Product Temporal worker — account workflows             | `default`               | —                                                      |
+| `deployer-server` | `cmd/deployer-server/main.go` | k3s (`dp-system`) | Webhook receiver (GitHub), kicks off Temporal workflows | —                       | `infra/eu-central-1/k8s/workloads/deployer-server.yml` |
+| `deployer-worker` | `cmd/deployer-worker/main.go` | k3s (`dp-system`) | K8s deployment worker — build, deploy, delete, status   | `deployer-eu-central-1` | `infra/eu-central-1/k8s/workloads/deployer-worker.yml` |
 
 The deployer-worker also runs a DNS worker on the `tq-powerdns` task queue (if the cluster has `has_dns=true`). This worker handles zone creation, delegation verification, wildcard cert issuance, and subdomain management via PowerDNS.
 
@@ -445,7 +445,7 @@ whoami()
 **SQLite via Turso** — Managed, replicated SQLite databases.
 
 ```
-create_resource(name="my-db", type="sqlite", region="eu-west")
+create_resource(name="my-db", type="sqlite", region="eu-central")
 ```
 
 Returns:
@@ -580,12 +580,12 @@ K8s manifests live in `infra/eu-central-1/k8s/` and are applied by Ansible.
 
 Customer pods run with defense-in-depth isolation:
 
-| Layer                  | Protection                                                                                                                      |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| **Container security** | Drop ALL capabilities, `allowPrivilegeEscalation: false`, `automountServiceAccountToken: false`                                 |
-| **Network ingress**    | NetworkPolicy: default-deny, allow only same-namespace + Traefik                                                                |
-| **Network egress**     | NetworkPolicy: allow DNS + public internet, block `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, metadata (`169.254.169.254`) |
-| **Registry**           | Host firewall: port 5000 only from `10.0.0.0/16`                                                                                |
+| Layer                  | Protection                                                                                                                                                |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Container security** | Drop ALL capabilities, `allowPrivilegeEscalation: false`, `automountServiceAccountToken: false`                                                           |
+| **Network ingress**    | NetworkPolicy: default-deny, allow only same-namespace + Traefik                                                                                          |
+| **Network egress**     | NetworkPolicy: allow DNS + public internet, block `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, metadata (`169.254.169.254`)                           |
+| **Registry**           | Host firewall: port 5000 only from `10.0.0.0/16`                                                                                                          |
 | **Quotas**             | Per-namespace ResourceQuota reconciled by infra (Ansible/systemd on ctrl): defaults 40 CPU limits, 40 CPU requests, 40Gi memory limits/requests, 200 pods |
 
 ### Host-Level Hardening
