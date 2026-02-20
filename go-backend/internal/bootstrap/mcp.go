@@ -31,7 +31,7 @@ func NewMCPRouter(
 
 	corsMiddleware := cors.New(cors.Options{
 		AllowCredentials: true,
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   []string{"https://ml.ink", "https://www.ml.ink", "http://localhost:*"},
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type", "Accept"},
 	}).Handler

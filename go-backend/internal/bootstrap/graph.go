@@ -95,11 +95,9 @@ func NewGraphQLRouter(
 	router := chi.NewRouter()
 
 	corsMiddleware := cors.New(cors.Options{
-		AllowCredentials: true,
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type", "Accept"},
-		Debug:            false,
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"Authorization", "Content-Type", "Accept"},
 	}).Handler
 
 	router.Use(corsMiddleware)
