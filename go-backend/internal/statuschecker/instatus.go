@@ -13,7 +13,7 @@ const (
 	StatusOperational = "OPERATIONAL"
 	StatusMajorOutage = "MAJOROUTAGE"
 
-	instatusBaseURL = "https://api.instatus.com/v1"
+	instatusBaseURL = "https://api.instatus.com/v2"
 )
 
 type InstatusClient struct {
