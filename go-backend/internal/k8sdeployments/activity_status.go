@@ -86,6 +86,37 @@ func (a *Activities) UpdateDeploymentBuildProgress(ctx context.Context, input Up
 	return nil
 }
 
+func (a *Activities) MarkDeploymentCrashed(ctx context.Context, input MarkDeploymentCrashedInput) error {
+	if err := a.deploymentsQ.MarkDeploymentCrashed(ctx, deploymentsdb.MarkDeploymentCrashedParams{
+		ID:           input.DeploymentID,
+		ErrorMessage: &input.ErrorMessage,
+	}); err != nil {
+		return fmt.Errorf("mark deployment crashed: %w", err)
+	}
+	a.logger.Info("Deployment status → crashed",
+		"deploymentID", input.DeploymentID,
+		"error", input.ErrorMessage)
+	return nil
+}
+
+func (a *Activities) MarkDeploymentCompleted(ctx context.Context, input MarkDeploymentCompletedInput) error {
+	if err := a.deploymentsQ.MarkDeploymentCompleted(ctx, input.DeploymentID); err != nil {
+		return fmt.Errorf("mark deployment completed: %w", err)
+	}
+	a.logger.Info("Deployment status → completed",
+		"deploymentID", input.DeploymentID)
+	return nil
+}
+
+func (a *Activities) MarkDeploymentRemoved(ctx context.Context, input MarkDeploymentRemovedInput) error {
+	if err := a.deploymentsQ.MarkDeploymentRemoved(ctx, input.DeploymentID); err != nil {
+		return fmt.Errorf("mark deployment removed: %w", err)
+	}
+	a.logger.Info("Deployment status → removed",
+		"deploymentID", input.DeploymentID)
+	return nil
+}
+
 func (a *Activities) SoftDeleteService(ctx context.Context, serviceID string) error {
 	_, err := a.servicesQ.SoftDeleteService(ctx, serviceID)
 	if err != nil {

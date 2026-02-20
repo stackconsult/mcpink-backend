@@ -177,3 +177,16 @@ type UpdateDeploymentBuildProgressInput struct {
 	BuildProgress []byte
 }
 
+type MarkDeploymentCrashedInput struct {
+	DeploymentID string
+	ErrorMessage string
+}
+
+type MarkDeploymentCompletedInput struct {
+	DeploymentID string
+}
+
+type MarkDeploymentRemovedInput struct {
+	DeploymentID string
+}
+

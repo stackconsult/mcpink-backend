@@ -26,11 +26,6 @@ type PageInfo {
   endCursor: String
 }
 
-type ServiceStatus {
-  build: String!
-  runtime: String!
-}
-
 type Service {
   id: ID!
   projectId: ID!
@@ -38,7 +33,7 @@ type Service {
   name: String
   repo: String!
   branch: String!
-  status: ServiceStatus! @goField(forceResolver: true)
+  status: String! @goField(forceResolver: true)
   errorMessage: String @goField(forceResolver: true)
   envVars: [EnvVar!]!
   fqdn: String

@@ -20,7 +20,10 @@ type Querier interface {
 	ListDeploymentsByServiceID(ctx context.Context, arg ListDeploymentsByServiceIDParams) ([]Deployment, error)
 	MarkDeploymentActive(ctx context.Context, arg MarkDeploymentActiveParams) error
 	MarkDeploymentCancelled(ctx context.Context, id string) error
+	MarkDeploymentCompleted(ctx context.Context, id string) error
+	MarkDeploymentCrashed(ctx context.Context, arg MarkDeploymentCrashedParams) error
 	MarkDeploymentFailed(ctx context.Context, arg MarkDeploymentFailedParams) error
+	MarkDeploymentRemoved(ctx context.Context, id string) error
 	SupersedeActiveDeployment(ctx context.Context, serviceID string) error
 	UpdateDeploymentBuildProgress(ctx context.Context, arg UpdateDeploymentBuildProgressParams) error
 	UpdateDeploymentBuilding(ctx context.Context, id string) error

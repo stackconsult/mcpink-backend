@@ -66,23 +66,12 @@ type ListServicesOutput struct {
 	Services []ServiceInfo `json:"services"`
 }
 
-type DeploymentDetails struct {
-	Status       string  `json:"status"`
-	ErrorMessage *string `json:"error_message,omitempty"`
-	Logs         string  `json:"logs,omitempty"`
-}
-
-type RuntimeDetails struct {
-	Status string `json:"status"`
-	Logs   string `json:"logs,omitempty"`
-}
-
 type ServiceInfo struct {
-	ServiceID  string             `json:"service_id"`
-	Name       string             `json:"name"`
-	Repo       string             `json:"repo"`
-	URL        *string            `json:"url,omitempty"`
-	Deployment *DeploymentDetails `json:"deployment,omitempty"`
+	ServiceID string  `json:"service_id"`
+	Name      string  `json:"name"`
+	Repo      string  `json:"repo"`
+	Status    string  `json:"status"`
+	URL       *string `json:"url,omitempty"`
 }
 
 const (
@@ -159,16 +148,18 @@ type CustomDomainDetails struct {
 }
 
 type GetServiceOutput struct {
-	Deployment   *DeploymentDetails   `json:"deployment,omitempty"`
-	Runtime      *RuntimeDetails      `json:"runtime,omitempty"`
 	ServiceID    string               `json:"service_id"`
 	Name         string               `json:"name"`
 	Project      string               `json:"project"`
 	Repo         string               `json:"repo"`
 	Branch       string               `json:"branch"`
+	Status       string               `json:"status"`
+	ErrorMessage *string              `json:"error_message,omitempty"`
 	URL          *string              `json:"url,omitempty"`
 	CreatedAt    string               `json:"created_at"`
 	UpdatedAt    string               `json:"updated_at"`
+	DeployLogs   string               `json:"deploy_logs,omitempty"`
+	RuntimeLogs  string               `json:"runtime_logs,omitempty"`
 	EnvVars      []EnvVarInfo         `json:"env_vars,omitempty"`
 	CustomDomain *CustomDomainDetails `json:"custom_domain,omitempty"`
 }
@@ -228,7 +219,7 @@ type GetGitTokenOutput struct {
 	ExpiresAt string `json:"expires_at"`
 }
 
-// Custom domain (backed by delegated zones)
+// Custom domain (backed by hosted zones)
 
 type AddCustomDomainInput struct {
 	Name    string `json:"name" jsonschema:"description=Name of the service to attach a custom domain to"`
@@ -267,9 +258,9 @@ type ListProjectsOutput struct {
 	Projects []ProjectInfo `json:"projects"`
 }
 
-type ListDelegationsInput struct{}
+type ListHostedZonesInput struct{}
 
-type DelegationInfo struct {
+type HostedZoneInfo struct {
 	ZoneID    string  `json:"zone_id"`
 	Zone      string  `json:"zone"`
 	Status    string  `json:"status"`
@@ -277,6 +268,45 @@ type DelegationInfo struct {
 	CreatedAt string  `json:"created_at"`
 }
 
-type ListDelegationsOutput struct {
-	Delegations []DelegationInfo `json:"delegations"`
+type ListHostedZonesOutput struct {
+	Zones []HostedZoneInfo `json:"zones"`
+}
+
+type AddDnsRecordInput struct {
+	Zone    string `json:"zone" jsonschema:"description=The hosted zone (e.g. 'example.com')"`
+	Name    string `json:"name" jsonschema:"description=Record name (e.g. 'www' or 'mail.sub')"`
+	Type    string `json:"type" jsonschema:"description=Record type,enum=A,enum=AAAA,enum=CNAME,enum=MX,enum=TXT,enum=CAA"`
+	Content string `json:"content" jsonschema:"description=Record value (e.g. IP address, hostname, or text)"`
+	TTL     *int   `json:"ttl,omitempty" jsonschema:"description=TTL in seconds (default 300)"`
+}
+
+type DnsRecordInfo struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	Content   string `json:"content"`
+	TTL       int    `json:"ttl"`
+	Managed   bool   `json:"managed"`
+	CreatedAt string `json:"created_at"`
+}
+
+type AddDnsRecordOutput struct {
+	Record DnsRecordInfo `json:"record"`
+}
+
+type DeleteDnsRecordInput struct {
+	Zone     string `json:"zone" jsonschema:"description=The hosted zone (e.g. 'example.com')"`
+	RecordID string `json:"record_id" jsonschema:"description=ID of the DNS record to delete"`
+}
+
+type DeleteDnsRecordOutput struct {
+	Message string `json:"message"`
+}
+
+type ListDnsRecordsInput struct {
+	Zone string `json:"zone" jsonschema:"description=The hosted zone (e.g. 'example.com')"`
+}
+
+type ListDnsRecordsOutput struct {
+	Records []DnsRecordInfo `json:"records"`
 }

@@ -131,7 +131,7 @@ func (s *Server) registerTools() {
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_service",
-		Description: "Get detailed information about a deployed service. Returns deployment status (queued/building/deploying/active/failed/cancelled) and runtime status (running/deploying/failed/not_deployed). Use deploy_log_lines and runtime_log_lines to fetch logs.",
+		Description: "Get detailed information about a deployed service. Returns status (queued/building/deploying/active/failed/cancelled/superseded/crashed/completed/removed). Use deploy_log_lines and runtime_log_lines to fetch logs.",
 		InputSchema: schemaFor[GetServiceInput](),
 	}, s.handleGetService)
 
@@ -168,8 +168,26 @@ func (s *Server) registerTools() {
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "list_delegations",
 		Description: "List all delegated zones with their status. Zone delegation can be set up at https://ml.ink/dns",
-		InputSchema: schemaFor[ListDelegationsInput](),
-	}, s.handleListDelegations)
+		InputSchema: schemaFor[ListHostedZonesInput](),
+	}, s.handleListHostedZones)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "add_dns_record",
+		Description: "Add a DNS record to a hosted zone. Supported types: A, AAAA, CNAME, MX, TXT, CAA. Managed records (created by the system) cannot be overwritten.",
+		InputSchema: schemaFor[AddDnsRecordInput](),
+	}, s.handleAddDnsRecord)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "delete_dns_record",
+		Description: "Delete a DNS record from a hosted zone. Managed records (created by the system for custom domains) cannot be deleted.",
+		InputSchema: schemaFor[DeleteDnsRecordInput](),
+	}, s.handleDeleteDnsRecord)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "list_dns_records",
+		Description: "List all DNS records in a hosted zone. Shows both user-created and managed (system) records.",
+		InputSchema: schemaFor[ListDnsRecordsInput](),
+	}, s.handleListDnsRecords)
 }
 
 func (s *Server) Handler() http.Handler {

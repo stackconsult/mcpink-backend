@@ -87,3 +87,12 @@ SELECT COUNT(*) FROM deployments WHERE service_id = $1;
 SELECT DISTINCT ON (service_id) * FROM deployments
 WHERE service_id = ANY($1::text[])
 ORDER BY service_id, created_at DESC;
+
+-- name: MarkDeploymentCrashed :exec
+UPDATE deployments SET status = 'crashed', error_message = $2, finished_at = NOW(), updated_at = NOW() WHERE id = $1;
+
+-- name: MarkDeploymentCompleted :exec
+UPDATE deployments SET status = 'completed', finished_at = NOW(), updated_at = NOW() WHERE id = $1;
+
+-- name: MarkDeploymentRemoved :exec
+UPDATE deployments SET status = 'removed', finished_at = NOW(), updated_at = NOW() WHERE id = $1;

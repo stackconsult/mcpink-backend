@@ -343,17 +343,17 @@ func (s *Server) handleListServices(ctx context.Context, req *mcp.CallToolReques
 			name = *svc.Name
 		}
 
-		var dep *DeploymentDetails
+		status := "pending"
 		if d, err := s.deployService.GetLatestDeployment(ctx, svc.ID); err == nil && d != nil {
-			dep = &DeploymentDetails{Status: d.Status}
+			status = d.Status
 		}
 
 		services[i] = ServiceInfo{
-			ServiceID:  svc.ID,
-			Name:       name,
-			Repo:       svc.Repo,
-			URL:        svc.Fqdn,
-			Deployment: dep,
+			ServiceID: svc.ID,
+			Name:      name,
+			Repo:      svc.Repo,
+			Status:    status,
+			URL:       svc.Fqdn,
 		}
 	}
 
@@ -567,36 +567,24 @@ func (s *Server) handleGetService(ctx context.Context, req *mcp.CallToolRequest,
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, GetServiceOutput{}, nil
 	}
 
-	depStatus := ""
+	status := "pending"
 	var errorMessage *string
 	if dep, err := s.deployService.GetLatestDeployment(ctx, svc.ID); err == nil && dep != nil {
-		depStatus = dep.Status
+		status = dep.Status
 		errorMessage = dep.ErrorMessage
 	}
 
-	var deployment *DeploymentDetails
-	if depStatus != "" {
-		deployment = &DeploymentDetails{
-			Status:       depStatus,
-			ErrorMessage: errorMessage,
-		}
-	}
-
-	runtime := &RuntimeDetails{
-		Status: depStatus,
-	}
-
 	output := GetServiceOutput{
-		ServiceID:  svc.ID,
-		Name:       helpers.Deref(svc.Name),
-		Project:    project,
-		Repo:       svc.Repo,
-		Branch:     svc.Branch,
-		URL:        svc.Fqdn,
-		CreatedAt:  svc.CreatedAt.Time.Format(time.RFC3339),
-		UpdatedAt:  svc.UpdatedAt.Time.Format(time.RFC3339),
-		Deployment: deployment,
-		Runtime:    runtime,
+		ServiceID:    svc.ID,
+		Name:         helpers.Deref(svc.Name),
+		Project:      project,
+		Repo:         svc.Repo,
+		Branch:       svc.Branch,
+		Status:       status,
+		ErrorMessage: errorMessage,
+		URL:          svc.Fqdn,
+		CreatedAt:    svc.CreatedAt.Time.Format(time.RFC3339),
+		UpdatedAt:    svc.UpdatedAt.Time.Format(time.RFC3339),
 	}
 
 	if zr, dz, err := s.dnsService.GetCustomDomainForService(ctx, svc.ID); err == nil {
@@ -618,13 +606,13 @@ func (s *Server) handleGetService(ctx context.Context, req *mcp.CallToolRequest,
 		}
 	}
 
-	if input.DeployLogLines > 0 && deployment != nil {
+	if input.DeployLogLines > 0 {
 		limit := min(input.DeployLogLines, MaxLogLines)
 		ns := k8sdeployments.NamespaceName(user.ID, project)
 		svcName := k8sdeployments.ServiceName(helpers.Deref(svc.Name))
 		lines, err := k8sdeployments.QueryBuildLogs(ctx, s.lokiQueryURL, s.lokiUsername, s.lokiPassword, ns, svcName, 24*time.Hour, limit)
 		if err == nil && len(lines) > 0 {
-			deployment.Logs = strings.Join(lines, "\n")
+			output.DeployLogs = strings.Join(lines, "\n")
 		}
 	}
 
@@ -634,7 +622,7 @@ func (s *Server) handleGetService(ctx context.Context, req *mcp.CallToolRequest,
 		svcName := k8sdeployments.ServiceName(helpers.Deref(svc.Name))
 		lines, err := k8sdeployments.QueryRunLogs(ctx, s.lokiQueryURL, s.lokiUsername, s.lokiPassword, ns, svcName, 24*time.Hour, limit)
 		if err == nil && len(lines) > 0 {
-			runtime.Logs = strings.Join(lines, "\n")
+			output.RuntimeLogs = strings.Join(lines, "\n")
 		}
 	}
 
@@ -770,20 +758,20 @@ func (s *Server) handleRemoveCustomDomain(ctx context.Context, req *mcp.CallTool
 	}, nil
 }
 
-func (s *Server) handleListDelegations(ctx context.Context, req *mcp.CallToolRequest, input ListDelegationsInput) (*mcp.CallToolResult, ListDelegationsOutput, error) {
+func (s *Server) handleListHostedZones(ctx context.Context, req *mcp.CallToolRequest, input ListHostedZonesInput) (*mcp.CallToolResult, ListHostedZonesOutput, error) {
 	user := UserFromContext(ctx)
 	if user == nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, ListDelegationsOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, ListHostedZonesOutput{}, nil
 	}
 
-	zones, err := s.dnsService.ListDelegations(ctx, user.ID)
+	zones, err := s.dnsService.ListHostedZones(ctx, user.ID)
 	if err != nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to list delegations: %v", err)}}}, ListDelegationsOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to list hosted zones: %v", err)}}}, ListHostedZonesOutput{}, nil
 	}
 
-	delegations := make([]DelegationInfo, len(zones))
+	result := make([]HostedZoneInfo, len(zones))
 	for i, z := range zones {
-		delegations[i] = DelegationInfo{
+		result[i] = HostedZoneInfo{
 			ZoneID:    z.ID,
 			Zone:      z.Zone,
 			Status:    z.Status,
@@ -792,5 +780,89 @@ func (s *Server) handleListDelegations(ctx context.Context, req *mcp.CallToolReq
 		}
 	}
 
-	return nil, ListDelegationsOutput{Delegations: delegations}, nil
+	return nil, ListHostedZonesOutput{Zones: result}, nil
+}
+
+func (s *Server) handleAddDnsRecord(ctx context.Context, req *mcp.CallToolRequest, input AddDnsRecordInput) (*mcp.CallToolResult, AddDnsRecordOutput, error) {
+	user := UserFromContext(ctx)
+	if user == nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, AddDnsRecordOutput{}, nil
+	}
+
+	ttl := 0
+	if input.TTL != nil {
+		ttl = *input.TTL
+	}
+
+	result, err := s.dnsService.AddDnsRecord(ctx, dns.AddDnsRecordParams{
+		UserID:  user.ID,
+		Zone:    input.Zone,
+		Name:    input.Name,
+		Rrtype:  input.Type,
+		Content: input.Content,
+		TTL:     ttl,
+	})
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, AddDnsRecordOutput{}, nil
+	}
+
+	return nil, AddDnsRecordOutput{
+		Record: DnsRecordInfo{
+			ID:        result.Record.ID,
+			Name:      result.Record.Name,
+			Type:      result.Record.Rrtype,
+			Content:   result.Record.Content,
+			TTL:       int(result.Record.Ttl),
+			Managed:   result.Record.Managed,
+			CreatedAt: result.Record.CreatedAt.Time.Format(time.RFC3339),
+		},
+	}, nil
+}
+
+func (s *Server) handleDeleteDnsRecord(ctx context.Context, req *mcp.CallToolRequest, input DeleteDnsRecordInput) (*mcp.CallToolResult, DeleteDnsRecordOutput, error) {
+	user := UserFromContext(ctx)
+	if user == nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, DeleteDnsRecordOutput{}, nil
+	}
+
+	err := s.dnsService.DeleteDnsRecord(ctx, dns.DeleteDnsRecordParams{
+		UserID:   user.ID,
+		Zone:     input.Zone,
+		RecordID: input.RecordID,
+	})
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, DeleteDnsRecordOutput{}, nil
+	}
+
+	return nil, DeleteDnsRecordOutput{Message: "record deleted"}, nil
+}
+
+func (s *Server) handleListDnsRecords(ctx context.Context, req *mcp.CallToolRequest, input ListDnsRecordsInput) (*mcp.CallToolResult, ListDnsRecordsOutput, error) {
+	user := UserFromContext(ctx)
+	if user == nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, ListDnsRecordsOutput{}, nil
+	}
+
+	records, err := s.dnsService.ListDnsRecords(ctx, dns.ListDnsRecordsParams{
+		UserID: user.ID,
+		Zone:   input.Zone,
+	})
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, ListDnsRecordsOutput{}, nil
+	}
+
+	result := make([]DnsRecordInfo, len(records))
+	for i, r := range records {
+		result[i] = DnsRecordInfo{
+			ID:        r.ID,
+			Name:      r.Name,
+			Type:      r.Rrtype,
+			Content:   r.Content,
+			TTL:       int(r.Ttl),
+			Managed:   r.Managed,
+			CreatedAt: r.CreatedAt.Time.Format(time.RFC3339),
+		}
+	}
+
+	return nil, ListDnsRecordsOutput{Records: result}, nil
 }

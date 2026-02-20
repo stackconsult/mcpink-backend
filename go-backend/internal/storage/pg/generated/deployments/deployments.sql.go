@@ -386,6 +386,29 @@ func (q *Queries) MarkDeploymentCancelled(ctx context.Context, id string) error 
 	return err
 }
 
+const markDeploymentCompleted = `-- name: MarkDeploymentCompleted :exec
+UPDATE deployments SET status = 'completed', finished_at = NOW(), updated_at = NOW() WHERE id = $1
+`
+
+func (q *Queries) MarkDeploymentCompleted(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, markDeploymentCompleted, id)
+	return err
+}
+
+const markDeploymentCrashed = `-- name: MarkDeploymentCrashed :exec
+UPDATE deployments SET status = 'crashed', error_message = $2, finished_at = NOW(), updated_at = NOW() WHERE id = $1
+`
+
+type MarkDeploymentCrashedParams struct {
+	ID           string  `json:"id"`
+	ErrorMessage *string `json:"error_message"`
+}
+
+func (q *Queries) MarkDeploymentCrashed(ctx context.Context, arg MarkDeploymentCrashedParams) error {
+	_, err := q.db.Exec(ctx, markDeploymentCrashed, arg.ID, arg.ErrorMessage)
+	return err
+}
+
 const markDeploymentFailed = `-- name: MarkDeploymentFailed :exec
 UPDATE deployments
 SET status = 'failed', error_message = $2, finished_at = NOW(), updated_at = NOW()
@@ -399,6 +422,15 @@ type MarkDeploymentFailedParams struct {
 
 func (q *Queries) MarkDeploymentFailed(ctx context.Context, arg MarkDeploymentFailedParams) error {
 	_, err := q.db.Exec(ctx, markDeploymentFailed, arg.ID, arg.ErrorMessage)
+	return err
+}
+
+const markDeploymentRemoved = `-- name: MarkDeploymentRemoved :exec
+UPDATE deployments SET status = 'removed', finished_at = NOW(), updated_at = NOW() WHERE id = $1
+`
+
+func (q *Queries) MarkDeploymentRemoved(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, markDeploymentRemoved, id)
 	return err
 }
 
