@@ -17,6 +17,8 @@
 
 - UI for all MCP clients
 - Consider SKILL.md with API
+- Customer-facing logs (expose runtime logs via GraphQL/MCP so users can debug their own deployments without support tickets)
+- Rollback mutation (redeploy using a previous deployment's snapshot — data already stored in deployments table)
 
 ## k3s
 
