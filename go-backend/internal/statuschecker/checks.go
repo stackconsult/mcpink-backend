@@ -56,16 +56,12 @@ func dnsCheck(server, domain string) error {
 	m.RecursionDesired = false
 
 	c := &dns.Client{Timeout: 5 * time.Second}
-	r, _, err := c.Exchange(m, server)
+	_, _, err := c.Exchange(m, server)
 	if err != nil {
-		return fmt.Errorf("dns query failed for %q via %s: %w", domain, server, err)
+		return fmt.Errorf("dns server %s unreachable: %w", server, err)
 	}
-	if r.Rcode != dns.RcodeSuccess {
-		return fmt.Errorf("dns query for %q via %s returned rcode %s", domain, server, dns.RcodeToString[r.Rcode])
-	}
-	if len(r.Answer) == 0 {
-		return fmt.Errorf("dns query returned no answers for %q via %s", domain, server)
-	}
+	// Any response (including REFUSED) means the server is alive.
+	// Only connection/timeout errors indicate a problem.
 	return nil
 }
 
