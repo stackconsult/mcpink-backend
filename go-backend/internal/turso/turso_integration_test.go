@@ -42,7 +42,7 @@ func TestCreateAndDeleteDatabase(t *testing.T) {
 	t.Logf("Creating database: %s", dbName)
 	db, err := client.CreateDatabase(ctx, &turso.CreateDatabaseRequest{
 		Name:      dbName,
-		Group:     "eu-west",
+		Group:     "eu-central",
 		SizeLimit: "100mb",
 	})
 	if err != nil {
@@ -105,7 +105,7 @@ func TestCreateDatabaseWithReadOnlyToken(t *testing.T) {
 
 	db, err := client.CreateDatabase(ctx, &turso.CreateDatabaseRequest{
 		Name:  dbName,
-		Group: "eu-west",
+		Group: "eu-central",
 	})
 	if err != nil {
 		t.Fatalf("Failed to create database: %v", err)
@@ -157,27 +157,27 @@ func TestListGroups(t *testing.T) {
 
 	found := false
 	for _, g := range groups {
-		if g.Name == "eu-west" {
+		if g.Name == "eu-central" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Error("Expected to find 'eu-west' group")
+		t.Error("Expected to find 'eu-central' group")
 	}
 }
 
 func TestRegionToGroupMapping(t *testing.T) {
-	group, ok := turso.RegionToGroup["eu-west"]
+	group, ok := turso.RegionToGroup["eu-central"]
 	if !ok {
-		t.Error("Expected eu-west in RegionToGroup")
+		t.Error("Expected eu-central in RegionToGroup")
 	}
-	if group != "eu-west" {
-		t.Errorf("Expected eu-west to map to eu-west, got %s", group)
+	if group != "eu-central" {
+		t.Errorf("Expected eu-central to map to eu-central, got %s", group)
 	}
 
-	if turso.DefaultRegion != "eu-west" {
-		t.Errorf("Expected DefaultRegion=eu-west, got %s", turso.DefaultRegion)
+	if turso.DefaultRegion != "eu-central" {
+		t.Errorf("Expected DefaultRegion=eu-central, got %s", turso.DefaultRegion)
 	}
 
 	regions := turso.ValidRegions()
@@ -187,12 +187,12 @@ func TestRegionToGroupMapping(t *testing.T) {
 
 	found := false
 	for _, r := range regions {
-		if r == "eu-west" {
+		if r == "eu-central" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Error("Expected eu-west in valid regions")
+		t.Error("Expected eu-central in valid regions")
 	}
 }

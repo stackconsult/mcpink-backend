@@ -162,7 +162,7 @@ func (s *Server) handleCreateService(ctx context.Context, req *mcp.CallToolReque
 		}
 	}
 
-	isInternalGit := host == "ml.ink"
+	isInternalGit := host == "ink"
 
 	s.logger.Info("starting deployment",
 		"user_id", user.ID,
@@ -176,7 +176,7 @@ func (s *Server) handleCreateService(ctx context.Context, req *mcp.CallToolReque
 
 	var result *deployments.CreateServiceResult
 
-	if host == "ml.ink" {
+	if host == "ink" {
 		result, err = s.createServiceFromInternalGit(ctx, user.ID, input, buildPack, port, envVars)
 	} else {
 		result, err = s.createServiceFromGitHub(ctx, user, input, buildPack, port, envVars)
@@ -206,43 +206,35 @@ func (s *Server) normalizeServiceRepo(ctx context.Context, user *users.User, inp
 
 	host = strings.ToLower(strings.TrimSpace(input.Host))
 	if host == "" {
-		host = "ml.ink"
+		host = "ink"
 	}
-	if host != "ml.ink" && host != "github.com" {
-		return "", "", fmt.Errorf("invalid host: %s (valid: ml.ink, github.com)", host)
+	// Accept legacy values
+	switch host {
+	case "ml.ink":
+		host = "ink"
+	case "github.com":
+		host = "github"
+	}
+	if host != "ink" && host != "github" {
+		return "", "", fmt.Errorf("invalid host: %s (valid: ink, github)", host)
 	}
 
-	// Reject URLs, credentials, and paths - only accept simple repo name
+	// Reject URLs and credentials
 	if strings.Contains(repo, "://") || strings.HasPrefix(repo, "git@") {
-		return "", "", fmt.Errorf("invalid repo format: pass a repo name (e.g. 'myapp') not a URL")
+		return "", "", fmt.Errorf("invalid repo format: pass a repo name (e.g. 'ink/myapp') not a URL")
 	}
 	if strings.Contains(repo, "@") {
-		return "", "", fmt.Errorf("invalid repo format: do not include credentials; pass a repo name (e.g. 'myapp')")
+		return "", "", fmt.Errorf("invalid repo format: do not include credentials; pass a repo name (e.g. 'ink/myapp')")
 	}
+
+	if host == "ink" {
+		return s.resolveInternalRepo(ctx, user, repo, input.Project)
+	}
+
+	// github host — accept owner/repo or bare repo name
 	if strings.Contains(repo, "/") {
-		return "", "", fmt.Errorf("invalid repo format: pass repo name only (e.g. 'myapp'), not owner/repo")
+		return host, repo, nil
 	}
-
-	if host == "ml.ink" {
-		projectRef := input.Project
-		if projectRef == "" {
-			projectRef = "default"
-		}
-		project, projErr := s.deployService.GetProjectByRef(ctx, user.ID, projectRef)
-		if projErr != nil {
-			return "", "", fmt.Errorf("project not found: %s", projectRef)
-		}
-		internalRepo, repoErr := s.internalGitSvc.GetRepoByProjectAndName(ctx, project.ID, repo)
-		if repoErr != nil {
-			return "", "", fmt.Errorf("repo '%s' not found in project '%s'. Create it first with create_repo", repo, projectRef)
-		}
-		if internalRepo.UserID != user.ID {
-			return "", "", fmt.Errorf("repo belongs to another user")
-		}
-		return host, fmt.Sprintf("ml.ink/%s", internalRepo.FullName), nil
-	}
-
-	// github.com path — requires GithubUsername
 	username := ""
 	if user != nil && user.GithubUsername != nil {
 		username = strings.TrimSpace(*user.GithubUsername)
@@ -251,6 +243,53 @@ func (s *Server) normalizeServiceRepo(ctx context.Context, user *users.User, inp
 		return "", "", fmt.Errorf("cannot resolve repo: user has no GitHub username configured")
 	}
 	return host, fmt.Sprintf("%s/%s", username, repo), nil
+}
+
+// resolveInternalRepo resolves various ink repo formats to (host="ink", fullName="owner/repo-slug").
+// Accepted formats:
+//
+//	"ink/dream-wall"              → strip ink/ → GetRepoByProjectAndName
+//	"dream-wall"                  → no slash  → GetRepoByProjectAndName
+//	"ml.ink/owner/dream-wall-abc" → strip ml.ink/ → GetRepoByFullName
+//	"owner/dream-wall-abc"        → has slash → GetRepoByFullName
+func (s *Server) resolveInternalRepo(ctx context.Context, user *users.User, repo, projectRef string) (host string, normalizedRepo string, err error) {
+	// Strip known prefixes
+	cleaned := repo
+	if strings.HasPrefix(cleaned, "ink/") {
+		cleaned = strings.TrimPrefix(cleaned, "ink/")
+	} else if strings.HasPrefix(cleaned, "ml.ink/") {
+		cleaned = strings.TrimPrefix(cleaned, "ml.ink/")
+	}
+
+	if projectRef == "" {
+		projectRef = "default"
+	}
+
+	if strings.Contains(cleaned, "/") {
+		// Has slash → treat as full_name (owner/repo-slug)
+		internalRepo, repoErr := s.internalGitSvc.GetRepoByFullName(ctx, cleaned)
+		if repoErr != nil {
+			return "", "", fmt.Errorf("repo '%s' not found. Create it first with create_repo", cleaned)
+		}
+		if internalRepo.UserID != user.ID {
+			return "", "", fmt.Errorf("repo belongs to another user")
+		}
+		return "ink", internalRepo.FullName, nil
+	}
+
+	// No slash → treat as project-scoped name
+	project, projErr := s.deployService.GetProjectByRef(ctx, user.ID, projectRef)
+	if projErr != nil {
+		return "", "", fmt.Errorf("project not found: %s", projectRef)
+	}
+	internalRepo, repoErr := s.internalGitSvc.GetRepoByProjectAndName(ctx, project.ID, cleaned)
+	if repoErr != nil {
+		return "", "", fmt.Errorf("repo '%s' not found in project '%s'. Create it first with create_repo", cleaned, projectRef)
+	}
+	if internalRepo.UserID != user.ID {
+		return "", "", fmt.Errorf("repo belongs to another user")
+	}
+	return "ink", internalRepo.FullName, nil
 }
 
 func (s *Server) createServiceFromGitHub(ctx context.Context, user *users.User, input CreateServiceInput, buildPack, port string, envVars []deployments.EnvVar) (*deployments.CreateServiceResult, error) {
@@ -288,7 +327,7 @@ func (s *Server) createServiceFromGitHub(ctx context.Context, user *users.User, 
 }
 
 func (s *Server) createServiceFromInternalGit(ctx context.Context, userID string, input CreateServiceInput, buildPack, port string, envVars []deployments.EnvVar) (*deployments.CreateServiceResult, error) {
-	fullName := strings.TrimPrefix(strings.TrimSpace(input.Repo), "ml.ink/")
+	fullName := strings.TrimSpace(input.Repo)
 	parts := strings.Split(fullName, "/")
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return nil, fmt.Errorf("invalid repo format: expected owner/repo, got %s", fullName)

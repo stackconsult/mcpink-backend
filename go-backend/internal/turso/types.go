@@ -42,10 +42,10 @@ type ErrorResponse struct {
 }
 
 var RegionToGroup = map[string]string{
-	"eu-west": "eu-west",
+	"eu-central": "eu-central",
 }
 
-const DefaultRegion = "eu-west"
+const DefaultRegion = "eu-central"
 
 func ValidRegions() []string {
 	regions := make([]string, 0, len(RegionToGroup))

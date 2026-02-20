@@ -89,7 +89,7 @@ func (s *Server) registerTools() {
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "create_service",
-		Description: "Create and deploy a service. Use host='ml.ink' (default) for private repos or host='github.com' for GitHub.",
+		Description: "Create and deploy a service. Use host='ink' (default) for Ink managed repos or host='github' for GitHub.",
 		InputSchema: schemaFor[CreateServiceInput](),
 	}, s.handleCreateService)
 
@@ -143,13 +143,13 @@ func (s *Server) registerTools() {
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "create_repo",
-		Description: "Create a git repository. Use host='ml.ink' (default) for instant private repos, or host='github.com' for GitHub. IMPORTANT: For ml.ink repos, the returned 'repo' field contains the actual repo name (with a random slug appended, e.g. 'myapp-xkcd'). Always use this returned repo name for create_service and other operations.",
+		Description: "Create a git repository. Use host='ink' (default) for instant private repos, or host='github' for GitHub. Pass the returned 'repo' value directly to create_service and get_git_token.",
 		InputSchema: schemaFor[CreateRepoInput](),
 	}, s.handleCreateRepo)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_git_token",
-		Description: "Get a temporary git token to push code. Example: name='myapp', host='ml.ink' (default) or host='github.com'.",
+		Description: "Get a temporary git token to push code. Example: name='ink/myapp', host='ink' (default) or host='github'.",
 		InputSchema: schemaFor[GetGitTokenInput](),
 	}, s.handleGetGitToken)
 

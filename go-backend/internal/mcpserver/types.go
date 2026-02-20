@@ -15,8 +15,8 @@ type EnvVar struct {
 }
 
 type CreateServiceInput struct {
-	Repo   string `json:"repo" jsonschema:"description=Repository name as returned by create_repo (e.g. 'myapp-xkcd'). For ml.ink repos this includes a random slug — use the exact 'repo' value from create_repo response."`
-	Host   string `json:"host,omitempty" jsonschema:"description=Git host,enum=ml.ink,enum=github.com,default=ml.ink"`
+	Repo   string `json:"repo" jsonschema:"description=Repository as returned by create_repo (e.g. 'ink/myapp' or 'user/myapp')."`
+	Host   string `json:"host,omitempty" jsonschema:"description=Git host,enum=ink,enum=github,default=ink"`
 	Branch string `json:"branch,omitempty" jsonschema:"description=Branch to deploy,default=main"`
 	Name   string `json:"name" jsonschema:"description=Name for the deployment"`
 	Region string `json:"region,omitempty" jsonschema:"description=Cluster region to deploy to,enum=eu-central-1,default=eu-central-1"`
@@ -77,13 +77,14 @@ type ServiceInfo struct {
 const (
 	DefaultPort      = 3000
 	DefaultBuildPack = "railpack"
+	DefaultDBType    = "sqlite"
 )
 
 type CreateResourceInput struct {
 	Name   string `json:"name" jsonschema:"description=Name for the resource (required)"`
-	Type   string `json:"type,omitempty" jsonschema:"description=Resource type,enum=sqlite,default=sqlite"`
+	Type   string `json:"type" jsonschema:"description=Resource type,enum=sqlite"`
 	Size   string `json:"size,omitempty" jsonschema:"description=Size limit for databases,default=100mb"`
-	Region string `json:"region,omitempty" jsonschema:"description=Region,enum=eu-west,default=eu-west"`
+	Region string `json:"region,omitempty" jsonschema:"description=Region,enum=eu-central,default=eu-central"`
 }
 
 type CreateResourceOutput struct {
@@ -128,8 +129,7 @@ type GetResourceDetailsOutput struct {
 }
 
 const (
-	DefaultRegion = "eu-west"
-	DefaultDBType = "sqlite"
+	DefaultRegion = "eu-central"
 	DefaultDBSize = "100mb"
 )
 
@@ -196,7 +196,7 @@ type DeleteResourceOutput struct {
 
 type CreateRepoInput struct {
 	Name        string `json:"name" jsonschema:"description=Repository name (e.g. 'myapp' not 'username/myapp')"`
-	Host        string `json:"host,omitempty" jsonschema:"description=Git host,enum=ml.ink,enum=github.com,default=ml.ink"`
+	Host        string `json:"host,omitempty" jsonschema:"description=Git host,enum=ink,enum=github,default=ink"`
 	Description string `json:"description,omitempty" jsonschema:"description=Repository description"`
 	Project     string `json:"project,omitempty" jsonschema:"description=Project name,default=default"`
 }
@@ -209,8 +209,8 @@ type CreateRepoOutput struct {
 }
 
 type GetGitTokenInput struct {
-	Name    string `json:"name" jsonschema:"description=Repository name (e.g. 'myapp' not 'username/myapp')"`
-	Host    string `json:"host,omitempty" jsonschema:"description=Git host,enum=ml.ink,enum=github.com,default=ml.ink"`
+	Name    string `json:"name" jsonschema:"description=Repository as returned by create_repo (e.g. 'ink/myapp' or 'user/myapp')"`
+	Host    string `json:"host,omitempty" jsonschema:"description=Git host,enum=ink,enum=github,default=ink"`
 	Project string `json:"project,omitempty" jsonschema:"description=Project name,default=default"`
 }
 

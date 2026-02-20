@@ -24,18 +24,21 @@ func (s *Server) handleCreateRepo(ctx context.Context, req *mcp.CallToolRequest,
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, CreateRepoOutput{}, nil
 	}
 
-	host := input.Host
-	if host == "" {
-		host = "ml.ink"
+	host := strings.ToLower(strings.TrimSpace(input.Host))
+	if host == "" || host == "ml.ink" {
+		host = "ink"
+	}
+	if host == "github.com" {
+		host = "github"
 	}
 
 	switch host {
-	case "ml.ink":
+	case "ink":
 		return s.createPrivateRepo(ctx, user.ID, input)
-	case "github.com":
+	case "github":
 		return s.createGitHubRepo(ctx, user, input)
 	default:
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "host must be 'ml.ink' (default) or 'github.com'"}}}, CreateRepoOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "host must be 'ink' (default) or 'github'"}}}, CreateRepoOutput{}, nil
 	}
 }
 
@@ -148,7 +151,7 @@ func (s *Server) createGitHubRepo(ctx context.Context, user *users.User, input C
 	}
 
 	return nil, CreateRepoOutput{
-		Repo:      fmt.Sprintf("github.com/%s", repoResp.FullName),
+		Repo:      repoResp.FullName,
 		GitRemote: fmt.Sprintf("https://x-access-token:%s@github.com/%s.git", installationToken.Token, repoResp.FullName),
 		ExpiresAt: installationToken.ExpiresAt.Format("2006-01-02T15:04:05Z"),
 		Message:   "Push your code, then call create_service to deploy",
@@ -165,40 +168,33 @@ func (s *Server) handleGetGitToken(ctx context.Context, req *mcp.CallToolRequest
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, GetGitTokenOutput{}, nil
 	}
 
-	host := input.Host
-	if host == "" {
-		host = "ml.ink"
+	host := strings.ToLower(strings.TrimSpace(input.Host))
+	if host == "" || host == "ml.ink" {
+		host = "ink"
+	}
+	if host == "github.com" {
+		host = "github"
 	}
 
 	switch host {
-	case "ml.ink":
+	case "ink":
 		return s.getPrivateGitToken(ctx, user, input)
-	case "github.com":
+	case "github":
 		return s.getGitHubGitToken(ctx, user, input.Name)
 	default:
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "host must be 'ml.ink' (default) or 'github.com'"}}}, GetGitTokenOutput{}, nil
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "host must be 'ink' (default) or 'github'"}}}, GetGitTokenOutput{}, nil
 	}
 }
 
 func (s *Server) getPrivateGitToken(ctx context.Context, user *users.User, input GetGitTokenInput) (*mcp.CallToolResult, GetGitTokenOutput, error) {
-	projectRef := input.Project
-	if projectRef == "" {
-		projectRef = "default"
+	_, fullName, err := s.resolveInternalRepo(ctx, user, input.Name, input.Project)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, GetGitTokenOutput{}, nil
 	}
 
-	project, err := s.deployService.GetProjectByRef(ctx, user.ID, projectRef)
+	result, err := s.internalGitSvc.GetPushToken(ctx, user.ID, fullName)
 	if err != nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("project not found: %s", projectRef)}}}, GetGitTokenOutput{}, nil
-	}
-
-	repo, err := s.internalGitSvc.GetRepoByProjectAndName(ctx, project.ID, input.Name)
-	if err != nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("repo '%s' not found in project '%s'. Create it first with create_repo", input.Name, projectRef)}}}, GetGitTokenOutput{}, nil
-	}
-
-	result, err := s.internalGitSvc.GetPushToken(ctx, user.ID, repo.FullName)
-	if err != nil {
-		s.logger.Error("failed to get git token", "error", err, "repo", repo.FullName)
+		s.logger.Error("failed to get git token", "error", err, "repo", fullName)
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to get git token: %v", err)}}}, GetGitTokenOutput{}, nil
 	}
 

@@ -72,5 +72,5 @@ const (
 
 const (
 	DefaultSize   = "100mb"
-	DefaultRegion = "eu-west"
+	DefaultRegion = "eu-central"
 )

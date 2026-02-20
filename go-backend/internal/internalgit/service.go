@@ -74,7 +74,7 @@ func (s *Service) CreateRepo(ctx context.Context, userID, projectID, repoName, d
 			return nil, fmt.Errorf("create token: %w", err)
 		}
 		return &CreateRepoResult{
-			Repo:      s.repoPath(owner, gitName),
+			Repo:      fmt.Sprintf("ink/%s", repoName),
 			GitRemote: s.cloneURL(owner, gitName, rawToken),
 			ExpiresAt: time.Now().Add(365 * 24 * time.Hour).Format(time.RFC3339),
 			Message:   "Repo already exists. Push your code, then call create_service to deploy",
@@ -121,7 +121,7 @@ func (s *Service) CreateRepo(ctx context.Context, userID, projectID, repoName, d
 	}
 
 	return &CreateRepoResult{
-		Repo:      s.repoPath(gitUsername, gitName),
+		Repo:      fmt.Sprintf("ink/%s", repoName),
 		GitRemote: s.cloneURL(gitUsername, gitName, rawToken),
 		ExpiresAt: time.Now().Add(365 * 24 * time.Hour).Format(time.RFC3339),
 		Message:   "Push your code, then call create_service to deploy",

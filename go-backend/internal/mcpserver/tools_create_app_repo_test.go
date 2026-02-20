@@ -11,7 +11,7 @@ func TestNormalizeServiceRepo(t *testing.T) {
 	ghUsername := "gluonfield"
 	u := &users.User{ID: "test-user", GithubUsername: &ghUsername}
 
-	// Server with nil internalGitSvc — only github.com and validation tests work
+	// Server with nil internalGitSvc — only github and validation tests work
 	s := &Server{}
 
 	cases := []struct {
@@ -22,24 +22,26 @@ func TestNormalizeServiceRepo(t *testing.T) {
 		wantErr  bool
 	}{
 		{
-			name:     "github.com host expands repo name",
-			input:    CreateServiceInput{Repo: "exp20", Host: "github.com"},
-			wantHost: "github.com",
+			name:     "github host expands bare repo name",
+			input:    CreateServiceInput{Repo: "exp20", Host: "github"},
+			wantHost: "github",
 			wantRepo: "gluonfield/exp20",
 		},
 		{
-			name:    "rejects owner/repo format",
-			input:   CreateServiceInput{Repo: "gluonfield/exp20", Host: "ml.ink"},
-			wantErr: true,
+			name:     "github accepts owner/repo",
+			input:    CreateServiceInput{Repo: "someuser/myapp", Host: "github"},
+			wantHost: "github",
+			wantRepo: "someuser/myapp",
+		},
+		{
+			name:     "legacy github.com host still works",
+			input:    CreateServiceInput{Repo: "exp20", Host: "github.com"},
+			wantHost: "github",
+			wantRepo: "gluonfield/exp20",
 		},
 		{
 			name:    "rejects url",
 			input:   CreateServiceInput{Repo: "https://git.ml.ink/gluonfield/exp20.git"},
-			wantErr: true,
-		},
-		{
-			name:    "rejects prefixed repo",
-			input:   CreateServiceInput{Repo: "ml.ink/gluonfield/exp20", Host: "ml.ink"},
 			wantErr: true,
 		},
 		{
@@ -48,18 +50,13 @@ func TestNormalizeServiceRepo(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "rejects paths with slashes",
-			input:   CreateServiceInput{Repo: "a/b/c"},
-			wantErr: true,
-		},
-		{
 			name:    "invalid host",
 			input:   CreateServiceInput{Repo: "exp20", Host: "gitlab"},
 			wantErr: true,
 		},
 		{
-			name:    "github.com without github username returns error",
-			input:   CreateServiceInput{Repo: "exp20", Host: "github.com"},
+			name:    "github without github username returns error",
+			input:   CreateServiceInput{Repo: "exp20", Host: "github"},
 			wantErr: true,
 		},
 	}
@@ -67,7 +64,7 @@ func TestNormalizeServiceRepo(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			testUser := u
-			if tc.name == "github.com without github username returns error" {
+			if tc.name == "github without github username returns error" {
 				testUser = &users.User{ID: "no-gh-user"}
 			}
 
