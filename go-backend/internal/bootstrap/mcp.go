@@ -31,7 +31,7 @@ func NewMCPRouter(
 
 	corsMiddleware := cors.New(cors.Options{
 		AllowCredentials: true,
-		AllowedOrigins:   []string{mcpOAuthConfig.FrontendURL},
+		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type", "Accept"},
 	}).Handler
