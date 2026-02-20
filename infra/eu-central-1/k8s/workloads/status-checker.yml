@@ -92,7 +92,7 @@ data:
         - name: dns
           type: dns
           server: "10.0.0.4:53"
-          domain: "ml.ink"
+          domain: "max.breacher.org"
           componentid: "cmlu6yke70k2omk9eic64cmnz"
         # Monitoring
         - name: logs

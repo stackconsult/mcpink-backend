@@ -52,8 +52,8 @@ func k8sPodCheck(ctx context.Context, k8s kubernetes.Interface, namespace, label
 
 func dnsCheck(server, domain string) error {
 	m := new(dns.Msg)
-	m.SetQuestion(dns.Fqdn(domain), dns.TypeA)
-	m.RecursionDesired = true
+	m.SetQuestion(dns.Fqdn(domain), dns.TypeSOA)
+	m.RecursionDesired = false
 
 	c := &dns.Client{Timeout: 5 * time.Second}
 	r, _, err := c.Exchange(m, server)
