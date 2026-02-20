@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/augustdev/autoclip/internal/bootstrap"
@@ -37,6 +38,17 @@ func main() {
 
 func startStatusChecker(lc fx.Lifecycle, checker *statuschecker.Checker, cfg statuschecker.Config, k8s kubernetes.Interface, logger *slog.Logger) {
 	router := chi.NewRouter()
+
+	podName, _ := os.Hostname()
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "no-store, no-cache, max-age=0, must-revalidate")
+			w.Header().Set("Pragma", "no-cache")
+			w.Header().Set("X-Pod-Name", podName)
+			w.Header().Set("X-Timestamp", time.Now().UTC().Format(time.RFC3339Nano))
+			next.ServeHTTP(w, r)
+		})
+	})
 
 	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
