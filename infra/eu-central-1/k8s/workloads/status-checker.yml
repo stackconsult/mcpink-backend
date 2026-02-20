@@ -208,7 +208,7 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - host: canary.ml.ink
+    - host: status-eu-central-1.ml.ink
       http:
         paths:
           - path: /
