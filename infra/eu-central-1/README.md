@@ -6,14 +6,14 @@ Production cluster on Hetzner Cloud VPS + Dedicated servers in Falkenstein, Germ
 
 Source of truth for all hosts. IPs also live in `inventory/hosts.yml` for Ansible.
 
-| Name                | IPv4            | Private IP | Type                                    | Role                             | SSH                        |
-| ------------------- | --------------- | ---------- | --------------------------------------- | -------------------------------- | -------------------------- |
-| ctrl-1              | 46.224.206.46   | 10.0.0.3   | Cloud VPS (8GB)                         | K3s control plane                | `ssh root@46.224.206.46`   |
-| build-1             | 78.46.80.236    | 10.0.1.5   | Dedicated (RAID1 NVMe)                  | BuildKit, Registry               | `ssh root@78.46.80.236`    |
-| ops-1               | 176.9.150.48    | 10.0.1.4   | Dedicated (NVMe RAID1)                  | git-server, monitoring           | `ssh root@176.9.150.48`    |
-| run-1               | 148.251.156.12  | 10.0.1.3   | Dedicated (EPYC 7502P, 448GB ECC)      | Customer workloads               | `ssh root@148.251.156.12`  |
-| powerdns-1          | 46.225.84.41    | 10.0.0.4   | Cloud VPS (4GB)                         | PowerDNS authoritative DNS       | `ssh root@46.225.84.41`    |
-| lb-eu-central-1     | 49.12.19.38     | 10.0.0.2   | Hetzner LB (lb11)                      | Custom domain TCP passthrough    | Hetzner Console only       |
+| Name            | IPv4           | Private IP | Type                              | Role                          | SSH                       |
+| --------------- | -------------- | ---------- | --------------------------------- | ----------------------------- | ------------------------- |
+| ctrl-1          | 46.224.206.46  | 10.0.0.3   | Cloud VPS (8GB)                   | K3s control plane             | `ssh root@46.224.206.46`  |
+| build-1         | 78.46.80.236   | 10.0.1.5   | Dedicated (RAID1 NVMe)            | BuildKit, Registry            | `ssh root@78.46.80.236`   |
+| ops-1           | 176.9.150.48   | 10.0.1.4   | Dedicated (NVMe RAID1)            | git-server, monitoring        | `ssh root@176.9.150.48`   |
+| run-1           | 148.251.156.12 | 10.0.1.3   | Dedicated (EPYC 7502P, 448GB ECC) | Customer workloads            | `ssh root@148.251.156.12` |
+| powerdns-1      | 46.225.84.41   | 10.0.0.4   | Cloud VPS (4GB)                   | PowerDNS authoritative DNS    | `ssh root@46.225.84.41`   |
+| lb-eu-central-1 | 49.12.19.38    | 10.0.0.2   | Hetzner LB (lb11)                 | Custom domain TCP passthrough | Hetzner Console only      |
 
 ### Notable hardware
 
@@ -42,24 +42,35 @@ Hetzner Cloud Network + vSwitch bridge cloud VPS and dedicated servers into one 
 
 Four node pools isolated by taints. This prevents build jobs or platform services from competing with customer traffic.
 
-| Pool  | Node    | Taint                   | What runs here                                         | Density          |
-| ----- | ------- | ----------------------- | ------------------------------------------------------ | ---------------- |
-| ctrl  | ctrl-1  | —                       | K3s API, Helm controllers, cert-manager                | default (110)    |
-| ops   | ops-1   | `pool=ops:NoSchedule`   | git-server, Grafana, Prometheus, Loki                  | default (110)    |
-| build | build-1 | `pool=build:NoSchedule` | BuildKit builders, Docker Registry                     | default (110)    |
-| run   | run-1   | —                       | Customer pods (gVisor sandboxed), Traefik ingress      | max-pods=800     |
+| Pool  | Node    | Taint                   | What runs here                                    | Density       |
+| ----- | ------- | ----------------------- | ------------------------------------------------- | ------------- |
+| ctrl  | ctrl-1  | —                       | K3s API, Helm controllers, cert-manager           | default (110) |
+| ops   | ops-1   | `pool=ops:NoSchedule`   | git-server, Grafana, Prometheus, Loki             | default (110) |
+| build | build-1 | `pool=build:NoSchedule` | BuildKit builders, Docker Registry                | default (110) |
+| run   | run-1   | —                       | Customer pods (gVisor sandboxed), Traefik ingress | max-pods=800  |
 
 **Why dedicated for run/ops/build**: Run needs 448GB RAM for pod density. Ops needs RAID storage for git repo durability and monitoring data. Build needs RAID storage for the container registry and BuildKit cache. Cloud VPS is fine for control plane and DNS.
 
 ## Traffic flow
 
-### Standard domains (`*.ml.ink`)
+All HTTP traffic converges through the Hetzner LB, regardless of domain type:
 
 ```
-Client → Cloudflare LB → run-pool (Traefik, TLS via wildcard cert) → customer pod
+*.ml.ink:       Client → Cloudflare (DDoS/CDN) → Hetzner LB → Traefik (run-pool) → customer pod
+Custom domains: Client → PowerDNS (A record)   → Hetzner LB → Traefik (run-pool) → customer pod
 ```
 
-Cloudflare handles DDoS, health-checks, and TLS termination (full strict mode).
+Cloudflare proxies `*.ml.ink` traffic for DDoS protection and caching (full strict TLS mode). The Cloudflare LB origin pool points to the Hetzner LB public IP — **not** to individual run nodes. Adding run capacity is purely a Hetzner LB target change.
+
+### Cloudflare LB
+
+| Setting         | Value                                                        |
+| --------------- | ------------------------------------------------------------ |
+| Origin pool     | Hetzner LB public IP (49.12.19.38)                           |
+| Health check    | `https://status-eu-central-1.ml.ink/healthz` (Host header)   |
+| Expected codes  | 200                                                          |
+| Check interval  | 60s                                                          |
+| Hostnames       | `*.ml.ink`, `grafana.ml.ink`, `loki.ml.ink`, `prometheus.ml.ink` |
 
 ### Custom domains (DNS delegation)
 
@@ -86,7 +97,7 @@ Traffic flow:
 api.apps.example.com
   → Recursive resolver → NS ns1.ml.ink → PowerDNS (46.225.84.41)
     → A 49.12.19.38
-  → Hetzner LB → TCP passthrough → Traefik (run-1)
+  → Hetzner LB → TCP passthrough → Traefik (run-pool)
   → Traefik routes by Host header → customer pod
 ```
 
@@ -119,16 +130,21 @@ Managed via Hetzner Console (no Ansible role — manual configuration).
 | 80          | 80               | TCP      | —               |
 | 443         | 443              | TCP      | TLS Passthrough |
 
-Port 443 **must** use TLS Passthrough (not TLS Termination). Traefik on run-1 terminates TLS using per-domain certs from cert-manager. If the LB terminates TLS, cert-manager HTTP-01 challenges and per-domain cert routing both break.
+Port 443 **must** use TLS Passthrough (not TLS Termination). Traefik on run nodes terminates TLS using per-domain certs from cert-manager. If the LB terminates TLS, cert-manager HTTP-01 challenges and per-domain cert routing both break.
 
-**Hetzner-specific**: Other providers will need an equivalent TCP passthrough LB.
+The Hetzner LB is the single entry point for **all** HTTP traffic (both `*.ml.ink` via Cloudflare and custom domains via PowerDNS). Adding run capacity means adding a target here — no Cloudflare changes needed.
+
+**Source IP**: In TCP passthrough mode, the backend sees the LB's private IP (10.0.0.2) as source, not the original client IP. The private network blanket firewall rule (`10.0.0.0/16`) accepts this traffic.
 
 ## Firewall hardening
 
 Run-pool nodes restrict ports 80/443 to known sources only (configured in `inventory/group_vars/run.yml`):
 
-- `49.12.19.38/32` — Hetzner LB (custom domain traffic)
-- 15 Cloudflare IPv4 CIDRs — `*.ml.ink` traffic
+- `10.0.0.0/16` — private network blanket rule (covers Hetzner LB private IP 10.0.0.2, inserted as rule #1)
+- `49.12.19.38/32` — Hetzner LB public IP (defense-in-depth, redundant with private rule above)
+- 15 Cloudflare IPv4 CIDRs — legacy direct-to-node rules (all `*.ml.ink` traffic now flows through Hetzner LB)
+
+In practice, all production traffic arrives via Hetzner LB (source IP 10.0.0.2) and is accepted by the private network rule. The Cloudflare CIDRs are retained as defense-in-depth but no traffic should match them under normal operation.
 
 Everything else on 80/443 is DROPped. All nodes also block metadata endpoint (169.254.169.254) and SMTP egress (25, 465, 587). All nodes have a default-deny INPUT rule as the final iptables rule.
 
@@ -138,10 +154,10 @@ Container images for all customer deployments are stored in a plain HTTP registr
 
 | Setting      | Value                                                           |
 | ------------ | --------------------------------------------------------------- |
-| Host         | build-1 (10.0.1.5:5000)                                        |
+| Host         | build-1 (10.0.1.5:5000)                                         |
 | K8s service  | registry.dp-system:5000                                         |
 | DNS alias    | registry.internal:5000                                          |
-| Storage      | hostPath `/mnt/registry` on build-1 (RAID1 NVMe)               |
+| Storage      | hostPath `/mnt/registry` on build-1 (RAID1 NVMe)                |
 | Protocol     | HTTP (plain, private network only)                              |
 | Image format | `registry.internal:5000/dp-{user_id}-{project}/{service}:{sha}` |
 
@@ -168,7 +184,7 @@ Chart versions are pinned in `inventory/group_vars/all/main.yml`. Helm values in
 
 **Node CIDR**: Controller-manager allocates /22 subnets (1022 IPs per node) to new nodes. Existing nodes may still have /24 from before the change — delete and rejoin the node object to get /22 if you need >254 pods. With /16 cluster CIDR and /22 per node, the cluster supports up to 64 nodes.
 
-**Add run capacity** (common): Provision a new dedicated server → add to inventory under `run` → run `add-run-node.yml`. The playbook joins k3s, installs gVisor, configures firewall. Manually add to Hetzner LB via Console and to Cloudflare LB. New run nodes automatically inherit the density config from `k3s_agent_kubelet_args` in the run group vars.
+**Add run capacity** (common): Provision a new dedicated server → add to inventory under `run` → run `add-run-node.yml`. The playbook joins k3s, installs gVisor, configures firewall. Then add the node's private IP as a target in Hetzner LB via Console. No Cloudflare changes needed — Cloudflare points to the Hetzner LB, which distributes across all run-pool targets. New run nodes automatically inherit the density config from `k3s_agent_kubelet_args` in the run group vars.
 
 **Add build capacity** (rare): Same process but under `build` group with `pool=build:NoSchedule` taint. Enables parallel BuildKit builders.
 
@@ -214,7 +230,7 @@ See `ansible/README.md` for secrets, patching, node addition, and other operatio
 
 Platform-wide decisions (gVisor, firewall, SMTP blocking, etc.) are in `infra/README.md`.
 
-| Decision                             | Rationale                                                                                                                                       |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Decision                                | Rationale                                                                                                                                                                         |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Dedicated servers for run + ops + build | Run needs 448GB RAM for pod density. Ops needs RAID storage for git repo durability. Build needs RAID for registry + BuildKit cache. Cloud VPS is fine for control plane and DNS. |
-| Hetzner LB for custom domain traffic | Region-specific implementation of the global TCP passthrough requirement. Other regions will use their provider's equivalent.                   |
+| Hetzner LB for all HTTP traffic         | Single entry point for both `*.ml.ink` (via Cloudflare) and custom domains (via PowerDNS). TCP passthrough preserves Traefik's TLS termination. Other regions use their provider's equivalent. |

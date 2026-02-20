@@ -23,9 +23,9 @@
       until: node_status.stdout == "True"
       delegate_to: "{{ groups['ctrl'][0] }}"
 
-    - name: Cloudflare and Hetzner LB reminder
+    - name: Hetzner LB reminder
       debug:
         msg: >-
           {{ inventory_hostname }} is Ready.
-          1) Add {{ hostvars[inventory_hostname].private_ip }} as a target in the Hetzner LB ({{ hetzner_lb_name }}) via Hetzner Console.
-          2) Update the Cloudflare Load Balancer origin pool to include {{ ansible_host }} (DNS wildcard A record is not required).
+          Add {{ hostvars[inventory_hostname].private_ip }} as a target in the Hetzner LB ({{ hetzner_lb_name }}) via Hetzner Console.
+          No Cloudflare changes needed — Cloudflare LB points to the Hetzner LB, which distributes across all run-pool targets.

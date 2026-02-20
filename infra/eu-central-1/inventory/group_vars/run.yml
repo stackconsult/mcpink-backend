@@ -1,11 +1,14 @@
 ---
 gvisor_install_arch: x86_64
 
-# Restrict Traefik public ports (80/443) to LB + Cloudflare origins only.
+# Restrict Traefik public ports (80/443) to known sources on the public interface.
+# All production traffic flows through Hetzner LB (private IP 10.0.0.2), which is
+# accepted by the blanket private-network rule (10.0.0.0/16) in the firewall role.
+# These public-interface rules are defense-in-depth for direct-to-node traffic.
 # Empty list = allow from anywhere (default in firewall role).
 traefik_public_allowed_sources:
-  - 49.12.19.38/32      # Hetzner LB (custom domain traffic)
-  # Cloudflare IPv4 ranges (*.ml.ink traffic via Cloudflare LB)
+  - 49.12.19.38/32      # Hetzner LB public IP (defense-in-depth)
+  # Cloudflare IPv4 ranges (defense-in-depth, traffic normally arrives via Hetzner LB)
   - 173.245.48.0/20
   - 103.21.244.0/22
   - 103.22.200.0/22
