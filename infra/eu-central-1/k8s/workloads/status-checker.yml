@@ -101,7 +101,7 @@ data:
           componentid: "cmlu6yl6u0982ifr7kmma7v2p"
         - name: metrics
           type: http
-          url: "http://kube-prometheus-stack-prometheus.dp-system:9090/-/ready"
+          url: "http://prometheus-kube-prometheus-prometheus.dp-system:9090/-/ready"
           componentid: "cmlu6ylxj0c2je0oekfqf911d"
 ---
 apiVersion: apps/v1

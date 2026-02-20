@@ -3,10 +3,10 @@ package statuschecker
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"time"
 
+	"github.com/miekg/dns"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -51,23 +51,20 @@ func k8sPodCheck(ctx context.Context, k8s kubernetes.Interface, namespace, label
 }
 
 func dnsCheck(server, domain string) error {
-	resolver := &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d := net.Dialer{Timeout: 5 * time.Second}
-			return d.DialContext(ctx, "udp", server)
-		},
-	}
+	m := new(dns.Msg)
+	m.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+	m.RecursionDesired = true
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	addrs, err := resolver.LookupHost(ctx, domain)
+	c := &dns.Client{Timeout: 5 * time.Second}
+	r, _, err := c.Exchange(m, server)
 	if err != nil {
-		return fmt.Errorf("dns lookup failed for %q via %s: %w", domain, server, err)
+		return fmt.Errorf("dns query failed for %q via %s: %w", domain, server, err)
 	}
-	if len(addrs) == 0 {
-		return fmt.Errorf("dns lookup returned no results for %q via %s", domain, server)
+	if r.Rcode != dns.RcodeSuccess {
+		return fmt.Errorf("dns query for %q via %s returned rcode %s", domain, server, dns.RcodeToString[r.Rcode])
+	}
+	if len(r.Answer) == 0 {
+		return fmt.Errorf("dns query returned no answers for %q via %s", domain, server)
 	}
 	return nil
 }
