@@ -99,20 +99,6 @@ func (s *Service) CreateService(ctx context.Context, input CreateServiceInput) (
 		projectID = project.ID
 	}
 
-	if input.Name != "" {
-		_, err := s.servicesQ.GetServiceByNameAndProject(ctx, services.GetServiceByNameAndProjectParams{
-			Name:      &input.Name,
-			ProjectID: projectID,
-		})
-		if err == nil {
-			return nil, fmt.Errorf("service %q already exists in this project", input.Name)
-		}
-	}
-
-	svcID := shortuuid.New()
-	deploymentID := shortuuid.New()
-	workflowID := fmt.Sprintf("deploy-%s", deploymentID)
-
 	gitProvider := input.GitProvider
 	if gitProvider == "" {
 		gitProvider = "github"
@@ -149,7 +135,23 @@ func (s *Service) CreateService(ctx context.Context, input CreateServiceInput) (
 		return nil, fmt.Errorf("region %q is not available (status=%s)", region, cluster.Status)
 	}
 
-	_, err := s.servicesQ.CreateService(ctx, services.CreateServiceParams{
+	if input.Name == "" {
+		return nil, fmt.Errorf("service name is required")
+	}
+
+	_, err := s.servicesQ.GetServiceByNameAndProject(ctx, services.GetServiceByNameAndProjectParams{
+		Name:      &input.Name,
+		ProjectID: projectID,
+	})
+	if err == nil {
+		return nil, fmt.Errorf("service %q already exists in this project; use update_service to change its config", input.Name)
+	}
+
+	svcID := shortuuid.New()
+	deploymentID := shortuuid.New()
+	workflowID := fmt.Sprintf("deploy-%s", deploymentID)
+
+	_, err = s.servicesQ.CreateService(ctx, services.CreateServiceParams{
 		ID:          svcID,
 		UserID:      input.UserID,
 		ProjectID:   projectID,
