@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/augustdev/autoclip/internal/storage/pg/generated/services"
 	"go.temporal.io/sdk/temporal"
@@ -14,11 +15,32 @@ import (
 
 func buildImageTag(commitSHA string, svc services.Service) string {
 	bc := parseBuildConfig(svc.BuildConfig)
-	if svc.BuildPack == "railpack" && bc.PublishDirectory == "" && bc.RootDirectory == "" && bc.BuildCommand == "" && bc.StartCommand == "" {
+	envHash := hashEnvVarsRaw(svc.EnvVars)
+	if svc.BuildPack == "railpack" && bc.PublishDirectory == "" && bc.RootDirectory == "" && bc.BuildCommand == "" && bc.StartCommand == "" && envHash == "" {
 		return commitSHA
 	}
-	h := sha256.Sum256([]byte(svc.BuildPack + "\x00" + bc.PublishDirectory + "\x00" + bc.RootDirectory + "\x00" + bc.DockerfilePath + "\x00" + bc.BuildCommand + "\x00" + bc.StartCommand))
+	h := sha256.Sum256([]byte(svc.BuildPack + "\x00" + bc.PublishDirectory + "\x00" + bc.RootDirectory + "\x00" + bc.DockerfilePath + "\x00" + bc.BuildCommand + "\x00" + bc.StartCommand + "\x00" + envHash))
 	return fmt.Sprintf("%s-%x", commitSHA, h[:4])
+}
+
+func hashEnvVarsRaw(raw json.RawMessage) string {
+	envVars := parseEnvVars(raw)
+	if len(envVars) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(envVars))
+	for k := range envVars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	h := sha256.New()
+	for _, k := range keys {
+		h.Write([]byte(k))
+		h.Write([]byte("="))
+		h.Write([]byte(envVars[k]))
+		h.Write([]byte("\n"))
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 func (a *Activities) ResolveImageRef(ctx context.Context, input ResolveImageRefInput) (*ResolveImageRefResult, error) {
