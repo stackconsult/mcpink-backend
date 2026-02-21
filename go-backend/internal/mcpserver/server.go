@@ -136,6 +136,12 @@ func (s *Server) registerTools() {
 	}, s.handleGetService)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "update_service",
+		Description: "Update configuration of an existing service and redeploy. Only specify fields you want to change.",
+		InputSchema: schemaFor[UpdateServiceInput](),
+	}, s.handleUpdateService)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "delete_service",
 		Description: "Delete a service. This permanently removes the deployment.",
 		InputSchema: schemaFor[DeleteServiceInput](),

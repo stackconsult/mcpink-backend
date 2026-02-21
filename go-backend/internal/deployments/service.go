@@ -238,6 +238,134 @@ func (s *Service) CreateService(ctx context.Context, input CreateServiceInput) (
 	}, nil
 }
 
+type UpdateServiceInput struct {
+	Name             string
+	Project          string
+	UserID           string
+	Repo             *string
+	GitProvider      *string
+	Branch           *string
+	Port             *string
+	EnvVars          *[]EnvVar
+	BuildPack        *string
+	Memory           *string
+	VCPUs            *string
+	BuildCommand     *string
+	StartCommand     *string
+	PublishDirectory *string
+	RootDirectory    *string
+	DockerfilePath   *string
+}
+
+type UpdateServiceResult struct {
+	ServiceID  string
+	Name       string
+	Status     string
+	WorkflowID string
+}
+
+func (s *Service) UpdateService(ctx context.Context, input UpdateServiceInput) (*UpdateServiceResult, error) {
+	svc, err := s.servicesQ.GetServiceByNameAndUserProject(ctx, services.GetServiceByNameAndUserProjectParams{
+		Name:   &input.Name,
+		UserID: input.UserID,
+		Ref:    input.Project,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("service not found: %s in project %s", input.Name, input.Project)
+	}
+
+	// Merge fields: only overwrite non-nil inputs
+	repo := svc.Repo
+	if input.Repo != nil {
+		repo = *input.Repo
+	}
+	branch := svc.Branch
+	if input.Branch != nil {
+		branch = *input.Branch
+	}
+	gitProvider := svc.GitProvider
+	if input.GitProvider != nil {
+		gitProvider = *input.GitProvider
+	}
+	port := svc.Port
+	if input.Port != nil {
+		port = *input.Port
+	}
+	buildPack := svc.BuildPack
+	if input.BuildPack != nil {
+		buildPack = *input.BuildPack
+	}
+	memory := svc.Memory
+	if input.Memory != nil {
+		memory = *input.Memory
+	}
+	vcpus := svc.Vcpus
+	if input.VCPUs != nil {
+		vcpus = *input.VCPUs
+	}
+
+	// Merge build config
+	var currentBC k8sdeployments.BuildConfig
+	if len(svc.BuildConfig) > 0 {
+		_ = json.Unmarshal(svc.BuildConfig, &currentBC)
+	}
+	if input.BuildCommand != nil {
+		currentBC.BuildCommand = *input.BuildCommand
+	}
+	if input.StartCommand != nil {
+		currentBC.StartCommand = *input.StartCommand
+	}
+	if input.PublishDirectory != nil {
+		currentBC.PublishDirectory = *input.PublishDirectory
+	}
+	if input.RootDirectory != nil {
+		currentBC.RootDirectory = *input.RootDirectory
+	}
+	if input.DockerfilePath != nil {
+		currentBC.DockerfilePath = *input.DockerfilePath
+	}
+	buildConfigJSON, _ := json.Marshal(currentBC)
+
+	// Merge env vars
+	envVarsJSON := svc.EnvVars
+	if input.EnvVars != nil {
+		envVarsJSON, _ = json.Marshal(*input.EnvVars)
+	}
+
+	_, err = s.servicesQ.UpdateServiceConfig(ctx, services.UpdateServiceConfigParams{
+		ID:          svc.ID,
+		Repo:        repo,
+		Branch:      branch,
+		GitProvider: gitProvider,
+		Port:        port,
+		EnvVars:     envVarsJSON,
+		BuildPack:   buildPack,
+		BuildConfig: buildConfigJSON,
+		Memory:      memory,
+		Vcpus:       vcpus,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update service: %w", err)
+	}
+
+	workflowID, err := s.RedeployService(ctx, svc.ID)
+	if err != nil {
+		return nil, fmt.Errorf("service updated but redeploy failed: %w", err)
+	}
+
+	name := ""
+	if svc.Name != nil {
+		name = *svc.Name
+	}
+
+	return &UpdateServiceResult{
+		ServiceID:  svc.ID,
+		Name:       name,
+		Status:     "queued",
+		WorkflowID: workflowID,
+	}, nil
+}
+
 func (s *Service) ListServices(ctx context.Context, userID string, limit, offset int32) ([]services.Service, error) {
 	svcList, err := s.servicesQ.ListServicesByUserID(ctx, services.ListServicesByUserIDParams{
 		UserID: userID,

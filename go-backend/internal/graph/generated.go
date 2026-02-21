@@ -115,6 +115,7 @@ type ComplexityRoot struct {
 		DeleteService                func(childComplexity int, name string, project *string) int
 		RecheckGithubAppInstallation func(childComplexity int) int
 		RevokeAPIKey                 func(childComplexity int, id string) int
+		UpdateService                func(childComplexity int, input model.UpdateServiceInput) int
 		VerifyHostedZone             func(childComplexity int, zone string) int
 	}
 
@@ -216,6 +217,12 @@ type ComplexityRoot struct {
 		NetworkTransmitBytesPerSec func(childComplexity int) int
 	}
 
+	UpdateServiceResult struct {
+		Name      func(childComplexity int) int
+		ServiceID func(childComplexity int) int
+		Status    func(childComplexity int) int
+	}
+
 	User struct {
 		AvatarURL               func(childComplexity int) int
 		CreatedAt               func(childComplexity int) int
@@ -256,6 +263,7 @@ type MutationResolver interface {
 	AddDNSRecord(ctx context.Context, zone string, name string, typeArg string, content string, ttl *int32) (*model.ZoneRecord, error)
 	DeleteDNSRecord(ctx context.Context, zone string, recordID string) (bool, error)
 	DeleteService(ctx context.Context, name string, project *string) (*model.DeleteServiceResult, error)
+	UpdateService(ctx context.Context, input model.UpdateServiceInput) (*model.UpdateServiceResult, error)
 }
 type ProjectResolver interface {
 	Services(ctx context.Context, obj *model.Project) ([]*model.Service, error)
@@ -592,6 +600,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RevokeAPIKey(childComplexity, args["id"].(string)), true
+	case "Mutation.updateService":
+		if e.ComplexityRoot.Mutation.UpdateService == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateService_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateService(childComplexity, args["input"].(model.UpdateServiceInput)), true
 	case "Mutation.verifyHostedZone":
 		if e.ComplexityRoot.Mutation.VerifyHostedZone == nil {
 			break
@@ -1057,6 +1076,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ServiceMetrics.NetworkTransmitBytesPerSec(childComplexity), true
 
+	case "UpdateServiceResult.name":
+		if e.ComplexityRoot.UpdateServiceResult.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpdateServiceResult.Name(childComplexity), true
+	case "UpdateServiceResult.serviceId":
+		if e.ComplexityRoot.UpdateServiceResult.ServiceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpdateServiceResult.ServiceID(childComplexity), true
+	case "UpdateServiceResult.status":
+		if e.ComplexityRoot.UpdateServiceResult.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpdateServiceResult.Status(childComplexity), true
+
 	case "User.avatarUrl":
 		if e.ComplexityRoot.User.AvatarURL == nil {
 			break
@@ -1187,7 +1225,10 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputEnvVarInput,
+		ec.unmarshalInputUpdateServiceInput,
+	)
 	first := true
 
 	switch opCtx.Operation.Operation {
@@ -1417,6 +1458,17 @@ func (ec *executionContext) field_Mutation_revokeAPIKey_args(ctx context.Context
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateService_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateServiceInput2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐUpdateServiceInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -3128,6 +3180,68 @@ func (ec *executionContext) fieldContext_Mutation_deleteService(ctx context.Cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteService_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateService(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateService,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateService(ctx, fc.Args["input"].(model.UpdateServiceInput))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.IsAuthenticated == nil {
+					var zeroVal *model.UpdateServiceResult
+					return zeroVal, errors.New("directive isAuthenticated is not implemented")
+				}
+				return ec.Directives.IsAuthenticated(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		ec.marshalNUpdateServiceResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐUpdateServiceResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateService(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "serviceId":
+				return ec.fieldContext_UpdateServiceResult_serviceId(ctx, field)
+			case "name":
+				return ec.fieldContext_UpdateServiceResult_name(ctx, field)
+			case "status":
+				return ec.fieldContext_UpdateServiceResult_status(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type UpdateServiceResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateService_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -5804,6 +5918,93 @@ func (ec *executionContext) fieldContext_ServiceMetrics_cpuLimitVCPUs(_ context.
 	return fc, nil
 }
 
+func (ec *executionContext) _UpdateServiceResult_serviceId(ctx context.Context, field graphql.CollectedField, obj *model.UpdateServiceResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UpdateServiceResult_serviceId,
+		func(ctx context.Context) (any, error) {
+			return obj.ServiceID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_UpdateServiceResult_serviceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UpdateServiceResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UpdateServiceResult_name(ctx context.Context, field graphql.CollectedField, obj *model.UpdateServiceResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UpdateServiceResult_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_UpdateServiceResult_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UpdateServiceResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UpdateServiceResult_status(ctx context.Context, field graphql.CollectedField, obj *model.UpdateServiceResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UpdateServiceResult_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_UpdateServiceResult_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UpdateServiceResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -7840,6 +8041,163 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputEnvVarInput(ctx context.Context, obj any) (model.EnvVarInput, error) {
+	var it model.EnvVarInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"key", "value"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "key":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Key = data
+		case "value":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("value"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Value = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateServiceInput(ctx context.Context, obj any) (model.UpdateServiceInput, error) {
+	var it model.UpdateServiceInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "project", "repo", "host", "branch", "port", "envVars", "buildPack", "memory", "vcpus", "buildCommand", "startCommand", "publishDirectory", "rootDirectory", "dockerfilePath"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "project":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("project"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Project = data
+		case "repo":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repo"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Repo = data
+		case "host":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("host"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Host = data
+		case "branch":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("branch"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Branch = data
+		case "port":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("port"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Port = data
+		case "envVars":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("envVars"))
+			data, err := ec.unmarshalOEnvVarInput2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐEnvVarInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EnvVars = data
+		case "buildPack":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("buildPack"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BuildPack = data
+		case "memory":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("memory"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Memory = data
+		case "vcpus":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("vcpus"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Vcpus = data
+		case "buildCommand":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("buildCommand"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BuildCommand = data
+		case "startCommand":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startCommand"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartCommand = data
+		case "publishDirectory":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("publishDirectory"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PublishDirectory = data
+		case "rootDirectory":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("rootDirectory"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RootDirectory = data
+		case "dockerfilePath":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dockerfilePath"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DockerfilePath = data
+		}
+	}
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -8419,6 +8777,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteService":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteService(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateService":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateService(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -9503,6 +9868,55 @@ func (ec *executionContext) _ServiceMetrics(ctx context.Context, sel ast.Selecti
 	return out
 }
 
+var updateServiceResultImplementors = []string{"UpdateServiceResult"}
+
+func (ec *executionContext) _UpdateServiceResult(ctx context.Context, sel ast.SelectionSet, obj *model.UpdateServiceResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, updateServiceResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("UpdateServiceResult")
+		case "serviceId":
+			out.Values[i] = ec._UpdateServiceResult_serviceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._UpdateServiceResult_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._UpdateServiceResult_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var userImplementors = []string{"User"}
 
 func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *model.User) graphql.Marshaler {
@@ -10175,6 +10589,11 @@ func (ec *executionContext) marshalNEnvVar2ᚖgithubᚗcomᚋaugustdevᚋautocli
 	return ec._EnvVar(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNEnvVarInput2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐEnvVarInput(ctx context.Context, v any) (*model.EnvVarInput, error) {
+	res, err := ec.unmarshalInputEnvVarInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v any) (float64, error) {
 	res, err := graphql.UnmarshalFloatContext(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -10511,6 +10930,25 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	return res
 }
 
+func (ec *executionContext) unmarshalNUpdateServiceInput2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐUpdateServiceInput(ctx context.Context, v any) (model.UpdateServiceInput, error) {
+	res, err := ec.unmarshalInputUpdateServiceInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNUpdateServiceResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐUpdateServiceResult(ctx context.Context, sel ast.SelectionSet, v model.UpdateServiceResult) graphql.Marshaler {
+	return ec._UpdateServiceResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNUpdateServiceResult2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐUpdateServiceResult(ctx context.Context, sel ast.SelectionSet, v *model.UpdateServiceResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._UpdateServiceResult(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNVerifyHostedZoneResult2githubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐVerifyHostedZoneResult(ctx context.Context, sel ast.SelectionSet, v model.VerifyHostedZoneResult) graphql.Marshaler {
 	return ec._VerifyHostedZoneResult(ctx, sel, &v)
 }
@@ -10743,6 +11181,24 @@ func (ec *executionContext) marshalODNSRecord2ᚕᚖgithubᚗcomᚋaugustdevᚋa
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalOEnvVarInput2ᚕᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐEnvVarInputᚄ(ctx context.Context, v any) ([]*model.EnvVarInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*model.EnvVarInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNEnvVarInput2ᚖgithubᚗcomᚋaugustdevᚋautoclipᚋinternalᚋgraphᚋmodelᚐEnvVarInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v any) (*string, error) {

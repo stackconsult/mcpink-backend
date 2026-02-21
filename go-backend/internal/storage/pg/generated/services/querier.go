@@ -23,6 +23,7 @@ type Querier interface {
 	SetCurrentDeploymentID(ctx context.Context, arg SetCurrentDeploymentIDParams) error
 	SetServiceFQDN(ctx context.Context, arg SetServiceFQDNParams) error
 	SoftDeleteService(ctx context.Context, id string) (Service, error)
+	UpdateServiceConfig(ctx context.Context, arg UpdateServiceConfigParams) (Service, error)
 }
 
 var _ Querier = (*Queries)(nil)

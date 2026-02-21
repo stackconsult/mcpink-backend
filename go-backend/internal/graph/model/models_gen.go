@@ -53,6 +53,11 @@ type EnvVar struct {
 	Value string `json:"value"`
 }
 
+type EnvVarInput struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 type HostedZone struct {
 	ID         string        `json:"id"`
 	Zone       string        `json:"zone"`
@@ -162,6 +167,30 @@ type ServiceMetrics struct {
 	NetworkTransmitBytesPerSec *MetricSeries `json:"networkTransmitBytesPerSec"`
 	MemoryLimitMb              float64       `json:"memoryLimitMB"`
 	CPULimitVCPUs              float64       `json:"cpuLimitVCPUs"`
+}
+
+type UpdateServiceInput struct {
+	Name             string         `json:"name"`
+	Project          *string        `json:"project,omitempty"`
+	Repo             *string        `json:"repo,omitempty"`
+	Host             *string        `json:"host,omitempty"`
+	Branch           *string        `json:"branch,omitempty"`
+	Port             *int32         `json:"port,omitempty"`
+	EnvVars          []*EnvVarInput `json:"envVars,omitempty"`
+	BuildPack        *string        `json:"buildPack,omitempty"`
+	Memory           *string        `json:"memory,omitempty"`
+	Vcpus            *string        `json:"vcpus,omitempty"`
+	BuildCommand     *string        `json:"buildCommand,omitempty"`
+	StartCommand     *string        `json:"startCommand,omitempty"`
+	PublishDirectory *string        `json:"publishDirectory,omitempty"`
+	RootDirectory    *string        `json:"rootDirectory,omitempty"`
+	DockerfilePath   *string        `json:"dockerfilePath,omitempty"`
+}
+
+type UpdateServiceResult struct {
+	ServiceID string `json:"serviceId"`
+	Name      string `json:"name"`
+	Status    string `json:"status"`
 }
 
 type User struct {

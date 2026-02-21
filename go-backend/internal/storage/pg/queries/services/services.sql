@@ -67,6 +67,21 @@ SELECT * FROM services
 WHERE project_id = ANY($1::text[]) AND is_deleted = false
 ORDER BY created_at DESC;
 
+-- name: UpdateServiceConfig :one
+UPDATE services SET
+    repo = @repo,
+    branch = @branch,
+    git_provider = @git_provider,
+    port = @port,
+    env_vars = @env_vars,
+    build_pack = @build_pack,
+    build_config = @build_config,
+    memory = @memory,
+    vcpus = @vcpus,
+    updated_at = NOW()
+WHERE id = @id AND is_deleted = false
+RETURNING *;
+
 -- name: GetServiceMetricsContext :one
 SELECT s.name AS service_name, s.memory, s.vcpus, u.id AS user_id, p.ref AS project_ref
 FROM services s

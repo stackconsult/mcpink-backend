@@ -182,6 +182,31 @@ type DeleteServiceOutput struct {
 	Message   string `json:"message"`
 }
 
+type UpdateServiceInput struct {
+	Name             string    `json:"name" jsonschema:"description=Name of the service to update (required)"`
+	Project          string    `json:"project,omitempty" jsonschema:"description=Project name,default=default"`
+	Repo             *string   `json:"repo,omitempty" jsonschema:"description=New repository name"`
+	Host             *string   `json:"host,omitempty" jsonschema:"description=Git host for new repo,enum=ink,enum=github"`
+	Branch           *string   `json:"branch,omitempty" jsonschema:"description=Branch to deploy"`
+	Port             *int      `json:"port,omitempty" jsonschema:"description=Port the application listens on"`
+	EnvVars          *[]EnvVar `json:"env_vars,omitempty" jsonschema:"description=Environment variables (replaces all existing)"`
+	BuildPack        *string   `json:"build_pack,omitempty" jsonschema:"description=Build pack to use,enum=railpack,enum=dockerfile,enum=static,enum=dockercompose"`
+	Memory           *string   `json:"memory,omitempty" jsonschema:"description=Memory limit,enum=256Mi,enum=512Mi,enum=1024Mi,enum=2048Mi,enum=4096Mi"`
+	VCPUs            *string   `json:"vcpus,omitempty" jsonschema:"description=vCPUs,enum=0.5,enum=1,enum=2,enum=4"`
+	BuildCommand     *string   `json:"build_command,omitempty" jsonschema:"description=Custom build command (overrides auto-detected). Only used with build_pack=railpack."`
+	StartCommand     *string   `json:"start_command,omitempty" jsonschema:"description=Custom start command (overrides auto-detected). Only used with build_pack=railpack."`
+	PublishDirectory *string   `json:"publish_directory,omitempty" jsonschema:"description=Directory containing built static files (e.g. 'dist'). When set with build_pack=railpack the app is built then served as static files via nginx."`
+	RootDirectory    *string   `json:"root_directory,omitempty" jsonschema:"description=Subdirectory within the repo to use as build context (e.g. 'frontend' or 'services/api')."`
+	DockerfilePath   *string   `json:"dockerfile_path,omitempty" jsonschema:"description=Path to Dockerfile relative to root_directory. Only used with build_pack=dockerfile."`
+}
+
+type UpdateServiceOutput struct {
+	ServiceID string `json:"service_id"`
+	Name      string `json:"name"`
+	Status    string `json:"status"`
+	Message   string `json:"message"`
+}
+
 type DeleteResourceInput struct {
 	Name string `json:"name" jsonschema:"description=Resource name (required)"`
 }

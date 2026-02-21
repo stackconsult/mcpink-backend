@@ -18,6 +18,45 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+func validateBuildPack(bp string) error {
+	switch bp {
+	case "railpack", "dockerfile", "static", "dockercompose":
+		return nil
+	default:
+		return fmt.Errorf("invalid build_pack: %s. Valid options: railpack, dockerfile, static, dockercompose", bp)
+	}
+}
+
+func validateMemory(m string) error {
+	switch m {
+	case "256Mi", "512Mi", "1024Mi", "2048Mi", "4096Mi":
+		return nil
+	default:
+		return fmt.Errorf("invalid memory: %s. Valid options: 256Mi, 512Mi, 1024Mi, 2048Mi, 4096Mi", m)
+	}
+}
+
+func validateVCPUs(v string) error {
+	switch v {
+	case "0.5", "1", "2", "4":
+		return nil
+	default:
+		return fmt.Errorf("invalid vcpus: %s. Valid options: 0.5, 1, 2, 4", v)
+	}
+}
+
+func sanitizePath(raw, fieldName string) (string, error) {
+	p := strings.TrimSpace(raw)
+	if p == "" {
+		return "", nil
+	}
+	p = strings.Trim(p, "/")
+	if p == "" || strings.Contains(p, "..") || filepath.IsAbs(raw) {
+		return "", fmt.Errorf("invalid %s: must be a relative path without '..'", fieldName)
+	}
+	return p, nil
+}
+
 func resolveServicePort(buildPack, publishDir string, requestedPort *int) string {
 	// Railpack static serving always binds nginx on 8080.
 	if buildPack == "railpack" && publishDir != "" {
@@ -108,49 +147,35 @@ func (s *Server) handleCreateService(ctx context.Context, req *mcp.CallToolReque
 
 	buildPack := "railpack"
 	if input.BuildPack != "" {
-		switch input.BuildPack {
-		case "railpack", "dockerfile", "static", "dockercompose":
-			buildPack = input.BuildPack
-		default:
-			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("invalid build_pack: %s. Valid options: railpack, dockerfile, static, dockercompose", input.BuildPack)}}}, CreateServiceOutput{}, nil
+		if err := validateBuildPack(input.BuildPack); err != nil {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, CreateServiceOutput{}, nil
 		}
+		buildPack = input.BuildPack
 	}
 
-	// Validate and sanitize publish_directory
-	publishDir := strings.TrimSpace(input.PublishDirectory)
-	if publishDir != "" {
-		if buildPack != "railpack" {
-			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "publish_directory is only supported with build_pack=railpack"}}}, CreateServiceOutput{}, nil
-		}
-		publishDir = strings.Trim(publishDir, "/")
-		if publishDir == "" || strings.Contains(publishDir, "..") || filepath.IsAbs(input.PublishDirectory) {
-			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "invalid publish_directory: must be a relative path without '..'"}}}, CreateServiceOutput{}, nil
-		}
-		input.PublishDirectory = publishDir
+	publishDir, err := sanitizePath(input.PublishDirectory, "publish_directory")
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, CreateServiceOutput{}, nil
 	}
+	if publishDir != "" && buildPack != "railpack" {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "publish_directory is only supported with build_pack=railpack"}}}, CreateServiceOutput{}, nil
+	}
+	input.PublishDirectory = publishDir
 
-	// Validate and sanitize root_directory
-	rootDir := strings.TrimSpace(input.RootDirectory)
-	if rootDir != "" {
-		rootDir = strings.Trim(rootDir, "/")
-		if rootDir == "" || strings.Contains(rootDir, "..") || filepath.IsAbs(input.RootDirectory) {
-			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "invalid root_directory: must be a relative path without '..'"}}}, CreateServiceOutput{}, nil
-		}
-		input.RootDirectory = rootDir
+	rootDir, err := sanitizePath(input.RootDirectory, "root_directory")
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, CreateServiceOutput{}, nil
 	}
+	input.RootDirectory = rootDir
 
-	// Validate and sanitize dockerfile_path
-	dockerfilePath := strings.TrimSpace(input.DockerfilePath)
-	if dockerfilePath != "" {
-		if buildPack != "dockerfile" {
-			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "dockerfile_path is only supported with build_pack=dockerfile"}}}, CreateServiceOutput{}, nil
-		}
-		dockerfilePath = strings.Trim(dockerfilePath, "/")
-		if dockerfilePath == "" || strings.Contains(dockerfilePath, "..") || filepath.IsAbs(input.DockerfilePath) {
-			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "invalid dockerfile_path: must be a relative path without '..'"}}}, CreateServiceOutput{}, nil
-		}
-		input.DockerfilePath = dockerfilePath
+	dockerfilePath, err := sanitizePath(input.DockerfilePath, "dockerfile_path")
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, CreateServiceOutput{}, nil
 	}
+	if dockerfilePath != "" && buildPack != "dockerfile" {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "dockerfile_path is only supported with build_pack=dockerfile"}}}, CreateServiceOutput{}, nil
+	}
+	input.DockerfilePath = dockerfilePath
 
 	port := resolveServicePort(buildPack, publishDir, input.Port)
 
@@ -666,6 +691,122 @@ func (s *Server) handleGetService(ctx context.Context, req *mcp.CallToolRequest,
 	}
 
 	return nil, output, nil
+}
+
+func (s *Server) handleUpdateService(ctx context.Context, req *mcp.CallToolRequest, input UpdateServiceInput) (*mcp.CallToolResult, UpdateServiceOutput, error) {
+	user := UserFromContext(ctx)
+	if user == nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "not authenticated"}}}, UpdateServiceOutput{}, nil
+	}
+
+	if input.Name == "" {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "name is required"}}}, UpdateServiceOutput{}, nil
+	}
+
+	project := "default"
+	if input.Project != "" {
+		project = input.Project
+	}
+
+	depInput := deployments.UpdateServiceInput{
+		Name:    input.Name,
+		Project: project,
+		UserID:  user.ID,
+		Branch:  input.Branch,
+		Memory:  input.Memory,
+		VCPUs:   input.VCPUs,
+	}
+
+	// Normalize repo if provided
+	if input.Repo != nil {
+		host := "ink"
+		if input.Host != nil {
+			host = *input.Host
+		}
+		csInput := CreateServiceInput{Repo: *input.Repo, Host: host, Project: project}
+		normalizedHost, normalizedRepo, err := s.normalizeServiceRepo(ctx, user, csInput)
+		if err != nil {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, UpdateServiceOutput{}, nil
+		}
+		depInput.Repo = &normalizedRepo
+		gp := "github"
+		if normalizedHost == "ink" {
+			gp = "internal"
+		}
+		depInput.GitProvider = &gp
+	}
+
+	if input.BuildPack != nil {
+		if err := validateBuildPack(*input.BuildPack); err != nil {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, UpdateServiceOutput{}, nil
+		}
+		depInput.BuildPack = input.BuildPack
+	}
+
+	if input.Memory != nil {
+		if err := validateMemory(*input.Memory); err != nil {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, UpdateServiceOutput{}, nil
+		}
+	}
+
+	if input.VCPUs != nil {
+		if err := validateVCPUs(*input.VCPUs); err != nil {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, UpdateServiceOutput{}, nil
+		}
+	}
+
+	if input.PublishDirectory != nil {
+		p, err := sanitizePath(*input.PublishDirectory, "publish_directory")
+		if err != nil {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, UpdateServiceOutput{}, nil
+		}
+		depInput.PublishDirectory = &p
+	}
+
+	if input.RootDirectory != nil {
+		p, err := sanitizePath(*input.RootDirectory, "root_directory")
+		if err != nil {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, UpdateServiceOutput{}, nil
+		}
+		depInput.RootDirectory = &p
+	}
+
+	if input.DockerfilePath != nil {
+		p, err := sanitizePath(*input.DockerfilePath, "dockerfile_path")
+		if err != nil {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, UpdateServiceOutput{}, nil
+		}
+		depInput.DockerfilePath = &p
+	}
+
+	depInput.BuildCommand = input.BuildCommand
+	depInput.StartCommand = input.StartCommand
+
+	if input.Port != nil {
+		p := strconv.Itoa(*input.Port)
+		depInput.Port = &p
+	}
+
+	if input.EnvVars != nil {
+		envVars := make([]deployments.EnvVar, len(*input.EnvVars))
+		for i, ev := range *input.EnvVars {
+			envVars[i] = deployments.EnvVar{Key: ev.Key, Value: ev.Value}
+		}
+		depInput.EnvVars = &envVars
+	}
+
+	result, err := s.deployService.UpdateService(ctx, depInput)
+	if err != nil {
+		s.logger.Error("failed to update service", "error", err)
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, UpdateServiceOutput{}, nil
+	}
+
+	return nil, UpdateServiceOutput{
+		ServiceID: result.ServiceID,
+		Name:      result.Name,
+		Status:    result.Status,
+		Message:   "Service updated and redeploying. Use get_service to check status.",
+	}, nil
 }
 
 func (s *Server) handleDeleteResource(ctx context.Context, req *mcp.CallToolRequest, input DeleteResourceInput) (*mcp.CallToolResult, DeleteResourceOutput, error) {

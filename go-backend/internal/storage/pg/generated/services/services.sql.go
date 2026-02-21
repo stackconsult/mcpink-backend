@@ -582,3 +582,73 @@ func (q *Queries) SoftDeleteService(ctx context.Context, id string) (Service, er
 	)
 	return i, err
 }
+
+const updateServiceConfig = `-- name: UpdateServiceConfig :one
+UPDATE services SET
+    repo = $1,
+    branch = $2,
+    git_provider = $3,
+    port = $4,
+    env_vars = $5,
+    build_pack = $6,
+    build_config = $7,
+    memory = $8,
+    vcpus = $9,
+    updated_at = NOW()
+WHERE id = $10 AND is_deleted = false
+RETURNING id, user_id, project_id, repo, branch, git_provider, name, port, build_pack, env_vars, build_config, memory, vcpus, publish_directory, fqdn, custom_domain, server_uuid, current_deployment_id, is_deleted, created_at, updated_at, region
+`
+
+type UpdateServiceConfigParams struct {
+	Repo        string `json:"repo"`
+	Branch      string `json:"branch"`
+	GitProvider string `json:"git_provider"`
+	Port        string `json:"port"`
+	EnvVars     []byte `json:"env_vars"`
+	BuildPack   string `json:"build_pack"`
+	BuildConfig []byte `json:"build_config"`
+	Memory      string `json:"memory"`
+	Vcpus       string `json:"vcpus"`
+	ID          string `json:"id"`
+}
+
+func (q *Queries) UpdateServiceConfig(ctx context.Context, arg UpdateServiceConfigParams) (Service, error) {
+	row := q.db.QueryRow(ctx, updateServiceConfig,
+		arg.Repo,
+		arg.Branch,
+		arg.GitProvider,
+		arg.Port,
+		arg.EnvVars,
+		arg.BuildPack,
+		arg.BuildConfig,
+		arg.Memory,
+		arg.Vcpus,
+		arg.ID,
+	)
+	var i Service
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ProjectID,
+		&i.Repo,
+		&i.Branch,
+		&i.GitProvider,
+		&i.Name,
+		&i.Port,
+		&i.BuildPack,
+		&i.EnvVars,
+		&i.BuildConfig,
+		&i.Memory,
+		&i.Vcpus,
+		&i.PublishDirectory,
+		&i.Fqdn,
+		&i.CustomDomain,
+		&i.ServerUuid,
+		&i.CurrentDeploymentID,
+		&i.IsDeleted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Region,
+	)
+	return i, err
+}

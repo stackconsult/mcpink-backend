@@ -5,6 +5,36 @@ extend type Query {
 
 extend type Mutation {
   deleteService(name: String!, project: String): DeleteServiceResult! @isAuthenticated
+  updateService(input: UpdateServiceInput!): UpdateServiceResult! @isAuthenticated
+}
+
+input UpdateServiceInput {
+  name: String!
+  project: String
+  repo: String
+  host: String
+  branch: String
+  port: Int
+  envVars: [EnvVarInput!]
+  buildPack: String
+  memory: String
+  vcpus: String
+  buildCommand: String
+  startCommand: String
+  publishDirectory: String
+  rootDirectory: String
+  dockerfilePath: String
+}
+
+input EnvVarInput {
+  key: String!
+  value: String!
+}
+
+type UpdateServiceResult {
+  serviceId: ID!
+  name: String!
+  status: String!
 }
 
 type DeleteServiceResult {

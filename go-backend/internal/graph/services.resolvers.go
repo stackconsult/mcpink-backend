@@ -8,6 +8,7 @@ package graph
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/augustdev/autoclip/internal/authz"
 	"github.com/augustdev/autoclip/internal/deployments"
@@ -38,6 +39,67 @@ func (r *mutationResolver) DeleteService(ctx context.Context, name string, proje
 		ServiceID: result.ServiceID,
 		Name:      result.Name,
 		Message:   "Service deletion initiated",
+	}, nil
+}
+
+// UpdateService is the resolver for the updateService field.
+func (r *mutationResolver) UpdateService(ctx context.Context, input model.UpdateServiceInput) (*model.UpdateServiceResult, error) {
+	userID := authz.For(ctx).GetUserID()
+
+	projectRef := "default"
+	if input.Project != nil && *input.Project != "" {
+		projectRef = *input.Project
+	}
+
+	depInput := deployments.UpdateServiceInput{
+		Name:             input.Name,
+		Project:          projectRef,
+		UserID:           userID,
+		Repo:             input.Repo,
+		Branch:           input.Branch,
+		BuildPack:        input.BuildPack,
+		Memory:           input.Memory,
+		VCPUs:            input.Vcpus,
+		BuildCommand:     input.BuildCommand,
+		StartCommand:     input.StartCommand,
+		PublishDirectory: input.PublishDirectory,
+		RootDirectory:    input.RootDirectory,
+		DockerfilePath:   input.DockerfilePath,
+	}
+
+	if input.Port != nil {
+		p := strconv.Itoa(int(*input.Port))
+		depInput.Port = &p
+	}
+
+	if input.Host != nil {
+		switch *input.Host {
+		case "ink", "internal":
+			gp := "internal"
+			depInput.GitProvider = &gp
+		case "github":
+			gp := "github"
+			depInput.GitProvider = &gp
+		}
+	}
+
+	if input.EnvVars != nil {
+		envVars := make([]deployments.EnvVar, len(input.EnvVars))
+		for i, ev := range input.EnvVars {
+			envVars[i] = deployments.EnvVar{Key: ev.Key, Value: ev.Value}
+		}
+		depInput.EnvVars = &envVars
+	}
+
+	result, err := r.DeployService.UpdateService(ctx, depInput)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.UpdateServiceResult{
+		ServiceID: result.ServiceID,
+		Name:      result.Name,
+		Status:    result.Status,
 	}, nil
 }
 
